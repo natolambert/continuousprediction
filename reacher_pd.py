@@ -10,7 +10,7 @@ from dotmap import DotMap
 from matplotlib.pyplot import cm
 
 # import R.data as rdata
-import progressbar
+# import progressbar
 from timeit import default_timer as timer
 import matplotlib.pyplot as plt
 # import scipyplot as spp
@@ -51,8 +51,14 @@ def stateAction2forwardDyn(states, actions):
 class Net(nn.Module):
     """
     Neural Network
+
+    In this case this is being used as a model of the environment right?
     """
     def __init__(self, structure=[20, 100, 100, 1], tf=F.relu):
+        """
+        :param structure: layer sizes
+        :param tf: nonlinearity function
+        """
         super(Net, self).__init__()
 
         # TODO: parameteric NN
@@ -118,6 +124,7 @@ class Net(nn.Module):
 def train_network(dataset, model, parameters=DotMap()):
     import torch.optim as optim
 
+    # This bit basically adds variables to the dotmap with default values
     p = DotMap()
     p.opt.n_epochs = parameters.get('n_epochs', 10)
     p.opt.optimizer = optim.Adam
@@ -139,6 +146,7 @@ def train_network(dataset, model, parameters=DotMap()):
     # Optimizer
     optimizer = p.opt.optimizer(model.parameters(), lr=p.learning_rate)
 
+    # Lets cudnn autotuner find optimal algorithm for hardware
     cudnn.benchmark = True
 
     from torch.utils.data.dataset import Dataset
@@ -149,6 +157,7 @@ def train_network(dataset, model, parameters=DotMap()):
         model.cuda()
         p.criterion.cuda()
 
+    # Wrapper representing map-style PyTorch dataset
     class PytorchDataset(Dataset):
         def __init__(self, dataset):
             self.inputs = torch.from_numpy(dataset[0]).float()
@@ -170,7 +179,10 @@ def train_network(dataset, model, parameters=DotMap()):
 
     logging.info('Training NN from dataset')
 
-    dataset = PytorchDataset(dataset=dataset)
+    # Puts it in PyTorch dataset form and then converts to DataLoader
+    #
+    # DataLoader is an iterable
+    dataset = PytorchDataset(dataset=dataset) # Using PyTorch
     loader = DataLoader(dataset, batch_size=p.opt.batch_size, shuffle=True)  ##shuffle=True #False
         # pin_memory=True
         # drop_last=False
@@ -180,8 +192,9 @@ def train_network(dataset, model, parameters=DotMap()):
         logs.time = [0]
 
     for epoch in range(p.opt.n_epochs):
-        for i, data in enumerate(loader, 0):
+        for i, data in enumerate(loader, 0): # Not sure why it uses enumerate instead of regular interation
             # Load data
+            # Variable is a wrapper for Tensors with autograd
             inputs, targets = data
             if p.useGPU:
                 inputs = Variable(inputs.cuda())
@@ -219,6 +232,13 @@ def plot_pred(groundtruth, prediction, sorted=True):
 
 
 def run_controller(env, horizon, policy):
+    """
+    :param env: A gym object
+    :param horizon: The number of states forward to look
+    :param policy: A policy object (see other python file)
+    """
+
+    # WHat is going on here?
     def obs2q(obs):
         return obs[0:7]
 
@@ -250,6 +270,7 @@ def run_controller(env, horizon, policy):
     return logs
 
 
+# Is the purpose of this to collect data for the model of the environment?
 def collect_data(nTrials=20, horizon=1000):
     """
     Collect data
@@ -258,6 +279,8 @@ def collect_data(nTrials=20, horizon=1000):
     :return:
     """
     # env = gym.make('Reacher-v2')
+    # This makes a gym model which seems to be an abstracted environment
+    # I believe this model is like an arm that reaches for a point in 3D?
     env_model = 'Reacher3D-v0'
     env = gym.make(env_model)
     logging.info('Initializing env: %s' % env_model)
@@ -294,10 +317,11 @@ def collect_data(nTrials=20, horizon=1000):
 
 
 # Learn model t only
+# Creating a dataset for learning different T values
 def create_dataset_t_only(states):
     data_in = []
     data_out = []
-    for i in range(states.shape[0]):
+    for i in range(states.shape[0]): #From one state p
         for j in range(i+1, states.shape[0]):
             data_in.append(np.hstack((states[i], j-i)))
             data_out.append(states[j])
@@ -327,7 +351,7 @@ def main():
     TRAIN_MODEL = False
 
     # Collect data
-    if collect_data():
+    if collect_data(): # Won't this always be true?
         logging.info('Collecting data')
         train_data = collect_data(nTrials=1)  # 50
         test_data = collect_data(nTrials=1)  # 5
@@ -401,4 +425,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

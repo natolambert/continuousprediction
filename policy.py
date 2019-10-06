@@ -1,4 +1,4 @@
-# Compatibility Python 2/3
+ # Compatibility Python 2/3
 from __future__ import division, print_function, absolute_import
 from builtins import range
 # ----------------------------------------------------------------------------------------------------------------------
@@ -104,7 +104,7 @@ class linearController(Policy):
         :param B:
         """
         Policy.__init__(dX=dX, dU=dU)
-        self.A = np.matrix(A)
+        self.A = np.matrix(A) # I'm confused by this. Aren't matrices necessarily 2D
         self.B = np.matrix(B)
         if self.A.ndim is 3:
             self.timevariant = True
@@ -119,7 +119,9 @@ class linearController(Policy):
 
 
 class PID(Policy):
-
+    """
+    Proportional-integral-derivative controller.
+    """
     def __init__(self, dX, dU, P, I, D):
         Policy.__init__(self, dX=dX, dU=dU)
         self.n_dof = dU
@@ -223,4 +225,3 @@ class jointsTrajectoryTrackingPID(PID):
 #
 #     def _action(self, x, obs, time, noise):
 #         return self.controller.action(x, obs, time, noise)
-
