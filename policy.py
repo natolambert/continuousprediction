@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import copy
 from datetime import datetime
-import R.log as rlog
+# import R.log as rlog removed as it seems unused
 from timeit import default_timer as timer
 
 
@@ -122,7 +122,7 @@ class PID(Policy):
     """
     Proportional-integral-derivative controller.
     """
-    def __init__(self, dX, dU, P, I, D):
+    def __init__(self, dX, dU, P, I, D, target): # added 'target' because the code was broken without it. it does nothing
         Policy.__init__(self, dX=dX, dU=dU)
         self.n_dof = dU
         # TODO: fix dimensionality with P
@@ -140,7 +140,8 @@ class PID(Policy):
             self.Kd = D
         self.prev_error = 0
         self.error = 0
-
+        
+#    should be _action(self, x, obs, time, noise):
     def _action(self, q, q_des):
         self.error = q_des - q
         P_value = self.Kp * self.error

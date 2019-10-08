@@ -1,7 +1,7 @@
 # Compatibility Python 2/3
-from __future__ import division, print_function, absolute_import
-from builtins import range
-from past.builtins import basestring
+# from __future__ import division, print_function, absolute_import
+# from builtins import range
+# from past.builtins import basestring
 # ----------------------------------------------------------------------------------------------------------------------
 
 import numpy as np
@@ -10,7 +10,7 @@ from dotmap import DotMap
 from matplotlib.pyplot import cm
 
 # import R.data as rdata
-# import progressbar
+# import progressbar removed because it seemed unused
 from timeit import default_timer as timer
 import matplotlib.pyplot as plt
 # import scipyplot as spp
@@ -23,7 +23,7 @@ import torch.backends.cudnn as cudnn
 import save
 import gym
 # from gym.monitoring import VideoRecorder
-import src.env
+# import src.env removed because it seemed unused
 import scipyplot as spp
 
 import logging
@@ -40,6 +40,7 @@ logging.basicConfig(
 # logger.addHandler(fh)
 
 from policy import PID
+from policy import randomPolicy
 
 
 def stateAction2forwardDyn(states, actions):
@@ -281,7 +282,8 @@ def collect_data(nTrials=20, horizon=1000):
     # env = gym.make('Reacher-v2')
     # This makes a gym model which seems to be an abstracted environment
     # I believe this model is like an arm that reaches for a point in 3D?
-    env_model = 'Reacher3D-v0'
+    # env_model = 'Reacher3D-v0'
+    env_model = 'Reacher-v2'
     env = gym.make(env_model)
     logging.info('Initializing env: %s' % env_model)
 
@@ -305,7 +307,8 @@ def collect_data(nTrials=20, horizon=1000):
         I = np.zeros(7)
         D = [0.2, 0.2, 2, 0.4, 0.4, 0.1, 0.5]
         target = [0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.5]
-        policy = PID(dX=7, dU=7, P=P, I=I, D=D, target=target)
+        # policy = PID(dX=7, dU=7, P=P, I=I, D=D, target=target)
+        policy = randomPolicy(dX = 7, dU = 7);
         logs.append(run_controller(env, horizon=horizon, policy=policy))
 
         # # Visualize
