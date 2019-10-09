@@ -241,7 +241,7 @@ def run_controller(env, horizon, policy):
 
     # WHat is going on here?
     def obs2q(obs):
-        return obs[0:7]
+        return obs[0:5]
 
     logs = DotMap()
     logs.states = []
@@ -254,7 +254,9 @@ def run_controller(env, horizon, policy):
         # env.render()
         state = observation
         # print(state)
-        action = policy.act(obs2q(state))
+        action, t = policy.act(obs2q(state))
+
+        # print(action)
 
         observation, reward, done, info = env.step(action)
 
@@ -274,16 +276,15 @@ def run_controller(env, horizon, policy):
 # Is the purpose of this to collect data for the model of the environment?
 def collect_data(nTrials=20, horizon=1000):
     """
-    Collect data
+    Collect data for environment model
     :param nTrials:
     :param horizon:
     :return:
     """
     # env = gym.make('Reacher-v2')
-    # This makes a gym model which seems to be an abstracted environment
     # I believe this model is like an arm that reaches for a point in 3D?
-    # env_model = 'Reacher3D-v0'
-    env_model = 'Reacher-v2'
+    env_model = 'Reacher3d-v1' #couldn't figure out how ro run this model
+    # env_model = 'Reacher-v2'
     env = gym.make(env_model)
     logging.info('Initializing env: %s' % env_model)
 
@@ -303,12 +304,23 @@ def collect_data(nTrials=20, horizon=1000):
     for i in range(nTrials):
         logging.info('Trial %d' % i)
         env.seed(i)
+        # The following lines are for a 3d reacher environment
         P = np.array([4, 4, 1, 1, 1, 1, 2])
         I = np.zeros(7)
         D = [0.2, 0.2, 2, 0.4, 0.4, 0.1, 0.5]
         target = [0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.5]
-        # policy = PID(dX=7, dU=7, P=P, I=I, D=D, target=target)
+        policy = PID(dX=7, dU=7, P=P, I=I, D=D, target=target)
         policy = randomPolicy(dX = 7, dU = 7);
+
+        # I'm not *totally* sure what I'm doing so the following arrays are randomely chosen
+        # P = np.array([2, 2])
+        # I = np.zeros(2)
+        # D = np.array([0.2,0.2])
+        # target = np.array([0.5, 0.5])
+        # policy = PID(dX=7, dU=2, P=P, I=I, D=D, target=target)
+
+
+
         logs.append(run_controller(env, horizon=horizon, policy=policy))
 
         # # Visualize

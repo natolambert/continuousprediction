@@ -26,10 +26,10 @@ class Policy(object):
     def act(self, x, obs=None, time=None, noise=None):
         """
         Function to be called externally. Compute next action.
-        :param x:
-        :param obs:
-        :param time:
-        :param noise:
+        :param x: an observation I believe?
+        :param obs: also an observation?
+        :param time: the time
+        :param noise: noise
         :return:
             a: action to perform
             t: scalar amount of time used to compute action
@@ -122,7 +122,15 @@ class PID(Policy):
     """
     Proportional-integral-derivative controller.
     """
-    def __init__(self, dX, dU, P, I, D, target): # added 'target' because the code was broken without it. it does nothing
+    def __init__(self, dX, dU, P, I, D, target):
+        """
+        :param dX: unused
+        :param dU: dimensionality of state and control signal
+        :param P: proportional control coeff
+        :param I: integral control coeff
+        :param D: derivative control coeff
+        :param target: setpoint
+        """
         Policy.__init__(self, dX=dX, dU=dU)
         self.n_dof = dU
         # TODO: fix dimensionality with P
@@ -138,11 +146,18 @@ class PID(Policy):
             self.Kd = np.tile(D, self.n_dof)
         else:
             self.Kd = D
+        self.target = target
         self.prev_error = 0
         self.error = 0
-        
+        # self.cum_error = 0
+        # self.I_count = 0
+
 #    should be _action(self, x, obs, time, noise):
-    def _action(self, q, q_des):
+    # def _action(self, q, q_des):
+    def _action(self, x, obs, time, noise):
+        q_des = self.target
+        q = x
+
         self.error = q_des - q
         P_value = self.Kp * self.error
         I_value = 0  # TODO: implement I and D part
