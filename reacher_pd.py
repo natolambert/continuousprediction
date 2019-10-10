@@ -4,6 +4,10 @@
 # from past.builtins import basestring
 # ----------------------------------------------------------------------------------------------------------------------
 
+import warnings
+import matplotlib.cbook
+warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
+
 import numpy as np
 from dotmap import DotMap
 # import matplotlib.pyplot as plt
@@ -91,43 +95,14 @@ class Net(nn.Module):
             return self.forward(Variable(torch.from_numpy(np.matrix(x)).float())).data.cpu().numpy()
 
 
-# class FaceLandmarksDataset(Dataset):
-#     """Face Landmarks dataset."""
-#
-#     def __init__(self, csv_file, root_dir, transform=None):
-#         """
-#         Args:
-#             csv_file (string): Path to the csv file with annotations.
-#             root_dir (string): Directory with all the images.
-#             transform (callable, optional): Optional transform to be applied
-#                 on a sample.
-#         """
-#         self.landmarks_frame = pd.read_csv(csv_file)
-#         self.root_dir = root_dir
-#         self.transform = transform
-#
-#     def __len__(self):
-#         return len(self.landmarks_frame)
-#
-#     def __getitem__(self, idx):
-#         img_name = os.path.join(self.root_dir,
-#                                 self.landmarks_frame.iloc[idx, 0])
-#         image = io.imread(img_name)
-#         landmarks = self.landmarks_frame.iloc[idx, 1:].as_matrix()
-#         landmarks = landmarks.astype('float').reshape(-1, 2)
-#         sample = {'image': image, 'landmarks': landmarks}
-#
-#         if self.transform:
-#             sample = self.transform(sample)
-#
-#         return sample
+
 
 def train_network(dataset, model, parameters=DotMap()):
     import torch.optim as optim
 
     # This bit basically adds variables to the dotmap with default values
     p = DotMap()
-    p.opt.n_epochs = parameters.get('n_epochs', 10)
+    p.opt.n_epochs = parameters.opt.get('n_epochs', 10)
     p.opt.optimizer = optim.Adam
     p.opt.batch_size = parameters.get('batch_size', 100)
     p.criterion = nn.MSELoss()
@@ -192,8 +167,13 @@ def train_network(dataset, model, parameters=DotMap()):
     if logs.time is None:
         logs.time = [0]
 
+    print("Training for %d epochs" % p.opt.n_epochs)
+
     for epoch in range(p.opt.n_epochs):
-        for i, data in enumerate(loader, 0): # Not sure why it uses enumerate instead of regular interation
+        print("Epoch Number %d -----------------" % epoch)
+        for i, data in enumerate(loader, 0):
+            if i % 100 == 0:
+                print("    Batch %d" % i)
             # Load data
             # Variable is a wrapper for Tensors with autograd
             inputs, targets = data
@@ -207,8 +187,9 @@ def train_network(dataset, model, parameters=DotMap()):
             optimizer.zero_grad()
             outputs = model.forward(inputs)
             loss = p.criterion(outputs, targets)
+            # print(loss)
 
-            e = loss.data[0]
+            e = loss.item()
             logs.training_error.append(e)
             logging.info('Iter %010d - %f ' % (epoch, e))
             loss.backward()
@@ -305,12 +286,16 @@ def collect_data(nTrials=20, horizon=1000):
         logging.info('Trial %d' % i)
         env.seed(i)
         # The following lines are for a 3d reacher environment
-        P = np.array([4, 4, 1, 1, 1, 1, 2])
-        I = np.zeros(7)
-        D = [0.2, 0.2, 2, 0.4, 0.4, 0.1, 0.5]
-        target = [0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.5]
-        policy = PID(dX=7, dU=7, P=P, I=I, D=D, target=target)
-        policy = randomPolicy(dX = 7, dU = 7);
+        # Replacing the following because they are dim 7, but should be 5
+        # P = np.array([4, 4, 1, 1, 1, 1, 2])
+        # I = np.zeros(7)
+        # D = [0.2, 0.2, 2, 0.4, 0.4, 0.1, 0.5]
+        # target = [0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.5]
+        P = np.array([4, 4, 1, 1, 1])
+        I = np.zeros(5)
+        D = [0.2, 0.2, 2, 0.4, 0.4]
+        target = [0.5, 0.5, 0.5, 0.5, 0.5]
+        policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
 
         # I'm not *totally* sure what I'm doing so the following arrays are randomely chosen
         # P = np.array([2, 2])
@@ -361,12 +346,12 @@ def create_dataset(data):
 
 def main():
 
-    COLLECT_DATA = False
-    CREATE_DATASET = False
-    TRAIN_MODEL = False
+    COLLECT_DATA = True
+    CREATE_DATASET = True
+    TRAIN_MODEL = True
 
     # Collect data
-    if collect_data(): # Won't this always be true?
+    if COLLECT_DATA:
         logging.info('Collecting data')
         train_data = collect_data(nTrials=1)  # 50
         test_data = collect_data(nTrials=1)  # 5
@@ -389,11 +374,11 @@ def main():
         p = DotMap()
         p.opt.n_epochs = 1  # 1000
         p.learning_rate = 0.000001
-        p.useGPU = True
+        p.useGPU = False
         model, logs = train_network(dataset=dataset, model=model, parameters=p)
         logging.info('Saving model to file: %s' % model_file)
         torch.save(model.state_dict(), model_file)
-        save.save(logs, 'logs.pkl')
+        # save.save(logs, 'logs.pkl')
         # TODO: save logs to file
     else:
         logging.info('Loading model to file: %s' % model_file)
@@ -402,12 +387,12 @@ def main():
             model.load_state_dict(checkpoint['state_dict'])
         else:
             model.load_state_dict(checkpoint)
-        logs = save.load('logs.pkl')
+        # logs = save.load('logs.pkl')
         # TODO: load logs from file
 
     # # Plot optimization NN
-    # plt.figure()
-    # plt.plot(np.array(logs.training_error))
+    plt.figure()
+    plt.plot(np.array(logs.training_error))
 
     if False:
         # Evaluate learned model
@@ -440,3 +425,34 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# class FaceLandmarksDataset(Dataset):
+#     """Face Landmarks dataset."""
+#
+#     def __init__(self, csv_file, root_dir, transform=None):
+#         """
+#         Args:
+#             csv_file (string): Path to the csv file with annotations.
+#             root_dir (string): Directory with all the images.
+#             transform (callable, optional): Optional transform to be applied
+#                 on a sample.
+#         """
+#         self.landmarks_frame = pd.read_csv(csv_file)
+#         self.root_dir = root_dir
+#         self.transform = transform
+#
+#     def __len__(self):
+#         return len(self.landmarks_frame)
+#
+#     def __getitem__(self, idx):
+#         img_name = os.path.join(self.root_dir,
+#                                 self.landmarks_frame.iloc[idx, 0])
+#         image = io.imread(img_name)
+#         landmarks = self.landmarks_frame.iloc[idx, 1:].as_matrix()
+#         landmarks = landmarks.astype('float').reshape(-1, 2)
+#         sample = {'image': image, 'landmarks': landmarks}
+#
+#         if self.transform:
+#             sample = self.transform(sample)
+#
+#         return sample
