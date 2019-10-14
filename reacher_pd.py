@@ -264,7 +264,7 @@ def collect_data(nTrials=20, horizon=1000):
     """
     # env = gym.make('Reacher-v2')
     # I believe this model is like an arm that reaches for a point in 3D?
-    env_model = 'Reacher3d-v1' #couldn't figure out how ro run this model
+    env_model = 'Reacher3d-v2' #couldn't figure out how ro run this model
     # env_model = 'Reacher-v2'
     env = gym.make(env_model)
     logging.info('Initializing env: %s' % env_model)
