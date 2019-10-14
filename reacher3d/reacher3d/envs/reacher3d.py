@@ -1,12 +1,13 @@
 import numpy as np
 from gym import utils
 from gym.envs.mujoco import mujoco_env
+import os
 
 class Reacher3dEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
         self.goal = np.array([0.8, -0.6, 0.6])
         utils.EzPickle.__init__(self)
-        mujoco_env.MujocoEnv.__init__(self, 'reacher3d.xml', 4)
+        mujoco_env.MujocoEnv.__init__(self, os.path.join(os.path.dirname(__file__), 'assets/reacher3d.xml'), 4)
 
     def step(self, a):
         vec = self.get_body_com("fingertip")-self.get_body_com("target")
