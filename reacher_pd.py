@@ -46,6 +46,7 @@ logging.basicConfig(
 from policy import PID
 from policy import randomPolicy
 
+import reacher3d
 
 def stateAction2forwardDyn(states, actions):
     data_in = np.concatenate((states[:-1, :], actions[:-1, :]), axis=1)
