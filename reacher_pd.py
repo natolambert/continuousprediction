@@ -255,7 +255,6 @@ def run_controller(env, horizon, policy):
     return logs
 
 
-# Is the purpose of this to collect data for the model of the environment?
 def collect_data(nTrials=20, horizon=1000):
     """
     Collect data for environment model
@@ -268,6 +267,7 @@ def collect_data(nTrials=20, horizon=1000):
     env_model = 'Reacher3d-v2'
     # env_model = 'Reacher-v2'
     env = gym.make(env_model)
+    # print(type(env))
     logging.info('Initializing env: %s' % env_model)
 
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
@@ -298,7 +298,9 @@ def collect_data(nTrials=20, horizon=1000):
         I = np.zeros(5)
         D = [0.2, 0.2, 2, 0.4, 0.4]
         target = [0.5, 0.5, 0.5, 0.5, 0.5]
+        # target = env.get_body_com("target")
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
+        # print(type(env))
 
         # Logs will be a
         logs.append(run_controller(env, horizon=horizon, policy=policy))
@@ -332,6 +334,19 @@ def create_dataset_t_only(states):
 
     return data_in, data_out
 
+def create_dataset_no_t(states):
+    """
+    Creates a dataset for learning how one state progresses to the next
+    """
+    data_in = []
+    data_out = []
+    for i in range(states.shape[0]-1):
+        data_in.append(states[i])
+        data_out.append(states[i+1])
+    data_in = np.array(data_in)
+    data_out = np.array(data_out)
+
+    return data_in, data_out
 
 def create_dataset(data):
     dataset_in = None
@@ -351,7 +366,8 @@ def main():
 
     COLLECT_DATA = True
     CREATE_DATASET = True
-    TRAIN_MODEL = True
+    TRAIN_MODEL = False
+    TRAIN_MODEL_NO_T = True
 
     # Collect data
     if COLLECT_DATA:
@@ -365,6 +381,7 @@ def main():
     if CREATE_DATASET:
         logging.info('Creating dataset')
         dataset = create_dataset(train_data)
+        dataset_no_t = create_dataset_no_t(train_data[0].states)
     else:
         pass
 
@@ -393,9 +410,58 @@ def main():
         # logs = save.load('logs.pkl')
         # TODO: load logs from file
 
+    # Train no t model
+    model_file = 'model_no_t.pth.tar'
+    n_in = dataset_no_t[0].shape[1]
+    n_out = dataset_no_t[1].shape[1]
+    model_no_t = Net(structure=[n_in, 2000, 2000, n_out])
+    if TRAIN_MODEL_NO_T:
+        p = DotMap()
+        p.opt.n_epochs = 1 #1000
+        p.learning_rate = 0.000001
+        p.useGPU = False
+        model_no_t, logs_no_t = train_network(dataset=dataset_no_t, model=model_no_t, parameters=p)
+        logging.info('Saving model to file: %s' % model_file)
+        torch.save(model_no_t.state_dict(), model_file)
+    else:
+        logging.info('Loading model to file: %s' % model_file)
+        checkpoint = torch.load(model_file)
+        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+            model_no_t.load_state_dict(checkpoint['state_dict'])
+        else:
+            model_no_t.load_state_dict(checkpoint)
+
     # # Plot optimization NN
+    # plt.figure()
+    # plt.plot(np.array(logs.training_error))
+    # plt.title("Training Error with t")
+    # plt.show()
+    #
+    # plt.figure()
+    # plt.plot(np.array(logs_no_t.training_error))
+    # plt.title("Training Error without t")
+    # plt.show()
+
+    print("Beginning testing")
+    mse_t = []
+    mse_no_t = []
+    states = test_data[0].states
+    initial = states[0]
+    current = initial
+    for i in range(1, states.shape[0]):
+        pred_t = model.predict(np.hstack((initial, i)))
+        pred_no_t = model_no_t.predict(current)
+        groundtruth = states[i]
+        mse_t.append(np.square(groundtruth - pred_t).mean())
+        mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
+        current = pred_no_t
+
     plt.figure()
-    plt.plot(np.array(logs.training_error))
+    plt.title("MSE over time for model with and without t")
+    plt.plot(mse_t, color='red', label='with t')
+    plt.plot(mse_no_t, color='blue', label='without t')
+    plt.legend()
+    plt.show()
 
     if False:
         # Evaluate learned model
