@@ -261,15 +261,17 @@ def collect_data(nTrials=20, horizon=1000):
     Collect data for environment model
     :param nTrials:
     :param horizon:
-    :return:
+    :return: an array of DotMaps, where each DotMap contains info about a sequence of steps
     """
     # env = gym.make('Reacher-v2')
     # I believe this model is like an arm that reaches for a point in 3D?
-    env_model = 'Reacher3d-v2' #couldn't figure out how ro run this model
+    env_model = 'Reacher3d-v2'
     # env_model = 'Reacher-v2'
     env = gym.make(env_model)
     logging.info('Initializing env: %s' % env_model)
 
+    # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
+    # about <horizon> steps with actions, rewards and states
     logs = []
 
     # def init_env(env):
@@ -298,15 +300,7 @@ def collect_data(nTrials=20, horizon=1000):
         target = [0.5, 0.5, 0.5, 0.5, 0.5]
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
 
-        # I'm not *totally* sure what I'm doing so the following arrays are randomely chosen
-        # P = np.array([2, 2])
-        # I = np.zeros(2)
-        # D = np.array([0.2,0.2])
-        # target = np.array([0.5, 0.5])
-        # policy = PID(dX=7, dU=2, P=P, I=I, D=D, target=target)
-
-
-
+        # Logs will be a
         logs.append(run_controller(env, horizon=horizon, policy=policy))
 
         # # Visualize
@@ -320,14 +314,22 @@ def collect_data(nTrials=20, horizon=1000):
 # Learn model t only
 # Creating a dataset for learning different T values
 def create_dataset_t_only(states):
+    """
+    Creates a dataset with an entry for how many timesteps in the future
+    corresponding entries in the labels are
+    :param states: A 2d np array. Each row is a state
+    """
     data_in = []
     data_out = []
     for i in range(states.shape[0]): #From one state p
         for j in range(i+1, states.shape[0]):
+            # This creates an entry for a given state concatenated with a number t of time steps
             data_in.append(np.hstack((states[i], j-i)))
+            # This creates an entry for the state t timesteps in the future
             data_out.append(states[j])
     data_in = np.array(data_in)
     data_out = np.array(data_out)
+
     return data_in, data_out
 
 
