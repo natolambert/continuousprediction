@@ -6,7 +6,7 @@ Formulating Model-based RL Dynamics as a continuous rather then one step predict
 To run the code use the following steps:
 
 1. Create a conda environment from the provided yml file and activate it
-1b. Installing mujoco will fail. See the repo for instructions: https://github.com/openai/mujoco-py
+2. Installing mujoco will fail. See the repo for instructions: https://github.com/openai/mujoco-py
 <!-- 2. Navigate into the `reacher3d` folder and run the command ```pip install -e .```
 1. Create an environment from the provided yml file
 2. Find the folder for that with `echo $CONDA_PREFIX` on Mac or `echo %CONDA_PREFIX%` on Windows
