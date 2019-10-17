@@ -217,7 +217,6 @@ def run_controller(env, horizon, policy):
     for t in range(horizon):
         # env.render()
         state = observation
-        # print(state)
         action, t = policy.act(obs2q(state))
 
         # print(action)
@@ -260,8 +259,8 @@ def collect_data(nTrials=20, horizon=1000):
     #     qpos = np.copy(env.init_qpos)
     #     qvel = np.copy(env.init_qvel)
     #     qpos[0:7] += np.random.normal(loc=0.5, scale=1, size=[7])
-    #     # qpos[-3:] += np.random.normal(loc=0, scale=1, size=[3])
-    #     # qvel[-3:] = 0
+    #     qpos[-3:] += np.random.normal(loc=0, scale=1, size=[3])
+    #     qvel[-3:] = 0
     #     env.goal = qpos[-3:]
     #     env.set_state(qpos, qvel)
     #     env.T = 0
@@ -270,26 +269,25 @@ def collect_data(nTrials=20, horizon=1000):
     for i in range(nTrials):
         log.info('Trial %d' % i)
         env.seed(i)
+        s0 = env.reset()
+
+        print("Goaling to goal: ", env.goal)
         # The following lines are for a 3d reacher environment
-        # Replacing the following because they are dim 7, but should be 5
-        # P = np.array([4, 4, 1, 1, 1, 1, 2])
-        # I = np.zeros(7)
-        # D = [0.2, 0.2, 2, 0.4, 0.4, 0.1, 0.5]
-        # target = [0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.5]
         P = np.array([4, 4, 1, 1, 1])
         I = np.zeros(5)
-        D = [0.2, 0.2, 2, 0.4, 0.4]
-        target = [0.5, 0.5, 0.5, 0.5, 0.5]
+        D = np.array([0.2, 0.2, 2, 0.4, 0.4])
+        target = np.array([0.5, 0.5, 0.5, 0.5, 0.5])
         # target = env.get_body_com("target")
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         # print(type(env))
 
         # Logs will be a
         logs.append(run_controller(env, horizon=horizon, policy=policy))
-
+        print("end pos is: ", logs[i].states[-1, -3:])
         # # Visualize
         # plt.figure()
-        # h = plt.plot(logs[i].states[:, 0:7])
+        # # h = plt.plot(logs[i].states[:, 0:7])
+        # h = plt.plot(logs[i].states[:, -3:])
         # plt.legend(h)
         # plt.show()
     return logs
@@ -378,7 +376,7 @@ def contpred(cfg):
     if TRAIN_MODEL:
         p = DotMap()
         p.opt.n_epochs = cfg.nn.optimizer.epochs  # 1000
-        p.learning_rate =cfg.nn.optimizer.lr
+        p.learning_rate = cfg.nn.optimizer.lr
         p.useGPU = False
         model, logs = train_network(dataset=dataset, model=model, parameters=p)
         log.info('Saving model to file: %s' % model_file)
@@ -399,7 +397,7 @@ def contpred(cfg):
     model_file = 'model_no_t.pth.tar'
     n_in = dataset_no_t[0].shape[1]
     n_out = dataset_no_t[1].shape[1]
-    model_no_t = Net(structure=[n_in, 2000, 2000, n_out])
+    model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL_NO_T:
         p = DotMap()
         p.opt.n_epochs = cfg.nn.optimizer.epochs  # 1000
@@ -444,8 +442,8 @@ def contpred(cfg):
 
     plt.figure()
     plt.title("MSE over time for model with and without t")
-    plt.plot(mse_t, color='red', label='with t')
-    plt.plot(mse_no_t, color='blue', label='without t')
+    plt.semilogy(mse_t, color='red', label='with t')
+    plt.semilogy(mse_no_t, color='blue', label='without t')
     plt.legend()
     plt.show()
 
