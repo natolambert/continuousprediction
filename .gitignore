@@ -1,0 +1,4 @@
+*.log
+*.pyc
+*.DS_Store
+MUJOCO_LOG.TXT

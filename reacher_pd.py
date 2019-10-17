@@ -26,6 +26,8 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import save
 import gym
+from envs import *
+
 # from gym.monitoring import VideoRecorder
 # import src.env removed because it seemed unused
 import scipyplot as spp
@@ -46,7 +48,6 @@ logging.basicConfig(
 from policy import PID
 from policy import randomPolicy
 
-import reacher3d
 
 def stateAction2forwardDyn(states, actions):
     data_in = np.concatenate((states[:-1, :], actions[:-1, :]), axis=1)
