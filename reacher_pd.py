@@ -315,15 +315,16 @@ def create_dataset_t_only(states):
     return data_in, data_out
 
 
-def create_dataset_no_t(states):
+def create_dataset_no_t(data):
     """
     Creates a dataset for learning how one state progresses to the next
     """
     data_in = []
     data_out = []
-    for i in range(states.shape[0] - 1):
-        data_in.append(states[i])
-        data_out.append(states[i + 1])
+    for sequence in data:
+        for i in range(sequence.states.shape[0] - 1):
+            data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
+            data_out.append(sequence.states[i + 1])
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
@@ -363,7 +364,7 @@ def contpred(cfg):
     if CREATE_DATASET:
         log.info('Creating dataset')
         dataset = create_dataset(train_data)
-        dataset_no_t = create_dataset_no_t(train_data[0].states)
+        dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
     else:
         pass
 
@@ -430,15 +431,22 @@ def contpred(cfg):
     mse_t = []
     mse_no_t = []
     states = test_data[0].states
+    actions = test_data[0].actions
     initial = states[0]
     current = initial
+    predictions_1 = [states[0,:]]
+    predictions_2 = [states[0,:]]
     for i in range(1, states.shape[0]):
         pred_t = model.predict(np.hstack((initial, i)))
-        pred_no_t = model_no_t.predict(current)
+        pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
+        predictions_1.append(pred_t.squeeze())
+        predictions_2.append(pred_no_t.squeeze())
         groundtruth = states[i]
         mse_t.append(np.square(groundtruth - pred_t).mean())
         mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
-        current = pred_no_t
+        current = pred_no_t.squeeze()
+
+    plot_states(states, np.array(predictions_1), np.array(predictions_2), idx_plot=[0, 1, 2, 3, 4, 5, 6])
 
     plt.figure()
     plt.title("MSE over time for model with and without t")
@@ -447,7 +455,7 @@ def contpred(cfg):
     plt.legend()
     plt.show()
 
-    if False:
+    if True:
         # Evaluate learned model
         def augment_state(state, horizon=990):
             """
@@ -474,6 +482,24 @@ def contpred(cfg):
             h2 = plt.plot(groundtruth[:, i], c='r', label='Groundtruth')
             plt.legend()
             plt.show()
+
+
+def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, save=False):
+    num = np.shape(ground_truth)[0]
+    dx = np.shape(ground_truth)[1]
+    if idx_plot is None:
+        idx_plot = list(range(dx))
+
+    for i in idx_plot:
+        gt = ground_truth[:, i]
+        p1 = prediction_param[:, i]
+        p2 = prediction_step[:, i]
+        plt.figure()
+        plt.plot(p1, c='k', label='Prediction T-Param')
+        plt.plot(p2, c='b', label='Prediction 1 Steps')
+        plt.plot(gt, c='r', label='Groundtruth')
+        plt.legend()
+        plt.show()
 
 
 if __name__ == '__main__':

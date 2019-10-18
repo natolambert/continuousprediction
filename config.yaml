@@ -4,7 +4,7 @@ train_model: true
 train_model_onestep: true
 
 experiment:
-  traj_len: 100
+  traj_len: 200
   num_traj: 4
   split: .8
 
@@ -16,8 +16,8 @@ nn:
     E: 5
     plot_loss: false
   optimizer:
-    epochs: 15
+    epochs: 10
     batch: 128
     name: Adam
     split: .8
-    lr: .0025
+    lr: .025
