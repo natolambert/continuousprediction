@@ -215,7 +215,7 @@ def run_controller(env, horizon, policy):
 
     observation = env.reset()
     for t in range(horizon):
-        # env.render()
+        env.render()
         state = observation
         action, t = policy.act(obs2q(state))
 
@@ -271,19 +271,20 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
         env.seed(i)
         s0 = env.reset()
 
-        print("Goaling to goal: ", env.goal)
+        # print("Goaling to goal: ", env.goal)
         # The following lines are for a 3d reacher environment
         P = np.array([4, 4, 1, 1, 1])
         I = np.zeros(5)
         D = np.array([0.2, 0.2, 2, 0.4, 0.4])
         target = np.array([0.5, 0.5, 0.5, 0.5, 0.5])
+        # target = env.goal
         # target = env.get_body_com("target")
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         # print(type(env))
 
         # Logs will be a
         logs.append(run_controller(env, horizon=horizon, policy=policy))
-        print("end pos is: ", logs[i].states[-1, -3:])
+        # print("end pos is: ", logs[i].states[-1, -3:])
         # # Visualize
         # plt.figure()
         # # h = plt.plot(logs[i].states[:, 0:7])
@@ -314,7 +315,20 @@ def create_dataset_t_only(states):
 
     return data_in, data_out
 
-# TODO: create dataset with PID parameters as inputs
+def create_dataset_t_pid(states, P, I, D, goal):
+    """
+    Creates a dataset with entries for PID parameters and number of
+    timesteps in the future
+    :param states: A 2d np array. Each row is a state
+    """
+    data_in, data_out = [], []
+    for i in range(states.shape[0]):  # From one state p
+        for j in range(i + 1, states.shape[0]):
+            # This creates an entry for a given state concatenated
+            # with a number t of time steps as well as the PID parameters
+            data_in.append(np.hstack((states[i], j - i, P, I, D, goal))) # Did we want this to just have the goal or all parameters?
+            data_out.append(states[j])
+    return data_in, data_out
 
 def create_dataset_no_t(states):
     """
@@ -346,7 +360,7 @@ def create_dataset(data):
     return [dataset_in, dataset_out]
 
 
-@hydra.main(config_path='config.yaml')
+# @hydra.main(config_path='config.yaml')
 def contpred(cfg):
     COLLECT_DATA = cfg.collect_data
     CREATE_DATASET = cfg.create_dataset
@@ -503,5 +517,16 @@ def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, 
         plt.show()
 
 
-if __name__ == '__main__':
-    sys.exit(contpred())
+def temp_generate_trajectories():
+    lengths = [10, 50, 100, 150, 200, 250, 300, 500]
+    for hor in lengths:
+        print("Generating length {} trajectories".format(hor))
+        data = np.array(collect_data(nTrials = 20, horizon=hor))
+        out = []
+        for trial in data:
+            out.extend(trial.states)
+        file = "trajectories/traj{}.npy".format(hor)
+        np.save(file, out)
+
+# if __name__ == '__main__':
+#     sys.exit(contpred())
