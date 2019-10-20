@@ -255,7 +255,7 @@ def run_controller(env, horizon, policy):
     return logs
 
 
-def collect_data(nTrials=20, horizon=1000):
+def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
     """
     Collect data for environment model
     :param nTrials:
@@ -334,6 +334,8 @@ def create_dataset_t_only(states):
 
     return data_in, data_out
 
+# TODO: create dataset with PID parameters as inputs
+
 def create_dataset_no_t(states):
     """
     Creates a dataset for learning how one state progresses to the next
@@ -366,7 +368,7 @@ def main():
 
     COLLECT_DATA = True
     CREATE_DATASET = True
-    TRAIN_MODEL = False
+    TRAIN_MODEL = True
     TRAIN_MODEL_NO_T = True
 
     # Collect data
@@ -441,6 +443,8 @@ def main():
     # plt.plot(np.array(logs_no_t.training_error))
     # plt.title("Training Error without t")
     # plt.show()
+
+    # TODO: Also plot trajectories, each dimension in state gets its own graph
 
     print("Beginning testing")
     mse_t = []
