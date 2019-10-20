@@ -1,17 +1,13 @@
-# Compatibility Python 2/3
-# from __future__ import division, print_function, absolute_import
-# from builtins import range
-# from past.builtins import basestring
-# ----------------------------------------------------------------------------------------------------------------------
-
+import sys
 import warnings
+
 import matplotlib.cbook
-warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
+
+warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
 import numpy as np
 from dotmap import DotMap
 # import matplotlib.pyplot as plt
-from matplotlib.pyplot import cm
 
 # import R.data as rdata
 # import progressbar removed because it seemed unused
@@ -24,29 +20,19 @@ from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-import save
 import gym
+from envs import *
+
 # from gym.monitoring import VideoRecorder
 # import src.env removed because it seemed unused
-import scipyplot as spp
 
+import hydra
 import logging
-logging.basicConfig(
-    filename="test.log",
-    level=logging.DEBUG,
-    format="%(asctime)s:%(levelname)s:%(message)s"
-    )
-# logger = logging.getLogger()
-# logger.setLevel(logging.DEBUG)
-# # To log file
-# fh = logging.FileHandler('example.log')
-# fh.setLevel(logging.DEBUG)
-# logger.addHandler(fh)
+
+log = logging.getLogger(__name__)
 
 from policy import PID
-from policy import randomPolicy
 
-import reacher3d
 
 def stateAction2forwardDyn(states, actions):
     data_in = np.concatenate((states[:-1, :], actions[:-1, :]), axis=1)
@@ -60,6 +46,7 @@ class Net(nn.Module):
 
     In this case this is being used as a model of the environment right?
     """
+
     def __init__(self, structure=[20, 100, 100, 1], tf=F.relu):
         """
         :param structure: layer sizes
@@ -69,7 +56,7 @@ class Net(nn.Module):
 
         # TODO: parameteric NN
         # self.fc = []
-        self.n_layers = len(structure)-1
+        self.n_layers = len(structure) - 1
         # for idx in range(self.n_layers):
         #     self.fc[idx] = nn.Linear(structure[idx], structure[idx+1])
         self.fc1 = nn.Linear(structure[0], structure[1])
@@ -96,10 +83,10 @@ class Net(nn.Module):
             return self.forward(Variable(torch.from_numpy(np.matrix(x)).float())).data.cpu().numpy()
 
 
-
-
 def train_network(dataset, model, parameters=DotMap()):
     import torch.optim as optim
+    from torch.utils.data.dataset import Dataset
+    from torch.utils.data import DataLoader
 
     # This bit basically adds variables to the dotmap with default values
     p = DotMap()
@@ -126,10 +113,6 @@ def train_network(dataset, model, parameters=DotMap()):
     # Lets cudnn autotuner find optimal algorithm for hardware
     cudnn.benchmark = True
 
-    from torch.utils.data.dataset import Dataset
-    from torch.utils.data import DataLoader
-    from torch.utils.data.sampler import Sampler
-
     if p.useGPU:
         model.cuda()
         p.criterion.cuda()
@@ -153,16 +136,15 @@ def train_network(dataset, model, parameters=DotMap()):
             # print('\tcalling Dataset:__len__')
             return self.n_data
 
-
-    logging.info('Training NN from dataset')
+    log.info('Training NN from dataset')
 
     # Puts it in PyTorch dataset form and then converts to DataLoader
     #
     # DataLoader is an iterable
-    dataset = PytorchDataset(dataset=dataset) # Using PyTorch
+    dataset = PytorchDataset(dataset=dataset)  # Using PyTorch
     loader = DataLoader(dataset, batch_size=p.opt.batch_size, shuffle=True)  ##shuffle=True #False
-        # pin_memory=True
-        # drop_last=False
+    # pin_memory=True
+    # drop_last=False
 
     startTime = timer()
     if logs.time is None:
@@ -171,7 +153,7 @@ def train_network(dataset, model, parameters=DotMap()):
     print("Training for %d epochs" % p.opt.n_epochs)
 
     for epoch in range(p.opt.n_epochs):
-        print("Epoch Number %d -----------------" % epoch)
+        log.info("Epoch %d" % (epoch))
         for i, data in enumerate(loader, 0):
             if i % 100 == 0:
                 print("    Batch %d" % i)
@@ -192,13 +174,13 @@ def train_network(dataset, model, parameters=DotMap()):
 
             e = loss.item()
             logs.training_error.append(e)
-            logging.info('Iter %010d - %f ' % (epoch, e))
+            # log.info('Iter %010d - %f ' % (epoch, e))
             loss.backward()
             optimizer.step()  # Does the update
             logs.time.append(timer() - logs.time[-1])
 
     endTime = timer()
-    logging.info('Optimization completed in %f[s]' % (endTime - startTime))
+    log.info('Optimization completed in %f[s]' % (endTime - startTime))
 
     return model.cpu(), logs
 
@@ -235,7 +217,6 @@ def run_controller(env, horizon, policy):
     for t in range(horizon):
         # env.render()
         state = observation
-        # print(state)
         action, t = policy.act(obs2q(state))
 
         # print(action)
@@ -268,7 +249,7 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
     # env_model = 'Reacher-v2'
     env = gym.make(env_model)
     # print(type(env))
-    logging.info('Initializing env: %s' % env_model)
+    log.info('Initializing env: %s' % env_model)
 
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
     # about <horizon> steps with actions, rewards and states
@@ -278,36 +259,35 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
     #     qpos = np.copy(env.init_qpos)
     #     qvel = np.copy(env.init_qvel)
     #     qpos[0:7] += np.random.normal(loc=0.5, scale=1, size=[7])
-    #     # qpos[-3:] += np.random.normal(loc=0, scale=1, size=[3])
-    #     # qvel[-3:] = 0
+    #     qpos[-3:] += np.random.normal(loc=0, scale=1, size=[3])
+    #     qvel[-3:] = 0
     #     env.goal = qpos[-3:]
     #     env.set_state(qpos, qvel)
     #     env.T = 0
     #     return env
 
     for i in range(nTrials):
-        logging.info('Trial %d' % i)
+        log.info('Trial %d' % i)
         env.seed(i)
+        s0 = env.reset()
+
+        print("Goaling to goal: ", env.goal)
         # The following lines are for a 3d reacher environment
-        # Replacing the following because they are dim 7, but should be 5
-        # P = np.array([4, 4, 1, 1, 1, 1, 2])
-        # I = np.zeros(7)
-        # D = [0.2, 0.2, 2, 0.4, 0.4, 0.1, 0.5]
-        # target = [0.5, 0.5, 0.5, 0.5, 0.5, 0.2, 0.5]
         P = np.array([4, 4, 1, 1, 1])
         I = np.zeros(5)
-        D = [0.2, 0.2, 2, 0.4, 0.4]
-        target = [0.5, 0.5, 0.5, 0.5, 0.5]
+        D = np.array([0.2, 0.2, 2, 0.4, 0.4])
+        target = np.array([0.5, 0.5, 0.5, 0.5, 0.5])
         # target = env.get_body_com("target")
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         # print(type(env))
 
         # Logs will be a
         logs.append(run_controller(env, horizon=horizon, policy=policy))
-
+        print("end pos is: ", logs[i].states[-1, -3:])
         # # Visualize
         # plt.figure()
-        # h = plt.plot(logs[i].states[:, 0:7])
+        # # h = plt.plot(logs[i].states[:, 0:7])
+        # h = plt.plot(logs[i].states[:, -3:])
         # plt.legend(h)
         # plt.show()
     return logs
@@ -323,10 +303,10 @@ def create_dataset_t_only(states):
     """
     data_in = []
     data_out = []
-    for i in range(states.shape[0]): #From one state p
-        for j in range(i+1, states.shape[0]):
+    for i in range(states.shape[0]):  # From one state p
+        for j in range(i + 1, states.shape[0]):
             # This creates an entry for a given state concatenated with a number t of time steps
-            data_in.append(np.hstack((states[i], j-i)))
+            data_in.append(np.hstack((states[i], j - i)))
             # This creates an entry for the state t timesteps in the future
             data_out.append(states[j])
     data_in = np.array(data_in)
@@ -342,13 +322,15 @@ def create_dataset_no_t(states):
     """
     data_in = []
     data_out = []
-    for i in range(states.shape[0]-1):
-        data_in.append(states[i])
-        data_out.append(states[i+1])
+    for sequence in data:
+        for i in range(sequence.states.shape[0] - 1):
+            data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
+            data_out.append(sequence.states[i + 1])
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
     return data_in, data_out
+
 
 def create_dataset(data):
     dataset_in = None
@@ -364,26 +346,26 @@ def create_dataset(data):
     return [dataset_in, dataset_out]
 
 
-def main():
-
-    COLLECT_DATA = True
-    CREATE_DATASET = True
-    TRAIN_MODEL = True
-    TRAIN_MODEL_NO_T = True
+@hydra.main(config_path='config.yaml')
+def contpred(cfg):
+    COLLECT_DATA = cfg.collect_data
+    CREATE_DATASET = cfg.create_dataset
+    TRAIN_MODEL = cfg.train_model
+    TRAIN_MODEL_NO_T = cfg.train_model_onestep
 
     # Collect data
     if COLLECT_DATA:
-        logging.info('Collecting data')
-        train_data = collect_data(nTrials=1)  # 50
-        test_data = collect_data(nTrials=1)  # 5
+        log.info('Collecting data')
+        train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len)  # 50
+        test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len)  # 5
     else:
         pass
 
     # Create dataset
     if CREATE_DATASET:
-        logging.info('Creating dataset')
+        log.info('Creating dataset')
         dataset = create_dataset(train_data)
-        dataset_no_t = create_dataset_no_t(train_data[0].states)
+        dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
     else:
         pass
 
@@ -391,19 +373,20 @@ def main():
     model_file = 'model.pth.tar'
     n_in = dataset[0].shape[1]
     n_out = dataset[1].shape[1]
-    model = Net(structure=[n_in, 2000, 2000, n_out])
+    hid_width = cfg.nn.training.hid_width
+    model = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL:
         p = DotMap()
-        p.opt.n_epochs = 1  # 1000
-        p.learning_rate = 0.000001
+        p.opt.n_epochs = cfg.nn.optimizer.epochs  # 1000
+        p.learning_rate = cfg.nn.optimizer.lr
         p.useGPU = False
         model, logs = train_network(dataset=dataset, model=model, parameters=p)
-        logging.info('Saving model to file: %s' % model_file)
+        log.info('Saving model to file: %s' % model_file)
         torch.save(model.state_dict(), model_file)
         # save.save(logs, 'logs.pkl')
         # TODO: save logs to file
     else:
-        logging.info('Loading model to file: %s' % model_file)
+        log.info('Loading model to file: %s' % model_file)
         checkpoint = torch.load(model_file)
         if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
             model.load_state_dict(checkpoint['state_dict'])
@@ -416,17 +399,17 @@ def main():
     model_file = 'model_no_t.pth.tar'
     n_in = dataset_no_t[0].shape[1]
     n_out = dataset_no_t[1].shape[1]
-    model_no_t = Net(structure=[n_in, 2000, 2000, n_out])
+    model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL_NO_T:
         p = DotMap()
-        p.opt.n_epochs = 1 #1000
-        p.learning_rate = 0.000001
+        p.opt.n_epochs = cfg.nn.optimizer.epochs  # 1000
+        p.learning_rate = cfg.nn.optimizer.lr
         p.useGPU = False
         model_no_t, logs_no_t = train_network(dataset=dataset_no_t, model=model_no_t, parameters=p)
-        logging.info('Saving model to file: %s' % model_file)
+        log.info('Saving model to file: %s' % model_file)
         torch.save(model_no_t.state_dict(), model_file)
     else:
-        logging.info('Loading model to file: %s' % model_file)
+        log.info('Loading model to file: %s' % model_file)
         checkpoint = torch.load(model_file)
         if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
             model_no_t.load_state_dict(checkpoint['state_dict'])
@@ -434,40 +417,46 @@ def main():
             model_no_t.load_state_dict(checkpoint)
 
     # # Plot optimization NN
-    # plt.figure()
-    # plt.plot(np.array(logs.training_error))
-    # plt.title("Training Error with t")
-    # plt.show()
-    #
-    # plt.figure()
-    # plt.plot(np.array(logs_no_t.training_error))
-    # plt.title("Training Error without t")
-    # plt.show()
+    if cfg.nn.training.plot_loss:
+        plt.figure()
+        plt.plot(np.array(logs.training_error))
+        plt.title("Training Error with t")
+        plt.show()
 
-    # TODO: Also plot trajectories, each dimension in state gets its own graph
+        plt.figure()
+        plt.plot(np.array(logs_no_t.training_error))
+        plt.title("Training Error without t")
+        plt.show()
 
-    print("Beginning testing")
+    log.info("Beginning testing of predictions")
     mse_t = []
     mse_no_t = []
     states = test_data[0].states
+    actions = test_data[0].actions
     initial = states[0]
     current = initial
+    predictions_1 = [states[0,:]]
+    predictions_2 = [states[0,:]]
     for i in range(1, states.shape[0]):
         pred_t = model.predict(np.hstack((initial, i)))
-        pred_no_t = model_no_t.predict(current)
+        pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
+        predictions_1.append(pred_t.squeeze())
+        predictions_2.append(pred_no_t.squeeze())
         groundtruth = states[i]
         mse_t.append(np.square(groundtruth - pred_t).mean())
         mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
-        current = pred_no_t
+        current = pred_no_t.squeeze()
+
+    plot_states(states, np.array(predictions_1), np.array(predictions_2), idx_plot=[0, 1, 2, 3, 4, 5, 6])
 
     plt.figure()
     plt.title("MSE over time for model with and without t")
-    plt.plot(mse_t, color='red', label='with t')
-    plt.plot(mse_no_t, color='blue', label='without t')
+    plt.semilogy(mse_t, color='red', label='with t')
+    plt.semilogy(mse_no_t, color='blue', label='without t')
     plt.legend()
     plt.show()
 
-    if False:
+    if True:
         # Evaluate learned model
         def augment_state(state, horizon=990):
             """
@@ -496,36 +485,23 @@ def main():
             plt.show()
 
 
-if __name__ == '__main__':
-    main()
+def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, save=False):
+    num = np.shape(ground_truth)[0]
+    dx = np.shape(ground_truth)[1]
+    if idx_plot is None:
+        idx_plot = list(range(dx))
 
-# class FaceLandmarksDataset(Dataset):
-#     """Face Landmarks dataset."""
-#
-#     def __init__(self, csv_file, root_dir, transform=None):
-#         """
-#         Args:
-#             csv_file (string): Path to the csv file with annotations.
-#             root_dir (string): Directory with all the images.
-#             transform (callable, optional): Optional transform to be applied
-#                 on a sample.
-#         """
-#         self.landmarks_frame = pd.read_csv(csv_file)
-#         self.root_dir = root_dir
-#         self.transform = transform
-#
-#     def __len__(self):
-#         return len(self.landmarks_frame)
-#
-#     def __getitem__(self, idx):
-#         img_name = os.path.join(self.root_dir,
-#                                 self.landmarks_frame.iloc[idx, 0])
-#         image = io.imread(img_name)
-#         landmarks = self.landmarks_frame.iloc[idx, 1:].as_matrix()
-#         landmarks = landmarks.astype('float').reshape(-1, 2)
-#         sample = {'image': image, 'landmarks': landmarks}
-#
-#         if self.transform:
-#             sample = self.transform(sample)
-#
-#         return sample
+    for i in idx_plot:
+        gt = ground_truth[:, i]
+        p1 = prediction_param[:, i]
+        p2 = prediction_step[:, i]
+        plt.figure()
+        plt.plot(p1, c='k', label='Prediction T-Param')
+        plt.plot(p2, c='b', label='Prediction 1 Steps')
+        plt.plot(gt, c='r', label='Groundtruth')
+        plt.legend()
+        plt.show()
+
+
+if __name__ == '__main__':
+    sys.exit(contpred())

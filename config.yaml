@@ -1,0 +1,23 @@
+collect_data: true
+create_dataset: true
+train_model: true
+train_model_onestep: true
+
+experiment:
+  traj_len: 200
+  num_traj: 4
+  split: .8
+
+nn:
+  ensemble: false
+  training:
+    hid_width: 250
+    hid_depth: 2
+    E: 5
+    plot_loss: false
+  optimizer:
+    epochs: 10
+    batch: 128
+    name: Adam
+    split: .8
+    lr: .025
