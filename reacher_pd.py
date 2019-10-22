@@ -1,6 +1,6 @@
 import sys
 import warnings
-
+import os
 import matplotlib.cbook
 
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
@@ -25,19 +25,14 @@ from envs import *
 
 # from gym.monitoring import VideoRecorder
 # import src.env removed because it seemed unused
-
+import glob
 import hydra
 import logging
 
 log = logging.getLogger(__name__)
 
 from policy import PID
-
-
-def stateAction2forwardDyn(states, actions):
-    data_in = np.concatenate((states[:-1, :], actions[:-1, :]), axis=1)
-    data_out = states[1:, :]
-    return [data_in, data_out]
+from utils import *
 
 
 class Net(nn.Module):
@@ -185,17 +180,6 @@ def train_network(dataset, model, parameters=DotMap()):
     return model.cpu(), logs
 
 
-def plot_pred(groundtruth, prediction, sorted=True):
-    plt.figure()
-    if sorted:
-        gt = groundtruth.sort()
-    else:
-        gt = groundtruth
-    plt.plot(gt)
-    plt.plot(prediction)
-    plt.show()
-
-
 def run_controller(env, horizon, policy):
     """
     :param env: A gym object
@@ -236,7 +220,7 @@ def run_controller(env, horizon, policy):
     return logs
 
 
-def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
+def collect_data(nTrials=20, horizon=150):  # Creates horizon^2/2 points
     """
     Collect data for environment model
     :param nTrials:
@@ -254,17 +238,6 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
     # about <horizon> steps with actions, rewards and states
     logs = []
-
-    # def init_env(env):
-    #     qpos = np.copy(env.init_qpos)
-    #     qvel = np.copy(env.init_qvel)
-    #     qpos[0:7] += np.random.normal(loc=0.5, scale=1, size=[7])
-    #     qpos[-3:] += np.random.normal(loc=0, scale=1, size=[3])
-    #     qvel[-3:] = 0
-    #     env.goal = qpos[-3:]
-    #     env.set_state(qpos, qvel)
-    #     env.T = 0
-    #     return env
 
     for i in range(nTrials):
         log.info('Trial %d' % i)
@@ -294,74 +267,14 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
     return logs
 
 
-# Learn model t only
-# Creating a dataset for learning different T values
-def create_dataset_t_only(states):
-    """
-    Creates a dataset with an entry for how many timesteps in the future
-    corresponding entries in the labels are
-    :param states: A 2d np array. Each row is a state
-    """
-    data_in = []
-    data_out = []
-    for i in range(states.shape[0]):  # From one state p
-        for j in range(i + 1, states.shape[0]):
-            # This creates an entry for a given state concatenated with a number t of time steps
-            data_in.append(np.hstack((states[i], j - i)))
-            # This creates an entry for the state t timesteps in the future
-            data_out.append(states[j])
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
-
-    return data_in, data_out
-
-def create_dataset_t_pid(states, P, I, D, goal):
-    """
-    Creates a dataset with entries for PID parameters and number of
-    timesteps in the future
-    :param states: A 2d np array. Each row is a state
-    """
-    data_in, data_out = [], []
-    for i in range(states.shape[0]):  # From one state p
-        for j in range(i + 1, states.shape[0]):
-            # This creates an entry for a given state concatenated
-            # with a number t of time steps as well as the PID parameters
-            data_in.append(np.hstack((states[i], j - i, P, I, D, goal))) # Did we want this to just have the goal or all parameters?
-            data_out.append(states[j])
-    return data_in, data_out
-
-def create_dataset_no_t(states):
-    """
-    Creates a dataset for learning how one state progresses to the next
-    """
-    data_in = []
-    data_out = []
-    for sequence in data:
-        for i in range(sequence.states.shape[0] - 1):
-            data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
-            data_out.append(sequence.states[i + 1])
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
-
-    return data_in, data_out
-
-
-def create_dataset(data):
-    dataset_in = None
-    dataset_out = None
-    for sequence in data:
-        inputs, outputs = create_dataset_t_only(sequence.states)
-        if dataset_in is None:
-            dataset_in = inputs
-            dataset_out = outputs
-        else:
-            dataset_in = np.concatenate((dataset_in, inputs), axis=0)
-            dataset_out = np.concatenate((dataset_out, outputs), axis=0)
-    return [dataset_in, dataset_out]
-
-
 @hydra.main(config_path='conf/config.yaml')
 def contpred(cfg):
+    log.info("Loading example trajectories")
+    files = glob.glob(os.getcwd()[:os.getcwd().find('outputs')] + 'trajectories/*.npy')
+    for f in files:
+        trajectories = np.load(f)
+        l = int(f[f.rfind('traj') + 4:f.rfind('.')])
+
     COLLECT_DATA = cfg.collect_data
     CREATE_DATASET = cfg.create_dataset
     TRAIN_MODEL = cfg.train_model
@@ -449,11 +362,11 @@ def contpred(cfg):
     actions = test_data[0].actions
     initial = states[0]
     current = initial
-    predictions_1 = [states[0,:]]
-    predictions_2 = [states[0,:]]
+    predictions_1 = [states[0, :]]
+    predictions_2 = [states[0, :]]
     for i in range(1, states.shape[0]):
         pred_t = model.predict(np.hstack((initial, i)))
-        pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
+        pred_no_t = model_no_t.predict(np.concatenate((current, actions[i - 1, :])))
         predictions_1.append(pred_t.squeeze())
         predictions_2.append(pred_no_t.squeeze())
         groundtruth = states[i]
@@ -521,12 +434,15 @@ def temp_generate_trajectories():
     lengths = [10, 50, 100, 150, 200, 250, 300, 500]
     for hor in lengths:
         print("Generating length {} trajectories".format(hor))
-        data = np.array(collect_data(nTrials = 20, horizon=hor))
+        data = np.array(collect_data(nTrials=20, horizon=hor))
+        # TODO should just save the entire trial in a list rather then the states only. No actions here
         out = []
         for trial in data:
+            raise NotImplementedError("Add actions here, and maybe PID parameters.")
             out.extend(trial.states)
         file = "trajectories/traj{}.npy".format(hor)
         np.save(file, out)
 
-# if __name__ == '__main__':
-#     sys.exit(contpred())
+
+if __name__ == '__main__':
+    sys.exit(contpred())

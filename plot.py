@@ -8,6 +8,7 @@ import plotly.plotly as py
 from plotly.graph_objs import *
 
 import logging
+import matplotlib.pyplot as plt
 
 log = logging.getLogger(__name__)
 
@@ -97,11 +98,24 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
     return err_traces, xs, ys
 
 
+def plot_pred(groundtruth, prediction, sorted=True):
+    plt.figure()
+    if sorted:
+        gt = groundtruth.sort()
+    else:
+        gt = groundtruth
+    plt.plot(gt)
+    plt.plot(prediction)
+    plt.show()
+
+
 @hydra.main(config_path='config-plot.yaml')
 def plot(cfg):
-    data = Data([new_trace1])
-
-    plot_url = py.plot(data, filename='append plot', fileopt='append')
+    log.info("Loading example trajectories")
+    files = glob.glob(os.getcwd()[:os.getcwd().find('outputs')]+'trajectories/')
+    # data = plotly.Data([new_trace1])
+    #
+    # plot_url = py.plot(data, filename='append plot', fileopt='append')
 
 
 if __name__ == '__main__':
