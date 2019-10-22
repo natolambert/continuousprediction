@@ -54,17 +54,19 @@ dependencies:
     - fasteners==0.15
     - future==0.18.0
     - glfw==1.8.3
-    - hydra==2.5
+    - hydra-core==0.10.0
     - imageio==2.6.1
     - kiwisolver==1.1.0
     - matplotlib==3.1.1
     - monotonic==1.5
     - mujoco-py==2.0.2.7
+    - omegaconf==1.3.0
     - pandas==0.25.1
     - pillow==6.2.0
     - pyparsing==2.4.2
     - python-dateutil==2.8.0
     - pytz==2019.3
+    - pyyaml==5.1.2
     - scipyplot==0.0.6
     - seaborn==0.9.0
     - torch==1.3.0
