@@ -215,7 +215,7 @@ def run_controller(env, horizon, policy):
 
     observation = env.reset()
     for t in range(horizon):
-        env.render()
+        # env.render()
         state = observation
         action, t = policy.act(obs2q(state))
 
@@ -333,10 +333,11 @@ def create_dataset_t_pid(states, P, I, D, goal):
 def create_dataset_no_t(states):
     """
     Creates a dataset for learning how one state progresses to the next
+    :param states: A 2d np array. Each row is a state
     """
     data_in = []
     data_out = []
-    for sequence in data:
+    for sequence in states:
         for i in range(sequence.states.shape[0] - 1):
             data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
             data_out.append(sequence.states[i + 1])
@@ -360,7 +361,7 @@ def create_dataset(data):
     return [dataset_in, dataset_out]
 
 
-# @hydra.main(config_path='config.yaml')
+@hydra.main(config_path='config.yaml')
 def contpred(cfg):
     COLLECT_DATA = cfg.collect_data
     CREATE_DATASET = cfg.create_dataset
@@ -528,5 +529,5 @@ def temp_generate_trajectories():
         file = "trajectories/traj{}.npy".format(hor)
         np.save(file, out)
 
-# if __name__ == '__main__':
-#     sys.exit(contpred())
+if __name__ == '__main__':
+    sys.exit(contpred())
