@@ -345,7 +345,7 @@ def create_dataset(data):
     return [dataset_in, dataset_out]
 
 
-@hydra.main(config_path='config.yaml')
+@hydra.main(config_path='conf/config.yaml')
 def contpred(cfg):
     COLLECT_DATA = cfg.collect_data
     CREATE_DATASET = cfg.create_dataset
