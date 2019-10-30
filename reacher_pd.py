@@ -64,7 +64,7 @@ def run_controller(env, horizon, policy):
 
     observation = env.reset()
     for t in range(horizon):
-        # env.render()
+        env.render()
         state = observation
         action, t = policy.act(obs2q(state))
 
@@ -92,12 +92,8 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
     :param horizon:
     :return: an array of DotMaps, where each DotMap contains info about a sequence of steps
     """
-    # env = gym.make('Reacher-v2')
-    # I believe this model is like an arm that reaches for a point in 3D?
     env_model = 'Reacher3d-v2'
-    # env_model = 'Reacher-v2'
     env = gym.make(env_model)
-    # print(type(env))
     log.info('Initializing env: %s' % env_model)
 
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
@@ -120,19 +116,22 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
         env.seed(i)
         s0 = env.reset()
 
-        # print("Goaling to goal: ", env.goal)
-        # The following lines are for a 3d reacher environment
         P = np.array([4, 4, 1, 1, 1])
         I = np.zeros(5)
         D = np.array([0.2, 0.2, 2, 0.4, 0.4])
-        target = np.array([0.5, 0.5, 0.5, 0.5, 0.5])
-        # target = env.goal
-        # target = env.get_body_com("target")
+
+        # Samples target uniformely from [-1, 1]
+        target = np.random.rand(5)*2-1
+
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         # print(type(env))
 
-        # Logs will be a
-        logs.append(run_controller(env, horizon=horizon, policy=policy))
+        dotmap = run_controller(env, horizon=horizon, policy=policy)
+        dotmap.target = target
+        dotmap.P = P
+        dotmap.I = I
+        dotmap.D = D
+        logs.append(dotmap)
         # print("end pos is: ", logs[i].states[-1, -3:])
         # # Visualize
         # plt.figure()
@@ -158,17 +157,17 @@ def create_dataset_t_only(data):
         states = sequence.states
         for i in range(states.shape[0]):  # From one state p
             for j in range(i + 1, states.shape[0]):
-            # This creates an entry for a given state concatenated with a number t of time steps
-            data_in.append(np.hstack((states[i], j - i)))
-            # data_in = np.vstack((data_in, np.hstack(())))
-            # This creates an entry for the state t timesteps in the future
-            data_out.append(states[j])
+                # This creates an entry for a given state concatenated with a number t of time steps
+                data_in.append(np.hstack((states[i], j - i)))
+                # data_in = np.vstack((data_in, np.hstack(())))
+                # This creates an entry for the state t timesteps in the future
+                data_out.append(states[j])
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
     return data_in, data_out
 
-def create_dataset_t_pid(data, P, I, D, target):
+def create_dataset_t_pid(data):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -177,6 +176,9 @@ def create_dataset_t_pid(data, P, I, D, target):
     data_in, data_out = [], []
     for sequence in data:
         states = sequence.states
+        P = sequence.P
+        D = sequence.D
+        target = sequence.target
         for i in range(states.shape[0]):  # From one state p
             for j in range(i + 1, states.shape[0]):
                 # This creates an entry for a given state concatenated
@@ -203,21 +205,21 @@ def create_dataset_no_t(data):
     return data_in, data_out
 
 
-def create_dataset(data):
-    """
-    :param data: an array of dotmaps, where each dotmap is a trajectory
-    """
-    dataset_in = None
-    dataset_out = None
-    for sequence in data:
-        inputs, outputs = create_dataset_t_only(sequence.states)
-        if dataset_in is None:
-            dataset_in = inputs
-            dataset_out = outputs
-        else:
-            dataset_in = np.concatenate((dataset_in, inputs), axis=0)
-            dataset_out = np.concatenate((dataset_out, outputs), axis=0)
-    return [dataset_in, dataset_out]
+# def create_dataset(data):
+#     """
+#     :param data: an array of dotmaps, where each dotmap is a trajectory
+#     """
+#     dataset_in = None
+#     dataset_out = None
+#     for sequence in data:
+#         inputs, outputs = create_dataset_t_only(sequence.states)
+#         if dataset_in is None:
+#             dataset_in = inputs
+#             dataset_out = outputs
+#         else:
+#             dataset_in = np.concatenate((dataset_in, inputs), axis=0)
+#             dataset_out = np.concatenate((dataset_out, outputs), axis=0)
+#     return [dataset_in, dataset_out]
 
 
 @hydra.main(config_path='conf/config.yaml')
@@ -238,7 +240,7 @@ def contpred(cfg):
     # Create dataset
     if CREATE_DATASET:
         log.info('Creating dataset')
-        dataset = create_dataset(train_data)
+        dataset = create_dataset_t_pid(train_data)
         dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
     else:
         pass
