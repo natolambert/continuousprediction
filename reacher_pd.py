@@ -7,13 +7,9 @@ warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
 import numpy as np
 from dotmap import DotMap
-# import matplotlib.pyplot as plt
 
-# import R.data as rdata
-# import progressbar removed because it seemed unused
 from timeit import default_timer as timer
 import matplotlib.pyplot as plt
-# import scipyplot as spp
 
 import torch
 from torch.autograd import Variable
@@ -22,9 +18,6 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import gym
 from envs import *
-
-# from gym.monitoring import VideoRecorder
-# import src.env removed because it seemed unused
 
 import hydra
 import logging
@@ -152,18 +145,22 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
 
 # Learn model t only
 # Creating a dataset for learning different T values
-def create_dataset_t_only(states):
+# Don't use this, use the function below it
+def create_dataset_t_only(data):
     """
     Creates a dataset with an entry for how many timesteps in the future
     corresponding entries in the labels are
-    :param states: A 2d np array. Each row is a state
+    :param states: An array of dotmaps, where each dotmap has info about a trajectory
     """
     data_in = []
     data_out = []
-    for i in range(states.shape[0]):  # From one state p
-        for j in range(i + 1, states.shape[0]):
+    for sequence in data:
+        states = sequence.states
+        for i in range(states.shape[0]):  # From one state p
+            for j in range(i + 1, states.shape[0]):
             # This creates an entry for a given state concatenated with a number t of time steps
             data_in.append(np.hstack((states[i], j - i)))
+            # data_in = np.vstack((data_in, np.hstack(())))
             # This creates an entry for the state t timesteps in the future
             data_out.append(states[j])
     data_in = np.array(data_in)
@@ -171,29 +168,32 @@ def create_dataset_t_only(states):
 
     return data_in, data_out
 
-def create_dataset_t_pid(states, P, I, D, goal):
+def create_dataset_t_pid(data, P, I, D, target):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
     :param states: A 2d np array. Each row is a state
     """
     data_in, data_out = [], []
-    for i in range(states.shape[0]):  # From one state p
-        for j in range(i + 1, states.shape[0]):
-            # This creates an entry for a given state concatenated
-            # with a number t of time steps as well as the PID parameters
-            data_in.append(np.hstack((states[i], j - i, P, I, D, goal))) # Did we want this to just have the goal or all parameters?
-            data_out.append(states[j])
+    for sequence in data:
+        states = sequence.states
+        for i in range(states.shape[0]):  # From one state p
+            for j in range(i + 1, states.shape[0]):
+                # This creates an entry for a given state concatenated
+                # with a number t of time steps as well as the PID parameters
+                # NOTE: Since integral controller is not yet implemented, I am removing it here
+                data_in.append(np.hstack((states[i], j - i, P, D, target)))
+                data_out.append(states[j])
     return data_in, data_out
 
-def create_dataset_no_t(states):
+def create_dataset_no_t(data):
     """
     Creates a dataset for learning how one state progresses to the next
     :param states: A 2d np array. Each row is a state
     """
     data_in = []
     data_out = []
-    for sequence in states:
+    for sequence in data:
         for i in range(sequence.states.shape[0] - 1):
             data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
             data_out.append(sequence.states[i + 1])
@@ -204,6 +204,9 @@ def create_dataset_no_t(states):
 
 
 def create_dataset(data):
+    """
+    :param data: an array of dotmaps, where each dotmap is a trajectory
+    """
     dataset_in = None
     dataset_out = None
     for sequence in data:
