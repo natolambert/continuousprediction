@@ -1,12 +1,8 @@
 import numpy as np
 from dotmap import DotMap
-# import matplotlib.pyplot as plt
 
-# import R.data as rdata
-# import progressbar removed because it seemed unused
 from timeit import default_timer as timer
 import matplotlib.pyplot as plt
-# import scipyplot as spp
 
 import torch
 from torch.autograd import Variable

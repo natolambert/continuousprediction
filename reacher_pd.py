@@ -64,7 +64,7 @@ def run_controller(env, horizon, policy):
 
     observation = env.reset()
     for t in range(horizon):
-        env.render()
+        # env.render()
         state = observation
         action, t = policy.act(obs2q(state))
 
@@ -116,9 +116,11 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
         env.seed(i)
         s0 = env.reset()
 
-        P = np.array([4, 4, 1, 1, 1])
+        # P = np.array([4, 4, 1, 1, 1])
+        P = np.random.rand(5)*5
         I = np.zeros(5)
-        D = np.array([0.2, 0.2, 2, 0.4, 0.4])
+        # D = np.array([0.2, 0.2, 2, 0.4, 0.4])
+        D = np.random.rand(5)
 
         # Samples target uniformely from [-1, 1]
         target = np.random.rand(5)*2-1
@@ -167,13 +169,14 @@ def create_dataset_t_only(data):
 
     return data_in, data_out
 
-def create_dataset_t_pid(data):
+def create_dataset_t_pid(data, probabilistic=False):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
     :param states: A 2d np array. Each row is a state
     """
     data_in, data_out = [], []
+    threshold = 0.90
     for sequence in data:
         states = sequence.states
         P = sequence.P
@@ -184,8 +187,12 @@ def create_dataset_t_pid(data):
                 # This creates an entry for a given state concatenated
                 # with a number t of time steps as well as the PID parameters
                 # NOTE: Since integral controller is not yet implemented, I am removing it here
+                if np.random.random() < threshold and probabilistic:
+                    continue
                 data_in.append(np.hstack((states[i], j - i, P, D, target)))
                 data_out.append(states[j])
+    data_in = np.array(data_in)
+    data_out = np.array(data_out)
     return data_in, data_out
 
 def create_dataset_no_t(data):
@@ -205,22 +212,19 @@ def create_dataset_no_t(data):
     return data_in, data_out
 
 
-# def create_dataset(data):
-#     """
-#     :param data: an array of dotmaps, where each dotmap is a trajectory
-#     """
-#     dataset_in = None
-#     dataset_out = None
-#     for sequence in data:
-#         inputs, outputs = create_dataset_t_only(sequence.states)
-#         if dataset_in is None:
-#             dataset_in = inputs
-#             dataset_out = outputs
-#         else:
-#             dataset_in = np.concatenate((dataset_in, inputs), axis=0)
-#             dataset_out = np.concatenate((dataset_out, outputs), axis=0)
-#     return [dataset_in, dataset_out]
+def train_model(dataset, model, model_file, cfg, n_epochs=False, save=True):
+    p = DotMap()
+    p.opt.n_epochs = n_epochs if n_epochs else cfg.nn.optimizer.epochs  # 1000
+    p.learning_rate = cfg.nn.optimizer.lr
+    p.useGPU = False
+    model, logs = train_network(dataset=dataset, model=model, parameters=p)
+    log.info('Saving model to file: %s' % model_file)
+    if save:
+        torch.save(model.state_dict(), model_file)
+    return model, logs
 
+        # logs = save.load('logs.pkl')
+        # TODO: load logs from file
 
 @hydra.main(config_path='conf/config.yaml')
 def contpred(cfg):
@@ -240,10 +244,12 @@ def contpred(cfg):
     # Create dataset
     if CREATE_DATASET:
         log.info('Creating dataset')
-        dataset = create_dataset_t_pid(train_data)
+        dataset = create_dataset_t_pid(train_data, probabilistic=True)
         dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
     else:
         pass
+
+    print(dataset[0].shape)
 
     # Train model
     model_file = 'model.pth.tar'
@@ -252,13 +258,7 @@ def contpred(cfg):
     hid_width = cfg.nn.training.hid_width
     model = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL:
-        p = DotMap()
-        p.opt.n_epochs = cfg.nn.optimizer.epochs  # 1000
-        p.learning_rate = cfg.nn.optimizer.lr
-        p.useGPU = False
-        model, logs = train_network(dataset=dataset, model=model, parameters=p)
-        log.info('Saving model to file: %s' % model_file)
-        torch.save(model.state_dict(), model_file)
+        model, logs = train_model(dataset, model, model_file, cfg)
         # save.save(logs, 'logs.pkl')
         # TODO: save logs to file
     else:
@@ -277,13 +277,7 @@ def contpred(cfg):
     n_out = dataset_no_t[1].shape[1]
     model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL_NO_T:
-        p = DotMap()
-        p.opt.n_epochs = cfg.nn.optimizer.epochs  # 1000
-        p.learning_rate = cfg.nn.optimizer.lr
-        p.useGPU = False
-        model_no_t, logs_no_t = train_network(dataset=dataset_no_t, model=model_no_t, parameters=p)
-        log.info('Saving model to file: %s' % model_file)
-        torch.save(model_no_t.state_dict(), model_file)
+        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, model_file, cfg)
     else:
         log.info('Loading model to file: %s' % model_file)
         checkpoint = torch.load(model_file)
@@ -307,14 +301,17 @@ def contpred(cfg):
     log.info("Beginning testing of predictions")
     mse_t = []
     mse_no_t = []
-    states = test_data[0].states
-    actions = test_data[0].actions
+
+    traj = test_data[0]
+    states = traj.states
+    actions = traj.actions
     initial = states[0]
     current = initial
+
     predictions_1 = [states[0,:]]
     predictions_2 = [states[0,:]]
     for i in range(1, states.shape[0]):
-        pred_t = model.predict(np.hstack((initial, i)))
+        pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
         pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
         predictions_1.append(pred_t.squeeze())
         predictions_2.append(pred_no_t.squeeze())
@@ -332,7 +329,8 @@ def contpred(cfg):
     plt.legend()
     plt.show()
 
-    if True:
+    # Blocking this since it doesn't quite work
+    if False:
         # Evaluate learned model
         def augment_state(state, horizon=990):
             """
@@ -360,6 +358,79 @@ def contpred(cfg):
             plt.legend()
             plt.show()
 
+# @hydra.main(config_path='conf/config.yaml')
+def test_multiple_n_epochs(cfg):
+
+    # Collect data
+    log.info('Collecting data')
+    train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len)  # 50
+    test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len)  # 5
+
+
+    # Create dataset
+    log.info('Creating dataset')
+    dataset = create_dataset_t_pid(train_data)
+    dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
+
+    # Set up the models
+    n_in = dataset[0].shape[1]
+    n_out = dataset[1].shape[1]
+    hid_width = cfg.nn.training.hid_width
+    model = Net(structure=[n_in, hid_width, hid_width, n_out])
+    n_in = dataset_no_t[0].shape[1]
+    n_out = dataset_no_t[1].shape[1]
+    model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
+
+    def loss(x, y):
+        d = x-y
+        norm = np.linalg.norm(d, axis=1)
+        return np.sum(norm)/norm.size
+    loss_t = []
+    loss_no_t = []
+
+    for n_epochs in range(cfg.nn.optimizer.epochs):
+        # Train models
+        model, logs = train_model(dataset, model, None, cfg, n_epochs=1, save=False)
+        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, None, cfg, n_epochs=1, save=False)
+
+        log.info("Beginning testing of predictions")
+
+        traj = test_data[0]
+        states = traj.states
+        actions = traj.actions
+        initial = states[0]
+        current = initial
+
+        predictions_t = [states[0,:]]
+        predictions_no_t = [states[0,:]]
+        for i in range(1, states.shape[0]):
+            pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+            pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
+            predictions_t.append(pred_t.squeeze())
+            predictions_no_t.append(pred_no_t.squeeze())
+            current = pred_no_t.squeeze()
+        predictions_t = np.array(predictions_t)
+        predictions_t = np.array(predictions_no_t)
+
+        loss_t.append(loss(states, predictions_t))
+        loss_no_t.append(loss(states, predictions_no_t))
+
+    plt.figure()
+    plt.title("MSE after x epochs of training")
+    plt.plot(loss_t, color="blue", label="with t")
+    plt.plot(loss_no_t, color="red", label="without t")
+    plt.legend()
+    plt.show()
+
+    plt.figure()
+    plt.title("MSE after x epochs of training, log scale")
+    plt.semilogy(loss_t, color="blue", label="with t")
+    plt.semilogy(loss_no_t, color="red", label="without t")
+    plt.legend()
+    plt.show()
+
+    plot_states(states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
+
 
 def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, save=False):
     num = np.shape(ground_truth)[0]
@@ -370,7 +441,7 @@ def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, 
     for i in idx_plot:
         gt = ground_truth[:, i]
         p1 = prediction_param[:, i]
-        p2 = prediction_step[:, i]
+        p2 = prediction_step[:100, i]
         plt.figure()
         plt.plot(p1, c='k', label='Prediction T-Param')
         plt.plot(p2, c='b', label='Prediction 1 Steps')
@@ -391,4 +462,5 @@ def temp_generate_trajectories():
         np.save(file, out)
 
 if __name__ == '__main__':
+    # sys.exit(test_multiple_n_epochs())
     sys.exit(contpred())
