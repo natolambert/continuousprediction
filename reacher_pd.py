@@ -187,8 +187,13 @@ def create_dataset_t_pid(data, probabilistic=False):
                 # This creates an entry for a given state concatenated
                 # with a number t of time steps as well as the PID parameters
                 # NOTE: Since integral controller is not yet implemented, I am removing it here
+
+                # The randomely continuing is something I thought of to shrink
+                # the datasets while still having a large variety
                 if np.random.random() < threshold and probabilistic:
                     continue
+
+
                 data_in.append(np.hstack((states[i], j - i, P, D, target)))
                 data_out.append(states[j])
     data_in = np.array(data_in)
@@ -237,7 +242,7 @@ def contpred(cfg):
     if COLLECT_DATA:
         log.info('Collecting data')
         train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len)  # 50
-        test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len)  # 5
+        test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test)  # 5
     else:
         pass
 
@@ -291,11 +296,30 @@ def contpred(cfg):
         plt.figure()
         plt.plot(np.array(logs.training_error))
         plt.title("Training Error with t")
+        plt.xlabel("epoch")
+        plt.ylabel("total loss")
         plt.show()
 
         plt.figure()
         plt.plot(np.array(logs_no_t.training_error))
         plt.title("Training Error without t")
+        plt.xlabel("epoch")
+        plt.ylabel("total loss")
+        plt.show()
+
+    if cfg.nn.training.plot_loss_epoch:
+        plt.figure()
+        plt.bar(np.arange(cfg.nn.optimizer.epochs), np.array(logs.training_error_epoch))
+        plt.title("Training Error with t")
+        plt.xlabel("epoch")
+        plt.ylabel("total loss")
+        plt.show()
+
+        plt.figure()
+        plt.bar(np.arange(cfg.nn.optimizer.epochs), np.array(logs_no_t.training_error_epoch))
+        plt.title("Training Error without t")
+        plt.xlabel("epoch")
+        plt.ylabel("total loss")
         plt.show()
 
     log.info("Beginning testing of predictions")
@@ -441,10 +465,11 @@ def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, 
     for i in idx_plot:
         gt = ground_truth[:, i]
         p1 = prediction_param[:, i]
-        p2 = prediction_step[:100, i]
+        p2 = prediction_step[:, i]
+        p2_chopped = np.maximum(np.minimum(p2, 10), -10) # to keep it from diverging and messing up graphs
         plt.figure()
         plt.plot(p1, c='k', label='Prediction T-Param')
-        plt.plot(p2, c='b', label='Prediction 1 Steps')
+        plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
         plt.plot(gt, c='r', label='Groundtruth')
         plt.legend()
         plt.show()
