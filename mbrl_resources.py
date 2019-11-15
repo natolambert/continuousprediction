@@ -37,14 +37,18 @@ class Net(nn.Module):
         # for idx in range(self.n_layers):
         #     self.fc[idx] = nn.Linear(structure[idx], structure[idx+1])
         self.fc1 = nn.Linear(structure[0], structure[1])
+        # self.d1 = nn.Dropout()
         self.fc2 = nn.Linear(structure[1], structure[2])
+        # self.d2 = nn.Dropout()
         self.fc3 = nn.Linear(structure[2], structure[3])
         self.tf = tf
         self._onGPU = False
 
     def forward(self, x):
         x = self.tf(self.fc1(x))
+        # x = self.d1(x)
         x = self.tf(self.fc2(x))
+        # x = self.d2(x)
         x = self.fc3(x)
         return x
 
@@ -79,6 +83,7 @@ def train_network(dataset, model, parameters=DotMap()):
     if p.logs is None:
         logs = DotMap()
         logs.training_error = []
+        logs.training_error_epoch = []
         logs.time = None
     else:
         logs = p.logs
@@ -129,6 +134,7 @@ def train_network(dataset, model, parameters=DotMap()):
     print("Training for %d epochs" % p.opt.n_epochs)
 
     for epoch in range(p.opt.n_epochs):
+        epoch_error = 0
         log.info("Epoch %d" % (epoch))
         for i, data in enumerate(loader, 0):
             if i % 100 == 0:
@@ -150,10 +156,12 @@ def train_network(dataset, model, parameters=DotMap()):
 
             e = loss.item()
             logs.training_error.append(e)
+            epoch_error += e
             # log.info('Iter %010d - %f ' % (epoch, e))
             loss.backward()
             optimizer.step()  # Does the update
             logs.time.append(timer() - logs.time[-1])
+        logs.training_error_epoch.append(epoch_error)
 
     endTime = timer()
     log.info('Optimization completed in %f[s]' % (endTime - startTime))
