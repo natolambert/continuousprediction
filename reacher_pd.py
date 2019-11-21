@@ -182,8 +182,9 @@ def create_dataset_t_pid(data, probabilistic=False):
         P = sequence.P
         D = sequence.D
         target = sequence.target
-        for i in range(states.shape[0]):  # From one state p
-            for j in range(i + 1, states.shape[0]):
+        n = states.shape[0]
+        for i in range(n):  # From one state p
+            for j in range(i + 1, n):
                 # This creates an entry for a given state concatenated
                 # with a number t of time steps as well as the PID parameters
                 # NOTE: Since integral controller is not yet implemented, I am removing it here
@@ -194,7 +195,7 @@ def create_dataset_t_pid(data, probabilistic=False):
                     continue
 
 
-                data_in.append(np.hstack((states[i], j - i, P, D, target)))
+                data_in.append(np.hstack((states[i], j - i, P/5, D, target)))
                 data_out.append(states[j])
     data_in = np.array(data_in)
     data_out = np.array(data_out)
@@ -486,6 +487,8 @@ def temp_generate_trajectories():
         file = "trajectories/traj{}.npy".format(hor)
         np.save(file, out)
 
+# train_data = collect_data(nTrials=50, horizon=300)  # 50
+# dataset = create_dataset_t_pid(train_data, probabilistic=True)
 if __name__ == '__main__':
     # sys.exit(test_multiple_n_epochs())
     sys.exit(contpred())
