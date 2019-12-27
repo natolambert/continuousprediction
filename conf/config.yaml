@@ -3,13 +3,18 @@ create_dataset: true
 train_model: true
 train_model_onestep: true
 
-experiment:
+experiment_one_model:
   traj_len: 300
   traj_len_test: 800
-  num_traj: 50
+  num_traj: 10
   split: .8
   P: false
   D: false
+
+experiment_efficiency:
+  traj_len: 30
+  traj_len_test: 200
+  num_traj: 10
 
 nn:
   ensemble: false
@@ -20,7 +25,7 @@ nn:
     plot_loss: true
     plot_loss_epoch: true
   optimizer:
-    epochs: 5
+    epochs: 1
     batch: 128
     name: Adam
     split: .8

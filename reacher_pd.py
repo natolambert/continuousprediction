@@ -78,7 +78,7 @@ def create_dataset_t_pid(data, probabilistic=False):
 
                 # The randomely continuing is something I thought of to shrink
                 # the datasets while still having a large variety
-                if np.random.random() < threshold and probabilistic:
+                if probabilistic and np.random.random() < threshold:
                     continue
 
 
@@ -91,7 +91,10 @@ def create_dataset_t_pid(data, probabilistic=False):
 def create_dataset_no_t(data):
     """
     Creates a dataset for learning how one state progresses to the next
-    :param states: A 2d np array. Each row is a state
+
+    Parameters:
+    -----------
+    data: A 2d np array. Each row is a state
     """
     data_in = []
     data_out = []
@@ -201,10 +204,28 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
         # plt.show()
     return logs
 
-def train_model(dataset, model, model_file, cfg, n_epochs=False, save=True):
+def train_model(dataset, model, model_file, learning_rate, n_epochs, save=True):
+    """
+    Wrapper for training models
+
+    Parameters:
+    ----------
+    dataset: The dataset to use for training, a tuple (data_in, data_out)
+    model: a PyTorch model to train
+    model_file: the file to save this into
+    learning_rate: the learning rate
+    n_epochs: the number of epochs to train for
+    save: whether or not to save the model to file
+
+    Returns:
+    --------
+    model: the trained model, a PyTorch model
+    logs: the logs, a dotmap containing training error per iteration, training error
+        per epoch, and time
+    """
     p = DotMap()
-    p.opt.n_epochs = n_epochs if n_epochs else cfg.nn.optimizer.epochs  # 1000
-    p.learning_rate = cfg.nn.optimizer.lr
+    p.opt.n_epochs = n_epochs# if n_epochs else cfg.nn.optimizer.epochs  # 1000
+    p.learning_rate = learning_rate
     p.useGPU = False
     model, logs = train_network(dataset=dataset, model=model, parameters=p)
     log.info('Saving model to file: %s' % model_file)
@@ -228,6 +249,24 @@ def plot_pred(groundtruth, prediction, sorted=True):
     plt.show()
 
 def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, save=False):
+    num = np.shape(ground_truth)[0]
+    dx = np.shape(ground_truth)[1]
+    if idx_plot is None:
+        idx_plot = list(range(dx))
+
+    for i in idx_plot:
+        gt = ground_truth[:, i]
+        p1 = prediction_param[:, i]
+        p2 = prediction_step[:, i]
+        p2_chopped = np.maximum(np.minimum(p2, 10), -10) # to keep it from diverging and messing up graphs
+        plt.figure()
+        plt.plot(p1, c='k', label='Prediction T-Param')
+        plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
+        plt.plot(gt, c='r', label='Groundtruth')
+        plt.legend()
+        plt.show()
+
+def plot_average_states(ground_truth, prediction_param, prediction_step):
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
     if idx_plot is None:
@@ -276,6 +315,9 @@ def plot_loss_epoch(training_error_t, training_error_no_t, epochs):
     plt.show()
 
 def plot_mse(mse_t, mse_no_t):
+    """
+    Plots MSE graphs for the two sequences given
+    """
     plt.figure()
     plt.title("MSE over time for model with and without t")
     plt.semilogy(mse_t, color='red', label='with t')
@@ -283,30 +325,57 @@ def plot_mse(mse_t, mse_no_t):
     plt.legend()
     plt.show()
 
-def test_models(traj, model, model_no_t):
-    log.info("Beginning testing of predictions")
-    mse_t = []
-    mse_no_t = []
+def test_models(traj, models_t, models_no_t):
+    """
+    Evaluates the models on the given states with the given inputs
 
-    # traj = test_data[0]
+    Paramaters:
+    -----------
+    traj: a dotmap containing states and actions taken in the test
+    models_t: a list of t-param models
+    models_no_t: a list of step-by-step models
+
+    Returns:
+    -------
+    mse_t: a 2D array such that mse_t[j][i] is the MSE of the jth t param model
+        at the ith time step
+    mse_no_t: a 2D array such that mse_t[j][i] is the MSE of the jth iterative model
+        at the ith time step
+    predictions_t: a 3D array such that predictions_t[j][i,:] is the prediction for the
+        jth t-param model at the ith time step
+    predictions_no_t: a 3D array such that predictions_t[j][i,:] is the prediction for the
+        jth iterative model at the ith time step
+    """
+    log.info("Beginning testing of predictions")
+    mse_t = np.zeros((len(models_t), len(traj.states)))
+    mse_no_t = np.zeros((len(models_no_t), len(traj.states)))
+
     states = traj.states
     actions = traj.actions
     initial = states[0]
     current = initial
 
-    predictions_t = [states[0,:]]
-    predictions_no_t = [states[0,:]]
+    predictions_t = [[states[0,:]] for model in models_t]
+    predictions_no_t = [[states[0,:]] for model in models_no_t]
     for i in range(1, states.shape[0]):
-        pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-        pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
-        predictions_t.append(pred_t.squeeze())
-        predictions_no_t.append(pred_no_t.squeeze())
         groundtruth = states[i]
-        mse_t.append(np.square(groundtruth - pred_t).mean())
-        mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
-        current = pred_no_t.squeeze()
+        for j in range(len(models_t)):
+            model = models_t[j]
+            pred = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+            predictions_t[j].append(pred.squeeze())
+            mse_t[j][i] = np.square(groundtruth-pred).mean()
+
+
+        for j in range(len(models_no_t)):
+            model = models_no_t[j]
+            pred = model.predict(np.concatenate((predictions_no_t[j][i-1], actions[i-1,:])))
+            predictions_no_t[j].append(pred.squeeze())
+            mse_no_t[j][i] = np.square(groundtruth-pred).mean()
+
 
     return mse_t, mse_no_t, predictions_t, predictions_no_t
+
+
 
 ###########################################
 #                 Misc                    #
@@ -322,8 +391,8 @@ def contpred(cfg):
     # Collect data
     if COLLECT_DATA:
         log.info('Collecting data')
-        train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len)  # 50
-        test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test)  # 5
+        train_data = collect_data(nTrials=cfg.experiment_one_model.num_traj, horizon=cfg.experiment_one_model.traj_len)  # 50
+        test_data = collect_data(nTrials=1, horizon=cfg.experiment_one_model.traj_len_test)  # 5
     else:
         pass
 
@@ -344,7 +413,7 @@ def contpred(cfg):
     hid_width = cfg.nn.training.hid_width
     model = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL:
-        model, logs = train_model(dataset, model, model_file, cfg)
+        model, logs = train_model(dataset, model, model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
         # save.save(logs, 'logs.pkl')
         # TODO: save logs to file
     else:
@@ -363,7 +432,7 @@ def contpred(cfg):
     n_out = dataset_no_t[1].shape[1]
     model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL_NO_T:
-        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, model_file, cfg)
+        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
     else:
         log.info('Loading model to file: %s' % model_file)
         checkpoint = torch.load(model_file)
@@ -371,6 +440,94 @@ def contpred(cfg):
             model_no_t.load_state_dict(checkpoint['state_dict'])
         else:
             model_no_t.load_state_dict(checkpoint)
+
+    # # Plot optimization NN
+    if cfg.nn.training.plot_loss:
+        plot_loss(logs.training_error, logs_no_t.training_error)
+
+    if cfg.nn.training.plot_loss_epoch:
+        plot_loss_epoch(logs.training_error_epoch,
+            logs_no_t.training_error_epoch, cfg.nn.optimizer.epochs)
+
+    mse_t, mse_no_t, predictions_t, predictions_no_t = test_models(test_data[0], [model], [model_no_t])
+    mse_t = mse_t[0]
+    mse_no_t = mse_no_t[0]
+    predictions_t = predictions_t[0]
+    predictions_no_t = predictions_no_t[0]
+
+    plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
+
+    plot_mse(mse_t, mse_no_t)
+
+    # Blocking this since it doesn't quite work
+    if False:
+        # Evaluate learned model
+        def augment_state(state, horizon=990):
+            """
+            Augment state by including time
+            :param state:
+            :param horizon:
+            :return:
+            """
+            out = []
+            for i in range(horizon):
+                out.append(np.hstack((state, i)))
+            return np.array(out)
+
+        idx_trajectory = 0
+        idx_state = 2
+        state = test_data[idx_trajectory].states[idx_state]
+        remaining_horizon = test_data[idx_trajectory].states.shape[0] - idx_state - 1
+        groundtruth = test_data[idx_trajectory].states[idx_state:]
+        pred_out = np.concatenate((state[None, :], model.predict(augment_state(state, horizon=remaining_horizon))))
+        idx_plot = range(7)
+        for i in idx_plot:
+            plt.figure()
+            h1 = plt.plot(pred_out[:, i], label='Prediction')
+            h2 = plt.plot(groundtruth[:, i], c='r', label='Groundtruth')
+            plt.legend()
+            plt.show()
+
+def test_sample_efficiency(cfg):
+
+    # Collect test data
+    log.info('Collecting test data')
+    test_data = collect_data(nTrials=1, horizon=cfg.experiment_efficiency.traj_len_test)  # 5
+
+    log.info('Begining loop')
+    data_t = []
+    data_no_t = []
+    models = []
+    for i in range(cfg.experiment_efficiency.num_traj):
+        log.info('Trajectory 1')
+        new_data = collect_data(nTrials=1, horizon=cfg.experiment_efficiency.traj_len)
+        data_t.extend(new_data)
+        data_no_t.extend(new_data)
+
+        dataset_t = create_dataset_t_pid(data_t)
+        dataset_no_t = create_dataset_no_t(data_no_t)
+
+        # Train t model
+        n_in = dataset_t[0].shape[1]
+        n_out = dataset_t[1].shape[1]
+        hid_width = cfg.nn.training.hid_width
+        model = Net(structure=[n_in, hid_width, hid_width, n_out])
+        model, logs = train_model(dataset_t, model,
+                        model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
+
+        # Train no t model
+        n_in = dataset_no_t[0].shape[1]
+        n_out = dataset_no_t[1].shape[1]
+        model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
+        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
+                        model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
+
+        models.append([model, model_no_t])
+
+
+
+
+
 
     # # Plot optimization NN
     if cfg.nn.training.plot_loss:
@@ -420,8 +577,8 @@ def test_multiple_n_epochs(cfg):
 
     # Collect data
     log.info('Collecting data')
-    train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len)  # 50
-    test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len)  # 5
+    train_data = collect_data(nTrials=cfg.experiment_one_model.num_traj, horizon=cfg.experiment_one_model.traj_len)  # 50
+    test_data = collect_data(nTrials=1, horizon=cfg.experiment_one_model.traj_len)  # 5
 
 
     # Create dataset
@@ -447,8 +604,8 @@ def test_multiple_n_epochs(cfg):
 
     for n_epochs in range(cfg.nn.optimizer.epochs):
         # Train models
-        model, logs = train_model(dataset, model, None, cfg, n_epochs=1, save=False)
-        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, None, cfg, n_epochs=1, save=False)
+        model, logs = train_model(dataset, model, None, cfg.nn.optimizer.lr, 1, save=False)
+        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, None, cfg.nn.optimizer.lr, 1, save=False)
 
         log.info("Beginning testing of predictions")
 
@@ -516,3 +673,29 @@ if __name__ == '__main__':
 #             out.extend(trial.states)
 #         file = "trajectories/traj{}.npy".format(hor)
 #         np.save(file, out)
+
+
+# def test_models(traj, model, model_no_t):
+#     log.info("Beginning testing of predictions")
+#     mse_t = []
+#     mse_no_t = []
+#
+#     # traj = test_data[0]
+#     states = traj.states
+#     actions = traj.actions
+#     initial = states[0]
+#     current = initial
+#
+#     predictions_t = [states[0,:]]
+#     predictions_no_t = [states[0,:]]
+#     for i in range(1, states.shape[0]):
+#         pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+#         pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
+#         predictions_t.append(pred_t.squeeze())
+#         predictions_no_t.append(pred_no_t.squeeze())
+#         groundtruth = states[i]
+#         mse_t.append(np.square(groundtruth - pred_t).mean())
+#         mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
+#         current = pred_no_t.squeeze()
+#
+#     return mse_t, mse_no_t, predictions_t, predictions_no_t
