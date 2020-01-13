@@ -204,7 +204,7 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
         # plt.show()
     return logs
 
-def train_model(dataset, model, model_file, learning_rate, n_epochs, save=True):
+def train_model(dataset, model, learning_rate, n_epochs, model_file=None):
     """
     Wrapper for training models
 
@@ -212,10 +212,9 @@ def train_model(dataset, model, model_file, learning_rate, n_epochs, save=True):
     ----------
     dataset: The dataset to use for training, a tuple (data_in, data_out)
     model: a PyTorch model to train
-    model_file: the file to save this into
     learning_rate: the learning rate
     n_epochs: the number of epochs to train for
-    save: whether or not to save the model to file
+    model_file: the file to save this into, or None if it shouldn't be saved
 
     Returns:
     --------
@@ -228,8 +227,8 @@ def train_model(dataset, model, model_file, learning_rate, n_epochs, save=True):
     p.learning_rate = learning_rate
     p.useGPU = False
     model, logs = train_network(dataset=dataset, model=model, parameters=p)
-    log.info('Saving model to file: %s' % model_file)
-    if save:
+    if model_file:
+        log.info('Saving model to file: %s' % model_file)
         torch.save(model.state_dict(), model_file)
     return model, logs
 
@@ -266,23 +265,36 @@ def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, 
         plt.legend()
         plt.show()
 
-def plot_average_states(ground_truth, prediction_param, prediction_step):
+def plot_average_states(ground_truth, prediction_param, prediction_step, idx_plot=None):
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
     if idx_plot is None:
         idx_plot = list(range(dx))
 
+    print(ground_truth.shape)
+    print(ground_truth[:,0:].shape)
+
+    gt = np.zeros(ground_truth[:,0:1].shape)
+    p1 = np.zeros(ground_truth[:,0:1].shape)
+    p2 = np.zeros(ground_truth[:,0:1].shape)
     for i in idx_plot:
-        gt = ground_truth[:, i]
-        p1 = prediction_param[:, i]
-        p2 = prediction_step[:, i]
-        p2_chopped = np.maximum(np.minimum(p2, 10), -10) # to keep it from diverging and messing up graphs
-        plt.figure()
-        plt.plot(p1, c='k', label='Prediction T-Param')
-        plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
-        plt.plot(gt, c='r', label='Groundtruth')
-        plt.legend()
-        plt.show()
+        gt = np.hstack((gt, ground_truth[:, i:i+1]))
+        p1 = np.hstack((p1, prediction_param[:, i:i+1]))
+        p2 = np.hstack((p2, prediction_step[:, i:i+1]))
+        # p2_chopped = np.maximum(np.minimum(p2, 10), -10) # to keep it from diverging and messing up graphs
+    print(gt.shape)
+    gt_avg = np.average(gt[:,1:], axis=1)
+    p1_avg = np.average(p1[:,1:], axis=1)
+    p2_avg = np.average(p2[:,1:], axis=1)
+    p2_chopped = np.maximum(np.minimum(p2_avg, 10), -10) # to keep it from diverging and messing up graphs
+
+    plt.figure()
+    plt.plot(p1_avg, c='k', label='Prediction T-Param')
+    plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
+    plt.plot(gt_avg, c='r', label='Groundtruth')
+    plt.legend()
+    plt.title('Predictions, averaged')
+    plt.show()
 
 def plot_loss(training_error_t, training_error_no_t):
     plt.figure()
@@ -375,6 +387,37 @@ def test_models(traj, models_t, models_no_t):
 
     return mse_t, mse_no_t, predictions_t, predictions_no_t
 
+def test_model_single(traj, model, model_no_t):
+    """
+    Tests one model each of t-param and iterative
+
+    Parameters/returns:
+    -------------------
+    see the above method it's about the same
+    """
+    log.info("Beginning testing of predictions")
+    mse_t = []
+    mse_no_t = []
+
+    # traj = test_data[0]
+    states = traj.states
+    actions = traj.actions
+    initial = states[0]
+    current = initial
+
+    predictions_t = [states[0,:]]
+    predictions_no_t = [states[0,:]]
+    for i in range(1, states.shape[0]):
+        pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+        pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
+        predictions_t.append(pred_t.squeeze())
+        predictions_no_t.append(pred_no_t.squeeze())
+        groundtruth = states[i]
+        mse_t.append(np.square(groundtruth - pred_t).mean())
+        mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
+        current = pred_no_t.squeeze()
+
+    return mse_t, mse_no_t, predictions_t, predictions_no_t
 
 
 ###########################################
@@ -413,7 +456,7 @@ def contpred(cfg):
     hid_width = cfg.nn.training.hid_width
     model = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL:
-        model, logs = train_model(dataset, model, model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
+        model, logs = train_model(dataset, model, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs, model_file=model_file)
         # save.save(logs, 'logs.pkl')
         # TODO: save logs to file
     else:
@@ -432,7 +475,7 @@ def contpred(cfg):
     n_out = dataset_no_t[1].shape[1]
     model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL_NO_T:
-        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
+        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs, model_file=model_file)
     else:
         log.info('Loading model to file: %s' % model_file)
         checkpoint = torch.load(model_file)
@@ -449,12 +492,14 @@ def contpred(cfg):
         plot_loss_epoch(logs.training_error_epoch,
             logs_no_t.training_error_epoch, cfg.nn.optimizer.epochs)
 
-    mse_t, mse_no_t, predictions_t, predictions_no_t = test_models(test_data[0], [model], [model_no_t])
-    mse_t = mse_t[0]
-    mse_no_t = mse_no_t[0]
-    predictions_t = predictions_t[0]
-    predictions_no_t = predictions_no_t[0]
+    mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
+    # mse_t = mse_t[0]
+    # mse_no_t = mse_no_t[0]
+    # predictions_t = predictions_t[0]
+    # predictions_no_t = predictions_no_t[0]
 
+    # plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
+    plot_average_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
     plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
 
     plot_mse(mse_t, mse_no_t)
@@ -497,7 +542,8 @@ def test_sample_efficiency(cfg):
     log.info('Begining loop')
     data_t = []
     data_no_t = []
-    models = []
+    models_t = []
+    models_no_t = []
     for i in range(cfg.experiment_efficiency.num_traj):
         log.info('Trajectory 1')
         new_data = collect_data(nTrials=1, horizon=cfg.experiment_efficiency.traj_len)
@@ -511,8 +557,8 @@ def test_sample_efficiency(cfg):
         n_in = dataset_t[0].shape[1]
         n_out = dataset_t[1].shape[1]
         hid_width = cfg.nn.training.hid_width
-        model = Net(structure=[n_in, hid_width, hid_width, n_out])
-        model, logs = train_model(dataset_t, model,
+        model_t = Net(structure=[n_in, hid_width, hid_width, n_out])
+        model_no_t, logs = train_model(dataset_t, model,
                         model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
 
         # Train no t model
@@ -522,55 +568,23 @@ def test_sample_efficiency(cfg):
         model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
                         model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
 
-        models.append([model, model_no_t])
-
-
-
-
-
+        models_t.append(model_t)
+        models_no_t.append(model_no_t)
 
     # # Plot optimization NN
-    if cfg.nn.training.plot_loss:
-        plot_loss(logs.training_error, logs_no_t.training_error)
+    # if cfg.nn.training.plot_loss:
+    #     plot_loss(logs.training_error, logs_no_t.training_error)
+    #
+    # if cfg.nn.training.plot_loss_epoch:
+    #     plot_loss_epoch(logs.training_error_epoch,
+    #         logs_no_t.training_error_epoch, cfg.nn.optimizer.epochs)
 
-    if cfg.nn.training.plot_loss_epoch:
-        plot_loss_epoch(logs.training_error_epoch,
-            logs_no_t.training_error_epoch, cfg.nn.optimizer.epochs)
-
-    mse_t, mse_no_t, predictions_t, predictions_no_t = test_models(test_data[0], model, model_no_t)
+    mse_t, mse_no_t, predictions_t, predictions_no_t = test_models(test_data[0], models, models_no_t)
 
     plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
 
     plot_mse(mse_t, mse_no_t)
 
-    # Blocking this since it doesn't quite work
-    if False:
-        # Evaluate learned model
-        def augment_state(state, horizon=990):
-            """
-            Augment state by including time
-            :param state:
-            :param horizon:
-            :return:
-            """
-            out = []
-            for i in range(horizon):
-                out.append(np.hstack((state, i)))
-            return np.array(out)
-
-        idx_trajectory = 0
-        idx_state = 2
-        state = test_data[idx_trajectory].states[idx_state]
-        remaining_horizon = test_data[idx_trajectory].states.shape[0] - idx_state - 1
-        groundtruth = test_data[idx_trajectory].states[idx_state:]
-        pred_out = np.concatenate((state[None, :], model.predict(augment_state(state, horizon=remaining_horizon))))
-        idx_plot = range(7)
-        for i in idx_plot:
-            plt.figure()
-            h1 = plt.plot(pred_out[:, i], label='Prediction')
-            h2 = plt.plot(groundtruth[:, i], c='r', label='Groundtruth')
-            plt.legend()
-            plt.show()
 
 # @hydra.main(config_path='conf/config.yaml')
 def test_multiple_n_epochs(cfg):
@@ -604,8 +618,8 @@ def test_multiple_n_epochs(cfg):
 
     for n_epochs in range(cfg.nn.optimizer.epochs):
         # Train models
-        model, logs = train_model(dataset, model, None, cfg.nn.optimizer.lr, 1, save=False)
-        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, None, cfg.nn.optimizer.lr, 1, save=False)
+        model, logs = train_model(dataset, model, cfg.nn.optimizer.lr, 1)
+        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, cfg.nn.optimizer.lr, 1)
 
         log.info("Beginning testing of predictions")
 
@@ -673,29 +687,3 @@ if __name__ == '__main__':
 #             out.extend(trial.states)
 #         file = "trajectories/traj{}.npy".format(hor)
 #         np.save(file, out)
-
-
-# def test_models(traj, model, model_no_t):
-#     log.info("Beginning testing of predictions")
-#     mse_t = []
-#     mse_no_t = []
-#
-#     # traj = test_data[0]
-#     states = traj.states
-#     actions = traj.actions
-#     initial = states[0]
-#     current = initial
-#
-#     predictions_t = [states[0,:]]
-#     predictions_no_t = [states[0,:]]
-#     for i in range(1, states.shape[0]):
-#         pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-#         pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
-#         predictions_t.append(pred_t.squeeze())
-#         predictions_no_t.append(pred_no_t.squeeze())
-#         groundtruth = states[i]
-#         mse_t.append(np.square(groundtruth - pred_t).mean())
-#         mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
-#         current = pred_no_t.squeeze()
-#
-#     return mse_t, mse_no_t, predictions_t, predictions_no_t
