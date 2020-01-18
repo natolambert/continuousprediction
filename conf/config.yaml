@@ -6,7 +6,7 @@ train_model_onestep: true
 experiment:
   traj_len: 300
   traj_len_test: 800
-  num_traj: 50
+  num_traj: 10
   split: .8
   P: false
   D: false

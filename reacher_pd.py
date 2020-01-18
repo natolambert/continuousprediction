@@ -11,12 +11,13 @@ from dotmap import DotMap
 from timeit import default_timer as timer
 import matplotlib.pyplot as plt
 
+import mujoco_py
 import torch
-from torch.autograd import Variable
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.backends.cudnn as cudnn
-import gym
+# from torch.autograd import Variable
+# import torch.nn as nn
+# import torch.nn.functional as F
+# import torch.backends.cudnn as cudnn
+# import gym
 from envs import *
 
 import hydra
@@ -26,6 +27,7 @@ log = logging.getLogger(__name__)
 
 from policy import PID
 from mbrl_resources import *
+from plot import plot_reacher
 
 
 def stateAction2forwardDyn(states, actions):
@@ -85,7 +87,7 @@ def run_controller(env, horizon, policy):
     return logs
 
 
-def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
+def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 points
     """
     Collect data for environment model
     :param nTrials:
@@ -117,13 +119,13 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
         s0 = env.reset()
 
         # P = np.array([4, 4, 1, 1, 1])
-        P = np.random.rand(5)*5
+        P = np.random.rand(5) * 5
         I = np.zeros(5)
         # D = np.array([0.2, 0.2, 2, 0.4, 0.4])
         D = np.random.rand(5)
 
         # Samples target uniformely from [-1, 1]
-        target = np.random.rand(5)*2-1
+        target = np.random.rand(5) * 2 - 1
 
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         # print(type(env))
@@ -141,6 +143,40 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
         # h = plt.plot(logs[i].states[:, -3:])
         # plt.legend(h)
         # plt.show()
+
+    if plot:
+        import plotly.graph_objects as go
+
+        fig = go.Figure()
+
+        fig.update_layout(
+            width=1500,
+            height=800,
+            autosize=False,
+            scene=dict(
+                camera=dict(
+                    up=dict(
+                        x=0,
+                        y=0,
+                        z=1
+                    ),
+                    eye=dict(
+                        x=0,
+                        y=1.0707,
+                        z=1,
+                    )
+                ),
+                aspectratio=dict(x=1, y=1, z=0.7),
+                aspectmode='manual'
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        for d in logs:
+            states = d.states
+            actions = d.actions
+            plot_reacher(states, actions)
+
     return logs
 
 
@@ -169,6 +205,7 @@ def create_dataset_t_only(data):
 
     return data_in, data_out
 
+
 def create_dataset_t_pid(data, probabilistic=False):
     """
     Creates a dataset with entries for PID parameters and number of
@@ -194,12 +231,12 @@ def create_dataset_t_pid(data, probabilistic=False):
                 if np.random.random() < threshold and probabilistic:
                     continue
 
-
-                data_in.append(np.hstack((states[i], j - i, P/5, D, target)))
+                data_in.append(np.hstack((states[i], j - i, P / 5, D, target)))
                 data_out.append(states[j])
     data_in = np.array(data_in)
     data_out = np.array(data_out)
     return data_in, data_out
+
 
 def create_dataset_no_t(data):
     """
@@ -229,8 +266,9 @@ def train_model(dataset, model, model_file, cfg, n_epochs=False, save=True):
         torch.save(model.state_dict(), model_file)
     return model, logs
 
-        # logs = save.load('logs.pkl')
-        # TODO: load logs from file
+    # logs = save.load('logs.pkl')
+    # TODO: load logs from file
+
 
 @hydra.main(config_path='conf/config.yaml')
 def contpred(cfg):
@@ -242,7 +280,7 @@ def contpred(cfg):
     # Collect data
     if COLLECT_DATA:
         log.info('Collecting data')
-        train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len)  # 50
+        train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=True)  # 50
         test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test)  # 5
     else:
         pass
@@ -333,11 +371,11 @@ def contpred(cfg):
     initial = states[0]
     current = initial
 
-    predictions_1 = [states[0,:]]
-    predictions_2 = [states[0,:]]
+    predictions_1 = [states[0, :]]
+    predictions_2 = [states[0, :]]
     for i in range(1, states.shape[0]):
         pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-        pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
+        pred_no_t = model_no_t.predict(np.concatenate((current, actions[i - 1, :])))
         predictions_1.append(pred_t.squeeze())
         predictions_2.append(pred_no_t.squeeze())
         groundtruth = states[i]
@@ -383,14 +421,13 @@ def contpred(cfg):
             plt.legend()
             plt.show()
 
+
 # @hydra.main(config_path='conf/config.yaml')
 def test_multiple_n_epochs(cfg):
-
     # Collect data
     log.info('Collecting data')
     train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len)  # 50
     test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len)  # 5
-
 
     # Create dataset
     log.info('Creating dataset')
@@ -407,9 +444,10 @@ def test_multiple_n_epochs(cfg):
     model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
 
     def loss(x, y):
-        d = x-y
+        d = x - y
         norm = np.linalg.norm(d, axis=1)
-        return np.sum(norm)/norm.size
+        return np.sum(norm) / norm.size
+
     loss_t = []
     loss_no_t = []
 
@@ -426,11 +464,11 @@ def test_multiple_n_epochs(cfg):
         initial = states[0]
         current = initial
 
-        predictions_t = [states[0,:]]
-        predictions_no_t = [states[0,:]]
+        predictions_t = [states[0, :]]
+        predictions_no_t = [states[0, :]]
         for i in range(1, states.shape[0]):
             pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-            pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
+            pred_no_t = model_no_t.predict(np.concatenate((current, actions[i - 1, :])))
             predictions_t.append(pred_t.squeeze())
             predictions_no_t.append(pred_no_t.squeeze())
             current = pred_no_t.squeeze()
@@ -467,7 +505,7 @@ def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, 
         gt = ground_truth[:, i]
         p1 = prediction_param[:, i]
         p2 = prediction_step[:, i]
-        p2_chopped = np.maximum(np.minimum(p2, 10), -10) # to keep it from diverging and messing up graphs
+        p2_chopped = np.maximum(np.minimum(p2, 10), -10)  # to keep it from diverging and messing up graphs
         plt.figure()
         plt.plot(p1, c='k', label='Prediction T-Param')
         plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
@@ -480,12 +518,13 @@ def temp_generate_trajectories():
     lengths = [10, 50, 100, 150, 200, 250, 300, 500]
     for hor in lengths:
         print("Generating length {} trajectories".format(hor))
-        data = np.array(collect_data(nTrials = 20, horizon=hor))
+        data = np.array(collect_data(nTrials=20, horizon=hor))
         out = []
         for trial in data:
             out.extend(trial.states)
         file = "trajectories/traj{}.npy".format(hor)
         np.save(file, out)
+
 
 # train_data = collect_data(nTrials=50, horizon=300)  # 50
 # dataset = create_dataset_t_pid(train_data, probabilistic=True)
