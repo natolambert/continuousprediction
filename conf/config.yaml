@@ -3,7 +3,7 @@ create_dataset: true
 train_model: true
 train_model_onestep: true
 
-experiment_one_model:
+experiment:
   traj_len: 600
   traj_len_test: 800
   num_traj: 10
