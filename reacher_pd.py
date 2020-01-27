@@ -1,5 +1,6 @@
 import sys
 import warnings
+import os
 
 import matplotlib.cbook
 
@@ -247,7 +248,7 @@ def plot_pred(groundtruth, prediction, sorted=True):
     plt.plot(prediction)
     plt.show()
 
-def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, save=False):
+def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, plot_avg=True, save_loc=None):
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
     if idx_plot is None:
@@ -257,22 +258,53 @@ def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, 
         gt = ground_truth[:, i]
         p1 = prediction_param[:, i]
         p2 = prediction_step[:, i]
-        p2_chopped = np.maximum(np.minimum(p2, 10), -10) # to keep it from diverging and messing up graphs
+        p2_chopped = np.maximum(np.minimum(p2, 3), -3) # to keep it from diverging and messing up graphs
         plt.figure()
         plt.plot(p1, c='k', label='Prediction T-Param')
         plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
         plt.plot(gt, c='r', label='Groundtruth')
+        # plt.ylim(-.5, 1.5)
+        plt.title("Predictions on one dimension")
         plt.legend()
+        if save_loc:
+            plt.savefig(save_loc + "/state%d.pdf" % i)
         plt.show()
+
+
+
+    if plot_avg:
+        gt = np.zeros(ground_truth[:,0:1].shape)
+        p1 = np.zeros(ground_truth[:,0:1].shape)
+        p2 = np.zeros(ground_truth[:,0:1].shape)
+        for i in idx_plot:
+            gt = np.hstack((gt, ground_truth[:, i:i+1]))
+            p1 = np.hstack((p1, prediction_param[:, i:i+1]))
+            p2 = np.hstack((p2, prediction_step[:, i:i+1]))
+            # p2_chopped = np.maximum(np.minimum(p2, 10), -10) # to keep it from diverging and messing up graphs
+        print(gt.shape)
+        gt_avg = np.average(gt[:,1:], axis=1)
+        p1_avg = np.average(p1[:,1:], axis=1)
+        p2_avg = np.average(p2[:,1:], axis=1)
+        p2_chopped = np.maximum(np.minimum(p2_avg, 3), -3) # to keep it from messing up graphs when it diverges
+
+        plt.figure()
+        plt.plot(p1_avg, c='k', label='Prediction T-Param')
+        plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
+        plt.plot(gt_avg, c='r', label='Groundtruth')
+        # plt.ylim(-.5, 1.5)
+        plt.legend()
+        plt.title('Predictions, averaged')
+        if save_loc:
+            plt.savefig(save_loc + "/avg_states.pdf")
+        plt.show()
+
+
 
 def plot_average_states(ground_truth, prediction_param, prediction_step, idx_plot=None):
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
     if idx_plot is None:
         idx_plot = list(range(dx))
-
-    print(ground_truth.shape)
-    print(ground_truth[:,0:].shape)
 
     gt = np.zeros(ground_truth[:,0:1].shape)
     p1 = np.zeros(ground_truth[:,0:1].shape)
@@ -326,7 +358,7 @@ def plot_loss_epoch(training_error_t, training_error_no_t, epochs):
     plt.ylabel("total loss")
     plt.show()
 
-def plot_mse(mse_t, mse_no_t):
+def plot_mse(mse_t, mse_no_t, save_loc=None):
     """
     Plots MSE graphs for the two sequences given
     """
@@ -335,6 +367,8 @@ def plot_mse(mse_t, mse_no_t):
     plt.semilogy(mse_t, color='red', label='with t')
     plt.semilogy(mse_no_t, color='blue', label='without t')
     plt.legend()
+    if save_loc:
+        plt.savefig(save_loc + "/mse.pdf")
     plt.show()
 
 def test_models(traj, models_t, models_no_t):
@@ -484,6 +518,9 @@ def contpred(cfg):
         else:
             model_no_t.load_state_dict(checkpoint)
 
+    graph_file = 'graphs'
+    os.mkdir(graph_file)
+
     # # Plot optimization NN
     if cfg.nn.training.plot_loss:
         plot_loss(logs.training_error, logs_no_t.training_error)
@@ -499,10 +536,10 @@ def contpred(cfg):
     # predictions_no_t = predictions_no_t[0]
 
     # plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
-    plot_average_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
-    plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
+    # plot_average_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
+    plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=graph_file)
 
-    plot_mse(mse_t, mse_no_t)
+    plot_mse(mse_t, mse_no_t, save_loc=graph_file)
 
     # Blocking this since it doesn't quite work
     if False:
@@ -586,6 +623,7 @@ def test_sample_efficiency(cfg):
     plot_mse(mse_t, mse_no_t)
 
 
+# This one can mostly be ignored; an experiment I did a while ago
 # @hydra.main(config_path='conf/config.yaml')
 def test_multiple_n_epochs(cfg):
 
