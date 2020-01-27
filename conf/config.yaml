@@ -17,18 +17,31 @@ experiment_efficiency:
   num_traj: 10
 
 nn:
-  ensemble:
-    use: false
-    num_nets: 10
-  training:
-    hid_width: 250
-    hid_depth: 2
-    E: 5
-    plot_loss: true
-    plot_loss_epoch: true
-  optimizer:
-    epochs: 1
-    batch: 128
-    name: Adam
-    split: .8
-    lr: .003
+  trajectory_based:
+    ensemble:
+      use: false
+      num_nets: 10
+    training:
+      hid_width: 250
+      hid_depth: 2
+      E: 5
+    optimizer:
+      epochs: 1
+      batch: 128
+      name: Adam
+      split: .8
+      lr: .003
+  one_step:
+    ensemble:
+      use: false
+      num_nets: 10
+    training:
+      hid_width: 250
+      hid_depth: 2
+      E: 5
+    optimizer:
+      epochs: 1
+      batch: 128
+      name: Adam
+      split: .8
+      lr: .003

@@ -380,16 +380,16 @@ def plot_loss(training_error_t, training_error_no_t):
     plt.ylabel("total loss")
     plt.show()
 
-def plot_loss_epoch(training_error_t, training_error_no_t, epochs):
+def plot_loss_epoch(training_error_t, training_error_no_t, epochs_t, epochs_no_t):
     plt.figure()
-    plt.bar(np.arange(epochs), np.array(training_error_t))
+    plt.bar(np.arange(epochs_t), np.array(training_error_t))
     plt.title("Training Error with t")
     plt.xlabel("epoch")
     plt.ylabel("total loss")
     plt.show()
 
     plt.figure()
-    plt.bar(np.arange(epochs), np.array(training_error_no_t))
+    plt.bar(np.arange(epochs_no_t), np.array(training_error_no_t))
     plt.title("Training Error without t")
     plt.xlabel("epoch")
     plt.ylabel("total loss")
@@ -399,10 +399,13 @@ def plot_mse(mse_t, mse_no_t, save_loc=None):
     """
     Plots MSE graphs for the two sequences given
     """
-    plt.figure()
+    fig, ax = plt.subplots()
     plt.title("MSE over time for model with and without t")
-    plt.semilogy(mse_t, color='red', label='with t')
-    plt.semilogy(mse_no_t, color='blue', label='without t')
+    plt.xlabel("timesteps")
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    plt.semilogy(mse_t, color='red', label='trajectory based', marker='s')
+    plt.semilogy(mse_no_t, color='blue', label='deterministic', marker='o')
     plt.legend()
     if save_loc:
         plt.savefig(save_loc + "/mse.pdf")
@@ -505,7 +508,7 @@ def contpred(cfg):
     # Collect data
     if COLLECT_DATA:
         log.info('Collecting data')
-        train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=True)  # 50
+        train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=False)  # 50
         test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test)  # 5
     else:
         pass
@@ -520,14 +523,17 @@ def contpred(cfg):
 
     print(dataset[0].shape)
 
-    # Train model
+    # Train trajectory based model
     model_file = 'model.pth.tar'
     n_in = dataset[0].shape[1]
     n_out = dataset[1].shape[1]
-    hid_width = cfg.nn.training.hid_width
+    hid_width = cfg.nn.trajectory_based.training.hid_width
     model = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL:
-        model, logs = train_model(dataset, model, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs, model_file=model_file)
+        model, logs = train_model(dataset, model,
+                cfg.nn.trajectory_based.optimizer.lr,
+                cfg.nn.trajectory_based.optimizer.epochs,
+                model_file=model_file)
         # save.save(logs, 'logs.pkl')
         # TODO: save logs to file
     else:
@@ -540,13 +546,16 @@ def contpred(cfg):
         # logs = save.load('logs.pkl')
         # TODO: load logs from file
 
-    # Train no t model
+    # Train one step model
     model_file = 'model_no_t.pth.tar'
     n_in = dataset_no_t[0].shape[1]
     n_out = dataset_no_t[1].shape[1]
     model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL_NO_T:
-        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs, model_file=model_file)
+        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
+                cfg.nn.one_step.optimizer.lr,
+                cfg.nn.one_step.optimizer.epochs,
+                model_file=model_file)
     else:
         log.info('Loading model to file: %s' % model_file)
         checkpoint = torch.load(model_file)
@@ -559,12 +568,11 @@ def contpred(cfg):
     os.mkdir(graph_file)
 
     # # Plot optimization NN
-    if cfg.nn.training.plot_loss:
-        plot_loss(logs.training_error, logs_no_t.training_error)
-
-    if cfg.nn.training.plot_loss_epoch:
-        plot_loss_epoch(logs.training_error_epoch,
-            logs_no_t.training_error_epoch, cfg.nn.optimizer.epochs)
+    plot_loss(logs.training_error, logs_no_t.training_error)
+    plot_loss_epoch(logs.training_error_epoch,
+            logs_no_t.training_error_epoch,
+            cfg.nn.trajectory_based.optimizer.epochs,
+            cfg.nn.one_step.optimizer.epochs)
 
     mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
     # mse_t = mse_t[0]
@@ -630,17 +638,20 @@ def test_sample_efficiency(cfg):
         # Train t model
         n_in = dataset_t[0].shape[1]
         n_out = dataset_t[1].shape[1]
-        hid_width = cfg.nn.training.hid_width
+        hid_width = cfg.nn.trajectory_based.training.hid_width
         model_t = Net(structure=[n_in, hid_width, hid_width, n_out])
         model_no_t, logs = train_model(dataset_t, model,
-                        model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
+                        model_file, cfg.nn.trajectory_based.optimizer.lr,
+                        cfg.nn.trajectory_based.optimizer.epochs)
 
         # Train no t model
         n_in = dataset_no_t[0].shape[1]
         n_out = dataset_no_t[1].shape[1]
+        hid_width = cfg.nn.one_step.training.hid_width
         model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
         model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
-                        model_file, cfg.nn.optimizer.lr, cfg.nn.optimizer.epochs)
+                        model_file, cfg.nn.one_step.optimizer.lr,
+                        cfg.nn.one_step.optimizer.epochs)
 
         models_t.append(model_t)
         models_no_t.append(model_no_t)
@@ -676,10 +687,12 @@ def test_multiple_n_epochs(cfg):
     # Set up the models
     n_in = dataset[0].shape[1]
     n_out = dataset[1].shape[1]
-    hid_width = cfg.nn.training.hid_width
+    hid_width = cfg.nn.trajectory_based.training.hid_width
     model = Net(structure=[n_in, hid_width, hid_width, n_out])
+
     n_in = dataset_no_t[0].shape[1]
     n_out = dataset_no_t[1].shape[1]
+    hid_width = cfg.nn.one_step.training.hid_width
     model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
 
     def loss(x, y):
