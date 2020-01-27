@@ -4,8 +4,8 @@ import glob
 
 import hydra
 import numpy as np
-import plotly.plotly as py
-from plotly.graph_objs import *
+import plotly.graph_objects as go
+import plotly
 
 import logging
 
@@ -32,6 +32,54 @@ def find_latest_checkpoint(cfg):
     last_modified_file = max(files, key=os.path.getmtime)
 
     return last_modified_file
+
+def plot_reacher(states, actions):
+
+    ar = np.stack(states)
+    l = np.shape(ar)[0]
+    xs = np.arange(l)
+
+    X = ar[:,-3]
+    Y = ar[:,-2]
+    Z = ar[:,-1]
+
+    actions = np.stack(actions)
+
+    fig = plotly.subplots.make_subplots(rows=2, cols=1,
+                                        subplot_titles=("Position", "Action - Torques"),
+                                        vertical_spacing=.15) #go.Figure()
+    fig.add_trace(go.Scatter(x=xs, y=X, name='X',
+                             line=dict(color='firebrick', width=4)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=xs, y=Y, name='Y',
+                             line=dict(color='royalblue', width=4)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=xs, y=Z, name='Z',
+                             line=dict(color='green', width=4)), row=1, col=1)
+
+    fig.add_trace(go.Scatter(x=xs, y=actions[:,0], name='M1',
+                             line=dict(color='firebrick', width=4)), row=2, col=1)
+    fig.add_trace(go.Scatter(x=xs, y=actions[:,1], name='M2',
+                             line=dict(color='royalblue', width=4)), row=2, col=1)
+    fig.add_trace(go.Scatter(x=xs, y=actions[:,2], name='M3',
+                             line=dict(color='green', width=4)), row=2, col=1)
+    fig.add_trace(go.Scatter(x=xs, y=actions[:,3], name='M4',
+                             line=dict(color='orange', width=4)), row=2, col=1)
+    fig.add_trace(go.Scatter(x=xs, y=actions[:,4], name='M5',
+                             line=dict(color='black', width=4)), row=2, col=1)
+
+    fig.update_layout(title='Position of Reacher Task',
+                      xaxis_title='Timestep',
+                      yaxis_title='Angle (Degrees)',
+                      plot_bgcolor='white',
+                      xaxis=dict(
+                          showline=True,
+                          showgrid=False,
+                          showticklabels=True,),
+                      yaxis=dict(
+                          showline=True,
+                          showgrid=False,
+                          showticklabels=True,),
+                      )
+    fig.show()
 
 
 def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=None):

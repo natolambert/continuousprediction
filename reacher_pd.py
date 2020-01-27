@@ -12,12 +12,13 @@ from dotmap import DotMap
 from timeit import default_timer as timer
 import matplotlib.pyplot as plt
 
+import mujoco_py
 import torch
-from torch.autograd import Variable
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.backends.cudnn as cudnn
-import gym
+# from torch.autograd import Variable
+# import torch.nn as nn
+# import torch.nn.functional as F
+# import torch.backends.cudnn as cudnn
+# import gym
 from envs import *
 
 import hydra
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 
 from policy import PID
 from mbrl_resources import *
+from plot import plot_reacher
 
 ###########################################
 #            Model Training               #
@@ -147,7 +149,8 @@ def run_controller(env, horizon, policy):
     logs.states = np.array(logs.states)
     return logs
 
-def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
+
+def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 points
     """
     Collect data for environment model
     :param nTrials:
@@ -179,13 +182,13 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
         s0 = env.reset()
 
         # P = np.array([4, 4, 1, 1, 1])
-        P = np.random.rand(5)*5
+        P = np.random.rand(5) * 5
         I = np.zeros(5)
         # D = np.array([0.2, 0.2, 2, 0.4, 0.4])
         D = np.random.rand(5)
 
         # Samples target uniformely from [-1, 1]
-        target = np.random.rand(5)*2-1
+        target = np.random.rand(5) * 2 - 1
 
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         # print(type(env))
@@ -203,6 +206,40 @@ def collect_data(nTrials=20, horizon=150): # Creates horizon^2/2 points
         # h = plt.plot(logs[i].states[:, -3:])
         # plt.legend(h)
         # plt.show()
+
+    if plot:
+        import plotly.graph_objects as go
+
+        fig = go.Figure()
+
+        fig.update_layout(
+            width=1500,
+            height=800,
+            autosize=False,
+            scene=dict(
+                camera=dict(
+                    up=dict(
+                        x=0,
+                        y=0,
+                        z=1
+                    ),
+                    eye=dict(
+                        x=0,
+                        y=1.0707,
+                        z=1,
+                    )
+                ),
+                aspectratio=dict(x=1, y=1, z=0.7),
+                aspectmode='manual'
+            ),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        for d in logs:
+            states = d.states
+            actions = d.actions
+            plot_reacher(states, actions)
+
     return logs
 
 def train_model(dataset, model, learning_rate, n_epochs, model_file=None):
@@ -468,8 +505,8 @@ def contpred(cfg):
     # Collect data
     if COLLECT_DATA:
         log.info('Collecting data')
-        train_data = collect_data(nTrials=cfg.experiment_one_model.num_traj, horizon=cfg.experiment_one_model.traj_len)  # 50
-        test_data = collect_data(nTrials=1, horizon=cfg.experiment_one_model.traj_len_test)  # 5
+        train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=True)  # 50
+        test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test)  # 5
     else:
         pass
 
@@ -626,12 +663,10 @@ def test_sample_efficiency(cfg):
 # This one can mostly be ignored; an experiment I did a while ago
 # @hydra.main(config_path='conf/config.yaml')
 def test_multiple_n_epochs(cfg):
-
     # Collect data
     log.info('Collecting data')
     train_data = collect_data(nTrials=cfg.experiment_one_model.num_traj, horizon=cfg.experiment_one_model.traj_len)  # 50
     test_data = collect_data(nTrials=1, horizon=cfg.experiment_one_model.traj_len)  # 5
-
 
     # Create dataset
     log.info('Creating dataset')
@@ -648,9 +683,10 @@ def test_multiple_n_epochs(cfg):
     model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
 
     def loss(x, y):
-        d = x-y
+        d = x - y
         norm = np.linalg.norm(d, axis=1)
-        return np.sum(norm)/norm.size
+        return np.sum(norm) / norm.size
+
     loss_t = []
     loss_no_t = []
 
@@ -667,11 +703,11 @@ def test_multiple_n_epochs(cfg):
         initial = states[0]
         current = initial
 
-        predictions_t = [states[0,:]]
-        predictions_no_t = [states[0,:]]
+        predictions_t = [states[0, :]]
+        predictions_no_t = [states[0, :]]
         for i in range(1, states.shape[0]):
             pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-            pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
+            pred_no_t = model_no_t.predict(np.concatenate((current, actions[i - 1, :])))
             predictions_t.append(pred_t.squeeze())
             predictions_no_t.append(pred_no_t.squeeze())
             current = pred_no_t.squeeze()
@@ -696,6 +732,7 @@ def test_multiple_n_epochs(cfg):
     plt.show()
 
     plot_states(states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
+
 
 
 

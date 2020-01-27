@@ -29,24 +29,35 @@ t = np.linspace(0, tmax, n)
 f = odeint(lorenz, (u0, v0, w0), t, args=(sigma, beta, rho))
 x, y, z = f.T
 
-# # Plot the Lorenz attractor using a Matplotlib 3D projection
-# fig = plt.figure()
-# ax = fig.gca(projection='3d')
-#
-# # Make the line multi-coloured by plotting it in segments of length s which
-# # change in colour across the whole time series.
-# s = 10
-# c = np.linspace(0, 1, n)
-# for i in range(0, n - s, s):
-#     ax.plot(x[i:i + s + 1], y[i:i + s + 1], z[i:i + s + 1], color=(1, c[i], 0), alpha=0.4)
 
-# Remove all the axis clutter, leaving just the curve.
-# ax.set_axis_off()
-# plt.show()
+import plotly.graph_objects as go
 
-# Plot the Lorenz attractor using a Matplotlib 3D projection
-fig2 = plt.figure()
-ax2 = fig2.gca(projection='3d')
+fig = go.Figure()
+
+fig.update_layout(
+    width=1500,
+    height=800,
+    autosize=False,
+    scene=dict(
+        camera=dict(
+            up=dict(
+                x=0,
+                y=0,
+                z=1
+            ),
+            eye=dict(
+                x=0,
+                y=1.0707,
+                z=1,
+            )
+        ),
+        aspectratio=dict(x=1, y=1, z=0.7),
+        aspectmode='manual'
+    ),
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)'
+)
+
 
 data_X = np.zeros((1, 3))
 data_Seq = []
@@ -61,12 +72,20 @@ for row in new_init:
     data_Seq.append(l)
     s = 1
     c = np.linspace(0, 1, n)
-    for i in range(0, n - s, s):
-        ax2.plot(x[i:i + s + 1], y[i:i + s + 1], z[i:i + s + 1], color=(1, c[i], 0), alpha=0.4)
-
-# # Remove all the axis clutter, leaving just the curve.
-# ax2.set_axis_off()
-# plt.show()
+    fig.add_trace(go.Scatter3d(
+        x=x, y=y, z=z,
+        # color=(1, c[i], 0),
+        marker=dict(
+            size=1,
+            color=np.arange(len(x)),
+            colorscale='Viridis',
+        ),
+        line=dict(
+            color='darkblue',
+            width=2
+        )
+    ))
+    #
 
 # Analysis
 from mbrl_resources import train_network, Net
@@ -82,7 +101,6 @@ p.opt.batch_size = 100
 p.learning_rate = 0.001
 
 model_1s, train_log1 = train_network(dataset_1s, Net(structure=[3, 100, 100, 3]), parameters=p)
-
 
 model_ct, train_log2 = train_network(dataset_ct, Net(structure=[4, 100, 100, 3]), parameters=p)
 
@@ -102,14 +120,35 @@ for i in range(1, n):
 p_1 = np.stack(predictions_1)
 p_2 = np.stack(predictions_2)
 
-s = 1
-c = np.linspace(0, 1, n)
-for i in range(0, n - s, s):
-    ax2.plot(p_1[i:i + s + 1, 0], p_1[i:i + s + 1, 1], p_1[i:i + s + 1, 2], color='k')  # (0, 0, c[i]), alpha=0.4)
-    ax2.plot(p_2[i:i + s + 1, 0], p_2[i:i + s + 1, 1], p_2[i:i + s + 1, 2], color='b')  # (1, 1, c[i]), alpha=0.4)
+fig.add_trace(go.Scatter3d(
+    x=p_1[:, 0], y=p_1[:, 1], z=p_1[:, 2],
+    # color=(1, c[i], 0),
+    marker=dict(
+        size=0,
+        # color=np.arange(len(x)),
+        # colorscale='Viridis',
+    ),
+    line=dict(
+        color='red',
+        width=4
+    ),
+    name='Continuous Parameterization'
+))
 
-ax2.set_zlim(-40, 40)
-ax2.set_ylim(-40, 40)
-ax2.set_xlim(-40, 40)
-ax2.set_axis_off()
-plt.show()
+fig.add_trace(go.Scatter3d(
+    x=p_2[:, 0], y=p_2[:, 1], z=p_2[:, 2],
+    # color=(1, c[i], 0),
+    marker=dict(
+        size=0,
+        # color=np.arange(len(x)),
+        # colorscale='Viridis',
+    ),
+    line=dict(
+        color='black',
+        width=4
+    ),
+    name='One Step Parameterization'
+
+))
+
+fig.show()

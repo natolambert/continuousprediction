@@ -32,6 +32,16 @@ class Reacher3dEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.viewer.cam.elevation = -20
 
     def reset(self):
+        """
+        Trying to figure out which state is white
+        Box(21)
+        get_obs gives
+            np.cos(theta), angle
+            np.sin(theta), angle
+            self.goal, pos
+            self.sim.data.qvel.flat[:5], joint vel
+            self.get_body_com("fingertip") - self.goal, distance/reward metric
+        """
         qpos = self.np_random.uniform(low=-0.01, high=0.01, size=self.model.nq) + self.init_qpos
         while True:
             self.goal = self.np_random.uniform(low=-.5, high=.5, size=3)
