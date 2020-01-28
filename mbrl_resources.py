@@ -19,9 +19,7 @@ log = logging.getLogger(__name__)
 
 class Net(nn.Module):
     """
-    Neural Network
-
-    In this case this is being used as a model of the environment right?
+    Deterministic Neural Network
     """
 
     def __init__(self, structure=[20, 100, 100, 1], tf=F.relu):
@@ -63,6 +61,19 @@ class Net(nn.Module):
         else:
             return self.forward(Variable(torch.from_numpy(np.matrix(x)).float())).data.cpu().numpy()
 
+class Prob_Loss(nn.Module):
+    def __init__(self):
+        super(Prob_Loss, self).__init__()
+
+    def forward(self, inputs, targets):
+        size = targets.size()[1]
+        mean = inputs[:,:size]
+        var = inputs[:,size:]
+        diff = mean-actual
+        mid = diff / var
+        lg = torch.log(var.prod())
+        return torch.mm(diff.t(), mid) + lg
+
 def train_network(dataset, model, parameters=DotMap()):
     import torch.optim as optim
     from torch.utils.data.dataset import Dataset
@@ -72,8 +83,8 @@ def train_network(dataset, model, parameters=DotMap()):
     p = DotMap()
     p.opt.n_epochs = parameters.opt.get('n_epochs', 10)
     p.opt.optimizer = optim.Adam
-    p.opt.batch_size = parameters.get('batch_size', 100)
-    p.criterion = nn.MSELoss()
+    p.opt.batch_size = parameters.opt.get('batch_size', 100)
+    p.criterion = parameters.get("criterion", nn.MSELoss())
     p.learning_rate = parameters.get('learning_rate', 0.0001)
     p.useGPU = parameters.get('useGPU', False)
     p.verbosity = parameters.get('verbosity', 1)

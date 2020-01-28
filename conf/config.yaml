@@ -4,8 +4,8 @@ train_model: true
 train_model_onestep: true
 
 experiment:
-  traj_len: 600
-  traj_len_test: 800
+  traj_len: 20
+  traj_len_test: 50
   num_traj: 10
   split: .8
   P: false
@@ -31,7 +31,7 @@ nn:
       name: Adam
       split: .8
       lr: .003
-  one_step:
+  one_step_det:
     ensemble:
       use: false
       num_nets: 10

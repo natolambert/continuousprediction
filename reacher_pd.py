@@ -285,52 +285,84 @@ def plot_pred(groundtruth, prediction, sorted=True):
     plt.plot(prediction)
     plt.show()
 
-def plot_states(ground_truth, prediction_param, prediction_step, idx_plot=None, plot_avg=True, save_loc=None):
+def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None):
+    """
+    Plots the states given in predictions against the groundtruth. Predictions
+    is a dictionary mapping model types to predictions
+    """
+    label_dict = {"traj_based":'Trajectory Based Prediction',
+                  'det': "Deterministic Prediction",
+                  'prob': 'Probabilistic Prediction'}
+    color_dict = {'traj_based':'r',
+                  'det': 'b',
+                  'prob': 'g'}
+
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
     if idx_plot is None:
         idx_plot = list(range(dx))
 
     for i in idx_plot:
+        fig, ax = plt.subplots()
         gt = ground_truth[:, i]
-        p1 = prediction_param[:, i]
-        p2 = prediction_step[:, i]
-        p2_chopped = np.maximum(np.minimum(p2, 3), -3) # to keep it from diverging and messing up graphs
-        plt.figure()
-        plt.plot(p1, c='k', label='Prediction T-Param')
-        plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
-        plt.plot(gt, c='r', label='Groundtruth')
-        # plt.ylim(-.5, 1.5)
         plt.title("Predictions on one dimension")
+        plt.xlabel("Timestep")
+        plt.ylabel("State Value")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        plt.plot(gt, c='k', label='Groundtruth')
+        for key in predictions:
+            pred = predictions[key][:,i]
+            # TODO: find a better way to do what the following line does
+            chopped = np.maximum(np.minimum(pred, 3), -3) # to keep it from messing up graphs when it diverges
+            plt.plot(chopped, c=color_dict[key], label=label_dict[key])
+
         plt.legend()
+
         if save_loc:
             plt.savefig(save_loc + "/state%d.pdf" % i)
         plt.show()
 
-
+        # gt = ground_truth[:, i]
+        # p1 = prediction_param[:, i]
+        # p2 = prediction_step[:, i]
+        # p2_chopped = np.maximum(np.minimum(p2, 3), -3) # to keep it from diverging and messing up graphs
+        # plt.figure()
+        # plt.plot(p1, c='r', label='Prediction T-Param')
+        # plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
+        # plt.plot(gt, c='k', label='Groundtruth')
+        # # plt.ylim(-.5, 1.5)
+        # plt.title("Predictions on one dimension")
+        # plt.legend()
+        # if save_loc:
+        #     plt.savefig(save_loc + "/state%d.pdf" % i)
+        # plt.show()
 
     if plot_avg:
+        fig, ax = plt.subplots()
+        gt = ground_truth[:, i]
+        plt.title("Predictions Averaged")
+        plt.xlabel("Timestep")
+        plt.ylabel("Average State Value")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
         gt = np.zeros(ground_truth[:,0:1].shape)
-        p1 = np.zeros(ground_truth[:,0:1].shape)
-        p2 = np.zeros(ground_truth[:,0:1].shape)
         for i in idx_plot:
             gt = np.hstack((gt, ground_truth[:, i:i+1]))
-            p1 = np.hstack((p1, prediction_param[:, i:i+1]))
-            p2 = np.hstack((p2, prediction_step[:, i:i+1]))
-            # p2_chopped = np.maximum(np.minimum(p2, 10), -10) # to keep it from diverging and messing up graphs
-        print(gt.shape)
         gt_avg = np.average(gt[:,1:], axis=1)
-        p1_avg = np.average(p1[:,1:], axis=1)
-        p2_avg = np.average(p2[:,1:], axis=1)
-        p2_chopped = np.maximum(np.minimum(p2_avg, 3), -3) # to keep it from messing up graphs when it diverges
+        plt.plot(gt_avg, c='k', label='Groundtruth')
 
-        plt.figure()
-        plt.plot(p1_avg, c='k', label='Prediction T-Param')
-        plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
-        plt.plot(gt_avg, c='r', label='Groundtruth')
+        for key in predictions:
+            pred = predictions[key]
+            p = np.zeros(pred[:,0:1].shape)
+            for i in idx_plot:
+                p = np.hstack((p, pred[:, i:i+1]))
+            p_avg = np.average(p[:,1:], axis=1)
+            plt.plot(p_avg, c=color_dict[key], label=label_dict[key])
         # plt.ylim(-.5, 1.5)
         plt.legend()
-        plt.title('Predictions, averaged')
         if save_loc:
             plt.savefig(save_loc + "/avg_states.pdf")
         plt.show()
@@ -395,20 +427,48 @@ def plot_loss_epoch(training_error_t, training_error_no_t, epochs_t, epochs_no_t
     plt.ylabel("total loss")
     plt.show()
 
-def plot_mse(mse_t, mse_no_t, save_loc=None):
+def plot_mse(MSEs, save_loc=None):
     """
     Plots MSE graphs for the two sequences given
     """
+    label_dict = {"traj_based":'Trajectory Based',
+                  'det': "Deterministic",
+                  'prob': 'Probabilistic'}
+    color_dict = {'traj_based':'r',
+                  'det': 'b',
+                  'prob': 'g'}
+    marker_dict = {'traj_based':'s',
+                   'det': 'o',
+                   'prob': 'D'}
+
+    # Non-log version
     fig, ax = plt.subplots()
-    plt.title("MSE over time for model with and without t")
-    plt.xlabel("timesteps")
+    plt.title("MSE for deterministic and trajectory based models")
+    plt.xlabel("Timesteps")
+    plt.ylabel('Mean Square Error')
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
-    plt.semilogy(mse_t, color='red', label='trajectory based', marker='s')
-    plt.semilogy(mse_no_t, color='blue', label='deterministic', marker='o')
+    for key in MSEs:
+        mse = MSEs[key]
+        plt.plot(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
     plt.legend()
     if save_loc:
         plt.savefig(save_loc + "/mse.pdf")
+    plt.show()
+
+    # Log version
+    fig, ax = plt.subplots()
+    plt.title("MSE for deterministic and trajectory based models")
+    plt.xlabel("Timesteps")
+    plt.ylabel('Mean Square Error')
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    for key in MSEs:
+        mse = MSEs[key]
+        plt.semilogy(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+    plt.legend()
+    if save_loc:
+        plt.savefig(save_loc + "/mse_log.pdf")
     plt.show()
 
 def test_models(traj, models_t, models_no_t):
@@ -461,38 +521,53 @@ def test_models(traj, models_t, models_no_t):
 
     return mse_t, mse_no_t, predictions_t, predictions_no_t
 
-def test_model_single(traj, model, model_no_t):
+def test_models_single(traj, models):
     """
-    Tests one model each of t-param and iterative
+    Tests each of the models in the dictionary "models" on the same trajectory
 
-    Parameters/returns:
-    -------------------
-    see the above method it's about the same
+    Parameters:
+    ------------
+    traj: the trajectory to test on
+    models: a dictionary of models to test
+
+    Returns:
+    outcomes: a dictionary of MSEs and predictions. As an example of how to
+              get info from this distionary, to get the MSE data from a trajectory
+              -based model you'd do
+                    outcomes['mse']['traj_based']
     """
     log.info("Beginning testing of predictions")
-    mse_t = []
-    mse_no_t = []
 
-    # traj = test_data[0]
+    MSEs = {key:[] for key in models}
+
     states = traj.states
     actions = traj.actions
-    initial = states[0]
-    current = initial
+    initial = states[0,:]
 
-    predictions_t = [states[0,:]]
-    predictions_no_t = [states[0,:]]
+    predictions = {key:[states[0,:]] for key in models}
+    currents = {key: states[0,:] for key in models}
     for i in range(1, states.shape[0]):
-        pred_t = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-        pred_no_t = model_no_t.predict(np.concatenate((current, actions[i-1,:])))
-        predictions_t.append(pred_t.squeeze())
-        predictions_no_t.append(pred_no_t.squeeze())
         groundtruth = states[i]
-        mse_t.append(np.square(groundtruth - pred_t).mean())
-        mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
-        current = pred_no_t.squeeze()
+        for key in models:
+            model = models[key]
 
-    return mse_t, mse_no_t, predictions_t, predictions_no_t
+            if key == "traj_based":
+                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+            elif key == "det":
+                prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
+            elif key == "prob":
+                pass # todo
+            # TODO: ensemble versions
 
+            predictions[key].append(prediction.squeeze())
+            MSEs[key].append(np.square(groundtruth - prediction).mean())
+            currents[key] = prediction.squeeze()
+
+    MSEs = {key:np.array(MSEs[key]) for key in MSEs}
+    predictions = {key:np.array(predictions[key]) for key in MSEs}
+
+    outcomes = {'mse': MSEs, 'predictions':predictions}
+    return outcomes
 
 ###########################################
 #                 Misc                    #
@@ -509,7 +584,7 @@ def contpred(cfg):
     if COLLECT_DATA:
         log.info('Collecting data')
         train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=False)  # 50
-        test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test)  # 5
+        test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test, plot=False)  # 5
     else:
         pass
 
@@ -522,6 +597,11 @@ def contpred(cfg):
         pass
 
     print(dataset[0].shape)
+
+    # TODO: redo this part so that it is easier to adjust which models
+    #       you do and don't use
+
+    models = {}
 
     # Train trajectory based model
     model_file = 'model.pth.tar'
@@ -545,16 +625,17 @@ def contpred(cfg):
             model.load_state_dict(checkpoint)
         # logs = save.load('logs.pkl')
         # TODO: load logs from file
+    models["traj_based"] = model
 
-    # Train one step model
+    # Train one step deterministic model
     model_file = 'model_no_t.pth.tar'
     n_in = dataset_no_t[0].shape[1]
     n_out = dataset_no_t[1].shape[1]
     model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
     if TRAIN_MODEL_NO_T:
         model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
-                cfg.nn.one_step.optimizer.lr,
-                cfg.nn.one_step.optimizer.epochs,
+                cfg.nn.one_step_det.optimizer.lr,
+                cfg.nn.one_step_det.optimizer.epochs,
                 model_file=model_file)
     else:
         log.info('Loading model to file: %s' % model_file)
@@ -563,28 +644,25 @@ def contpred(cfg):
             model_no_t.load_state_dict(checkpoint['state_dict'])
         else:
             model_no_t.load_state_dict(checkpoint)
+    models["det"] = model_no_t
 
     graph_file = 'graphs'
     os.mkdir(graph_file)
 
     # # Plot optimization NN
-    plot_loss(logs.training_error, logs_no_t.training_error)
-    plot_loss_epoch(logs.training_error_epoch,
-            logs_no_t.training_error_epoch,
-            cfg.nn.trajectory_based.optimizer.epochs,
-            cfg.nn.one_step.optimizer.epochs)
+    # TODO: redo this with new design
+    # plot_loss(logs.training_error, logs_no_t.training_error)
+    # plot_loss_epoch(logs.training_error_epoch,
+            # logs_no_t.training_error_epoch,
+            # cfg.nn.trajectory_based.optimizer.epochs,
+            # cfg.nn.one_step_det.optimizer.epochs)
 
-    mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
-    # mse_t = mse_t[0]
-    # mse_no_t = mse_no_t[0]
-    # predictions_t = predictions_t[0]
-    # predictions_no_t = predictions_no_t[0]
+    # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
+    outcomes = test_models_single(test_data[0], models)
 
-    # plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
-    # plot_average_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
-    plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=graph_file)
+    plot_states(test_data[0].states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=graph_file)
 
-    plot_mse(mse_t, mse_no_t, save_loc=graph_file)
+    plot_mse(outcomes['mse'], save_loc=graph_file)
 
     # Blocking this since it doesn't quite work
     if False:
@@ -647,11 +725,11 @@ def test_sample_efficiency(cfg):
         # Train no t model
         n_in = dataset_no_t[0].shape[1]
         n_out = dataset_no_t[1].shape[1]
-        hid_width = cfg.nn.one_step.training.hid_width
+        hid_width = cfg.nn.one_step_det.training.hid_width
         model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
         model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
-                        model_file, cfg.nn.one_step.optimizer.lr,
-                        cfg.nn.one_step.optimizer.epochs)
+                        model_file, cfg.nn.one_step_det.optimizer.lr,
+                        cfg.nn.one_step_det.optimizer.epochs)
 
         models_t.append(model_t)
         models_no_t.append(model_no_t)
@@ -692,7 +770,7 @@ def test_multiple_n_epochs(cfg):
 
     n_in = dataset_no_t[0].shape[1]
     n_out = dataset_no_t[1].shape[1]
-    hid_width = cfg.nn.one_step.training.hid_width
+    hid_width = cfg.nn.one_step_det.training.hid_width
     model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
 
     def loss(x, y):
