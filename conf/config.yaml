@@ -1,11 +1,13 @@
 collect_data: true
-create_dataset: true
-train_model: true
-train_model_onestep: true
+train_traj_based: true
+train_det: true
+train_prob: false
+
+
 
 experiment:
-  traj_len: 20
-  traj_len_test: 50
+  traj_len: 600
+  traj_len_test: 800
   num_traj: 10
   split: .8
   P: false
@@ -32,6 +34,20 @@ nn:
       split: .8
       lr: .003
   one_step_det:
+    ensemble:
+      use: false
+      num_nets: 10
+    training:
+      hid_width: 250
+      hid_depth: 2
+      E: 5
+    optimizer:
+      epochs: 1
+      batch: 128
+      name: Adam
+      split: .8
+      lr: .003
+  one_step_prob:
     ensemble:
       use: false
       num_nets: 10

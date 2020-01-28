@@ -149,7 +149,6 @@ def run_controller(env, horizon, policy):
     logs.states = np.array(logs.states)
     return logs
 
-
 def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 points
     """
     Collect data for environment model
@@ -270,20 +269,19 @@ def train_model(dataset, model, learning_rate, n_epochs, model_file=None):
         torch.save(model.state_dict(), model_file)
     return model, logs
 
+def collect_and_dataset(cfg):
+    log.info('Collecting data')
+    train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=False)  # 50
+    test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test, plot=False)  # 5
 
+    log.info('Creating dataset')
+    dataset = create_dataset_t_pid(train_data, probabilistic=True)
+    dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
+    return dataset, dataset_no_t, test_data
 
 ###########################################
 #               Plotting                  #
 ###########################################
-def plot_pred(groundtruth, prediction, sorted=True):
-    plt.figure()
-    if sorted:
-        gt = groundtruth.sort()
-    else:
-        gt = groundtruth
-    plt.plot(gt)
-    plt.plot(prediction)
-    plt.show()
 
 def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None):
     """
@@ -324,21 +322,6 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             plt.savefig(save_loc + "/state%d.pdf" % i)
         plt.show()
 
-        # gt = ground_truth[:, i]
-        # p1 = prediction_param[:, i]
-        # p2 = prediction_step[:, i]
-        # p2_chopped = np.maximum(np.minimum(p2, 3), -3) # to keep it from diverging and messing up graphs
-        # plt.figure()
-        # plt.plot(p1, c='r', label='Prediction T-Param')
-        # plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
-        # plt.plot(gt, c='k', label='Groundtruth')
-        # # plt.ylim(-.5, 1.5)
-        # plt.title("Predictions on one dimension")
-        # plt.legend()
-        # if save_loc:
-        #     plt.savefig(save_loc + "/state%d.pdf" % i)
-        # plt.show()
-
     if plot_avg:
         fig, ax = plt.subplots()
         gt = ground_truth[:, i]
@@ -367,37 +350,9 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             plt.savefig(save_loc + "/avg_states.pdf")
         plt.show()
 
-
-
-def plot_average_states(ground_truth, prediction_param, prediction_step, idx_plot=None):
-    num = np.shape(ground_truth)[0]
-    dx = np.shape(ground_truth)[1]
-    if idx_plot is None:
-        idx_plot = list(range(dx))
-
-    gt = np.zeros(ground_truth[:,0:1].shape)
-    p1 = np.zeros(ground_truth[:,0:1].shape)
-    p2 = np.zeros(ground_truth[:,0:1].shape)
-    for i in idx_plot:
-        gt = np.hstack((gt, ground_truth[:, i:i+1]))
-        p1 = np.hstack((p1, prediction_param[:, i:i+1]))
-        p2 = np.hstack((p2, prediction_step[:, i:i+1]))
-        # p2_chopped = np.maximum(np.minimum(p2, 10), -10) # to keep it from diverging and messing up graphs
-    print(gt.shape)
-    gt_avg = np.average(gt[:,1:], axis=1)
-    p1_avg = np.average(p1[:,1:], axis=1)
-    p2_avg = np.average(p2[:,1:], axis=1)
-    p2_chopped = np.maximum(np.minimum(p2_avg, 10), -10) # to keep it from diverging and messing up graphs
-
-    plt.figure()
-    plt.plot(p1_avg, c='k', label='Prediction T-Param')
-    plt.plot(p2_chopped, c='b', label='Prediction 1 Steps')
-    plt.plot(gt_avg, c='r', label='Groundtruth')
-    plt.legend()
-    plt.title('Predictions, averaged')
-    plt.show()
-
 def plot_loss(training_error_t, training_error_no_t):
+    # TODO: autosaving
+
     plt.figure()
     plt.plot(np.array(training_error_t))
     plt.title("Training Error with t")
@@ -413,6 +368,8 @@ def plot_loss(training_error_t, training_error_no_t):
     plt.show()
 
 def plot_loss_epoch(training_error_t, training_error_no_t, epochs_t, epochs_no_t):
+    # TODO: autosaving
+
     plt.figure()
     plt.bar(np.arange(epochs_t), np.array(training_error_t))
     plt.title("Training Error with t")
@@ -473,7 +430,7 @@ def plot_mse(MSEs, save_loc=None):
 
 def test_models(traj, models_t, models_no_t):
     """
-    Evaluates the models on the given states with the given inputs
+    Evaluates the models on the given states with the given inputs, needs to be updated
 
     Paramaters:
     -----------
@@ -576,75 +533,92 @@ def test_models_single(traj, models):
 @hydra.main(config_path='conf/config.yaml')
 def contpred(cfg):
     COLLECT_DATA = cfg.collect_data
-    CREATE_DATASET = cfg.create_dataset
-    TRAIN_MODEL = cfg.train_model
-    TRAIN_MODEL_NO_T = cfg.train_model_onestep
+
+    model_types = []
+    if cfg.train_traj_based:
+        model_types.append('traj_based')
+    if cfg.train_det:
+        model_types.append('det')
+    if cfg.train_prob:
+        model_types.append('prob')
 
     # Collect data
     if COLLECT_DATA:
-        log.info('Collecting data')
-        train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=False)  # 50
-        test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test, plot=False)  # 5
+        traj_dataset, one_step_dataset, test_data = collect_and_dataset(cfg)
     else:
         pass
-
-    # Create dataset
-    if CREATE_DATASET:
-        log.info('Creating dataset')
-        dataset = create_dataset_t_pid(train_data, probabilistic=True)
-        dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
-    else:
-        pass
-
-    print(dataset[0].shape)
 
     # TODO: redo this part so that it is easier to adjust which models
     #       you do and don't use
 
     models = {}
 
-    # Train trajectory based model
-    model_file = 'model.pth.tar'
-    n_in = dataset[0].shape[1]
-    n_out = dataset[1].shape[1]
-    hid_width = cfg.nn.trajectory_based.training.hid_width
-    model = Net(structure=[n_in, hid_width, hid_width, n_out])
-    if TRAIN_MODEL:
-        model, logs = train_model(dataset, model,
-                cfg.nn.trajectory_based.optimizer.lr,
-                cfg.nn.trajectory_based.optimizer.epochs,
-                model_file=model_file)
-        # save.save(logs, 'logs.pkl')
-        # TODO: save logs to file
-    else:
-        log.info('Loading model to file: %s' % model_file)
-        checkpoint = torch.load(model_file)
-        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['state_dict'])
-        else:
-            model.load_state_dict(checkpoint)
-        # logs = save.load('logs.pkl')
-        # TODO: load logs from file
-    models["traj_based"] = model
+    configs = {'traj_based': cfg.nn.trajectory_based,
+               'det': cfg.nn.one_step_det,
+               'prob': cfg.nn.one_step_prob}
 
-    # Train one step deterministic model
-    model_file = 'model_no_t.pth.tar'
-    n_in = dataset_no_t[0].shape[1]
-    n_out = dataset_no_t[1].shape[1]
-    model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
-    if TRAIN_MODEL_NO_T:
-        model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
-                cfg.nn.one_step_det.optimizer.lr,
-                cfg.nn.one_step_det.optimizer.epochs,
-                model_file=model_file)
-    else:
-        log.info('Loading model to file: %s' % model_file)
-        checkpoint = torch.load(model_file)
-        if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
-            model_no_t.load_state_dict(checkpoint['state_dict'])
-        else:
-            model_no_t.load_state_dict(checkpoint)
-    models["det"] = model_no_t
+    for model_type in model_types:
+        # TODO: update this to handle probabilistic loss
+        model_file = 'model_%s.pth.tar' % model_type
+        dataset = traj_dataset if model_type == 'traj_based' else one_step_dataset
+
+        n_in = dataset[0].shape[1]
+        n_out = dataset[1].shape[1]
+        hid_width = configs[model_type].training.hid_width
+        hid_count = configs[model_type].training.hid_depth
+        struct = [n_in] + [hid_width] * hid_count + [n_out]
+        model = Net(structure=struct)
+
+        model, logs = train_model(dataset,
+                                  model,
+                                  configs[model_type].optimizer.lr,
+                                  configs[model_type].optimizer.epochs,
+                                  model_file=model_file)
+
+        models[model_type] = model
+
+    # Train trajectory based model
+    # model_file = 'model.pth.tar'
+    # n_in = dataset[0].shape[1]
+    # n_out = dataset[1].shape[1]
+    # hid_width = cfg.nn.trajectory_based.training.hid_width
+    # model = Net(structure=[n_in, hid_width, hid_width, n_out])
+    # if TRAIN_MODEL:
+    #     model, logs = train_model(dataset, model,
+    #             cfg.nn.trajectory_based.optimizer.lr,
+    #             cfg.nn.trajectory_based.optimizer.epochs,
+    #             model_file=model_file)
+    #     # save.save(logs, 'logs.pkl')
+    #     # TODO: save logs to file
+    # else:
+    #     log.info('Loading model to file: %s' % model_file)
+    #     checkpoint = torch.load(model_file)
+    #     if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+    #         model.load_state_dict(checkpoint['state_dict'])
+    #     else:
+    #         model.load_state_dict(checkpoint)
+    #     # logs = save.load('logs.pkl')
+    #     # TODO: load logs from file
+    # models["traj_based"] = model
+    #
+    # # Train one step deterministic model
+    # model_file = 'model_no_t.pth.tar'
+    # n_in = dataset_no_t[0].shape[1]
+    # n_out = dataset_no_t[1].shape[1]
+    # model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
+    # if TRAIN_MODEL_NO_T:
+    #     model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
+    #             cfg.nn.one_step_det.optimizer.lr,
+    #             cfg.nn.one_step_det.optimizer.epochs,
+    #             model_file=model_file)
+    # else:
+    #     log.info('Loading model to file: %s' % model_file)
+    #     checkpoint = torch.load(model_file)
+    #     if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+    #         model_no_t.load_state_dict(checkpoint['state_dict'])
+    #     else:
+    #         model_no_t.load_state_dict(checkpoint)
+    # models["det"] = model_no_t
 
     graph_file = 'graphs'
     os.mkdir(graph_file)
