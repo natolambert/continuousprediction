@@ -69,10 +69,15 @@ class Prob_Loss(nn.Module):
         size = targets.size()[1]
         mean = inputs[:,:size]
         var = inputs[:,size:]
-        diff = mean-actual
+        diff = mean-targets
         mid = diff / var
-        lg = torch.log(var.prod())
-        return torch.mm(diff.t(), mid) + lg
+        lg = torch.log(torch.sum(var))
+        # print(lg)
+        print(diff.size())
+        print(mid.size())
+        out = torch.trace(torch.mm(diff.t(), mid)) + lg
+        # print(out
+        return out
 
 def train_network(dataset, model, parameters=DotMap()):
     import torch.optim as optim

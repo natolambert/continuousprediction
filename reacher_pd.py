@@ -241,7 +241,7 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
 
     return logs
 
-def train_model(dataset, model, learning_rate, n_epochs, model_file=None):
+def train_model(dataset, model, learning_rate, n_epochs, model_file=None, prob=False):
     """
     Wrapper for training models
 
@@ -263,6 +263,8 @@ def train_model(dataset, model, learning_rate, n_epochs, model_file=None):
     p.opt.n_epochs = n_epochs# if n_epochs else cfg.nn.optimizer.epochs  # 1000
     p.learning_rate = learning_rate
     p.useGPU = False
+    if prob:
+        p.criterion = Prob_Loss()
     model, logs = train_network(dataset=dataset, model=model, parameters=p)
     if model_file:
         log.info('Saving model to file: %s' % model_file)
@@ -311,6 +313,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
 
         plt.plot(gt, c='k', label='Groundtruth')
         for key in predictions:
+            # print(key)
             pred = predictions[key][:,i]
             # TODO: find a better way to do what the following line does
             chopped = np.maximum(np.minimum(pred, 3), -3) # to keep it from messing up graphs when it diverges
@@ -559,11 +562,14 @@ def contpred(cfg):
 
     for model_type in model_types:
         # TODO: update this to handle probabilistic loss
+        log.info("Training %s model" % model_type)
         model_file = 'model_%s.pth.tar' % model_type
         dataset = traj_dataset if model_type == 'traj_based' else one_step_dataset
 
         n_in = dataset[0].shape[1]
         n_out = dataset[1].shape[1]
+        if model_type == 'prob':
+            n_out *= 2
         hid_width = configs[model_type].training.hid_width
         hid_count = configs[model_type].training.hid_depth
         struct = [n_in] + [hid_width] * hid_count + [n_out]
@@ -573,9 +579,12 @@ def contpred(cfg):
                                   model,
                                   configs[model_type].optimizer.lr,
                                   configs[model_type].optimizer.epochs,
-                                  model_file=model_file)
+                                  model_file=model_file,
+                                  prob=(model_type=='prob'))
 
         models[model_type] = model
+
+    # TODO: loading old models
 
     # Train trajectory based model
     # model_file = 'model.pth.tar'
