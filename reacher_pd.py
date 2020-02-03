@@ -518,7 +518,12 @@ def test_models_single(traj, models):
             elif key == "prob":
                 prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
                 prediction = prediction[:,:prediction.shape[1]//2]
-                print(prediction.shape)
+                # print(prediction.shape)
+
+                # output = model.predict(np.concatenate((currents[key], actions[i-1,:])))
+                # split = output.shape[1]//2
+                # mu = output[:,:split]
+                # cov = np
             # TODO: ensemble versions
 
             predictions[key].append(prediction.squeeze())
@@ -588,7 +593,7 @@ def contpred(cfg):
 
     # TODO: loading old models
 
-    print(models)
+    # print(models)
 
     graph_file = 'graphs'
     os.mkdir(graph_file)
@@ -604,7 +609,7 @@ def contpred(cfg):
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
     outcomes = test_models_single(test_data[0], models)
 
-    print(outcomes)
+    # print(outcomes)
 
     plot_states(test_data[0].states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=graph_file)
 
