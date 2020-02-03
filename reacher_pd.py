@@ -516,7 +516,9 @@ def test_models_single(traj, models):
             elif key == "det":
                 prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
             elif key == "prob":
-                pass # todo
+                prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
+                prediction = prediction[:,:prediction.shape[1]//2]
+                print(prediction.shape)
             # TODO: ensemble versions
 
             predictions[key].append(prediction.squeeze())
@@ -586,48 +588,7 @@ def contpred(cfg):
 
     # TODO: loading old models
 
-    # Train trajectory based model
-    # model_file = 'model.pth.tar'
-    # n_in = dataset[0].shape[1]
-    # n_out = dataset[1].shape[1]
-    # hid_width = cfg.nn.trajectory_based.training.hid_width
-    # model = Net(structure=[n_in, hid_width, hid_width, n_out])
-    # if TRAIN_MODEL:
-    #     model, logs = train_model(dataset, model,
-    #             cfg.nn.trajectory_based.optimizer.lr,
-    #             cfg.nn.trajectory_based.optimizer.epochs,
-    #             model_file=model_file)
-    #     # save.save(logs, 'logs.pkl')
-    #     # TODO: save logs to file
-    # else:
-    #     log.info('Loading model to file: %s' % model_file)
-    #     checkpoint = torch.load(model_file)
-    #     if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
-    #         model.load_state_dict(checkpoint['state_dict'])
-    #     else:
-    #         model.load_state_dict(checkpoint)
-    #     # logs = save.load('logs.pkl')
-    #     # TODO: load logs from file
-    # models["traj_based"] = model
-    #
-    # # Train one step deterministic model
-    # model_file = 'model_no_t.pth.tar'
-    # n_in = dataset_no_t[0].shape[1]
-    # n_out = dataset_no_t[1].shape[1]
-    # model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
-    # if TRAIN_MODEL_NO_T:
-    #     model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
-    #             cfg.nn.one_step_det.optimizer.lr,
-    #             cfg.nn.one_step_det.optimizer.epochs,
-    #             model_file=model_file)
-    # else:
-    #     log.info('Loading model to file: %s' % model_file)
-    #     checkpoint = torch.load(model_file)
-    #     if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
-    #         model_no_t.load_state_dict(checkpoint['state_dict'])
-    #     else:
-    #         model_no_t.load_state_dict(checkpoint)
-    # models["det"] = model_no_t
+    print(models)
 
     graph_file = 'graphs'
     os.mkdir(graph_file)
@@ -642,6 +603,8 @@ def contpred(cfg):
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
     outcomes = test_models_single(test_data[0], models)
+
+    print(outcomes)
 
     plot_states(test_data[0].states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=graph_file)
 

@@ -71,10 +71,10 @@ class Prob_Loss(nn.Module):
         var = inputs[:,size:]
         diff = mean-targets
         mid = diff / var
-        lg = torch.log(torch.sum(var))
+        lg = torch.sum(torch.log(var))
         # print(lg)
-        print(diff.size())
-        print(mid.size())
+        # print(diff.size())
+        # print(mid.size())
         out = torch.trace(torch.mm(diff.t(), mid)) + lg
         # print(out
         return out
