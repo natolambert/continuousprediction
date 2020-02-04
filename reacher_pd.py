@@ -290,12 +290,18 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
     Plots the states given in predictions against the groundtruth. Predictions
     is a dictionary mapping model types to predictions
     """
-    label_dict = {"traj_based":'Trajectory Based Prediction',
-                  'det': "Deterministic Prediction",
-                  'prob': 'Probabilistic Prediction'}
-    color_dict = {'traj_based':'r',
+    label_dict = {"traj":'Trajectory Based',
+                  'det': "Deterministic",
+                  'prob': 'Probabilistic',
+                  'traj_prob': 'Trajectory Based Probabilistic'}
+    color_dict = {'traj':'r',
                   'det': 'b',
-                  'prob': 'g'}
+                  'prob': 'g',
+                  'traj_prob': 'y'}
+    marker_dict = {'traj':'s',
+                   'det': 'o',
+                   'prob': 'D',
+                   'traj_prob': 'p'}
 
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
@@ -317,7 +323,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             pred = predictions[key][:,i]
             # TODO: find a better way to do what the following line does
             chopped = np.maximum(np.minimum(pred, 3), -3) # to keep it from messing up graphs when it diverges
-            plt.plot(chopped, c=color_dict[key], label=label_dict[key])
+            plt.plot(chopped, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
 
         plt.legend()
 
@@ -391,19 +397,22 @@ def plot_mse(MSEs, save_loc=None):
     """
     Plots MSE graphs for the two sequences given
     """
-    label_dict = {"traj_based":'Trajectory Based',
+    label_dict = {"traj":'Trajectory Based',
                   'det': "Deterministic",
-                  'prob': 'Probabilistic'}
-    color_dict = {'traj_based':'r',
+                  'prob': 'Probabilistic',
+                  'traj_prob': 'Trajectory Based Probabilistic'}
+    color_dict = {'traj':'r',
                   'det': 'b',
-                  'prob': 'g'}
-    marker_dict = {'traj_based':'s',
+                  'prob': 'g',
+                  'traj_prob': 'y'}
+    marker_dict = {'traj':'s',
                    'det': 'o',
-                   'prob': 'D'}
+                   'prob': 'D',
+                   'traj_prob': 'p'}
 
     # Non-log version
     fig, ax = plt.subplots()
-    plt.title("MSE for deterministic and trajectory based models")
+    plt.title("MSE for a variety of models")
     plt.xlabel("Timesteps")
     plt.ylabel('Mean Square Error')
     ax.spines['right'].set_visible(False)
@@ -418,7 +427,7 @@ def plot_mse(MSEs, save_loc=None):
 
     # Log version
     fig, ax = plt.subplots()
-    plt.title("MSE for deterministic and trajectory based models")
+    plt.title("Log MSE for a variety of models")
     plt.xlabel("Timesteps")
     plt.ylabel('Mean Square Error')
     ax.spines['right'].set_visible(False)
@@ -494,7 +503,7 @@ def test_models_single(traj, models):
     outcomes: a dictionary of MSEs and predictions. As an example of how to
               get info from this distionary, to get the MSE data from a trajectory
               -based model you'd do
-                    outcomes['mse']['traj_based']
+                    outcomes['mse']['traj']
     """
     log.info("Beginning testing of predictions")
 
@@ -511,19 +520,16 @@ def test_models_single(traj, models):
         for key in models:
             model = models[key]
 
-            if key == "traj_based":
+            if key == "traj":
                 prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
             elif key == "det":
                 prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
             elif key == "prob":
                 prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
                 prediction = prediction[:,:prediction.shape[1]//2]
-                # print(prediction.shape)
-
-                # output = model.predict(np.concatenate((currents[key], actions[i-1,:])))
-                # split = output.shape[1]//2
-                # mu = output[:,:split]
-                # cov = np
+            elif key == 'traj_prob':
+                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+                prediction = prediction[:,:prediction.shape[1]//2]
             # TODO: ensemble versions
 
             predictions[key].append(prediction.squeeze())
@@ -545,12 +551,14 @@ def contpred(cfg):
     COLLECT_DATA = cfg.collect_data
 
     model_types = []
-    if cfg.train_traj_based:
-        model_types.append('traj_based')
+    if cfg.train_traj:
+        model_types.append('traj')
     if cfg.train_det:
         model_types.append('det')
     if cfg.train_prob:
         model_types.append('prob')
+    if cfg.train_prob_traj:
+        model_types.append('traj_prob')
 
     # Collect data
     if COLLECT_DATA:
@@ -563,19 +571,24 @@ def contpred(cfg):
 
     models = {}
 
-    configs = {'traj_based': cfg.nn.trajectory_based,
+    configs = {'traj': cfg.nn.trajectory_based,
                'det': cfg.nn.one_step_det,
-               'prob': cfg.nn.one_step_prob}
+               'prob': cfg.nn.one_step_prob,
+               'traj_prob': cfg.nn.trajectory_based_prob}
 
     for model_type in model_types:
         # TODO: update this to handle probabilistic loss
         log.info("Training %s model" % model_type)
         model_file = 'model_%s.pth.tar' % model_type
-        dataset = traj_dataset if model_type == 'traj_based' else one_step_dataset
+
+        prob = (model_type in {'prob', 'traj_prob'})
+        traj = (model_type in {'traj', 'traj_prob'})
+
+        dataset = traj_dataset if traj else one_step_dataset
 
         n_in = dataset[0].shape[1]
         n_out = dataset[1].shape[1]
-        if model_type == 'prob':
+        if prob:
             n_out *= 2
         hid_width = configs[model_type].training.hid_width
         hid_count = configs[model_type].training.hid_depth
@@ -587,7 +600,7 @@ def contpred(cfg):
                                   configs[model_type].optimizer.lr,
                                   configs[model_type].optimizer.epochs,
                                   model_file=model_file,
-                                  prob=(model_type=='prob'))
+                                  prob=prob)
 
         models[model_type] = model
 

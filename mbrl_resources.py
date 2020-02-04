@@ -79,6 +79,33 @@ class Prob_Loss(nn.Module):
         # print(out
         return out
 
+class Ensemble:
+    def __init__(self, structure=[20, 100, 100, 1], n=10):
+        self.models = [Net(structure=structure) for _ in range(n)]
+        self.n = n
+        self.structure = structure
+
+    def predict(self, x):
+        predictions = np.array([model.predict(x) for model in self.models])
+        return np.average(predictions, axis=1)
+
+    def train(self, dataset, parameters=DotMap()):
+        # Partitioning data
+        partition_size = dataset.shape[1]//self.n
+        partitions = [dataset[:,i*partition_size:(i+1)*partition_size] for i in range(n)]
+        datasets = []
+        for i in range(n):
+            ds = []
+            for j in range(n):
+                if i==j:
+                    continue
+                ds.extend(partitions[j])
+            datasets.append(ds)
+
+        # Training
+        for i in range(n):
+            train_network(datasets[i], models[i], parameters=parameters)
+
 def train_network(dataset, model, parameters=DotMap()):
     import torch.optim as optim
     from torch.utils.data.dataset import Dataset
