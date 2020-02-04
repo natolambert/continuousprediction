@@ -1,7 +1,12 @@
 collect_data: true
-train_traj_based: true
+train_traj: true
 train_det: true
-train_prob: false
+train_prob: true
+train_prob_traj: true
+train_traj_ens: false
+train_det_ens: false
+train_prob_ens: false
+train_prob_traj_ens: false
 
 
 
@@ -19,10 +24,20 @@ experiment_efficiency:
   num_traj: 10
 
 nn:
+  ensemble:
+    n: 10
   trajectory_based:
-    ensemble:
-      use: false
-      num_nets: 10
+    training:
+      hid_width: 250
+      hid_depth: 2
+      E: 5
+    optimizer:
+      epochs: 1
+      batch: 128
+      name: Adam
+      split: .8
+      lr: .01
+  trajectory_based_prob:
     training:
       hid_width: 250
       hid_depth: 2
@@ -34,9 +49,6 @@ nn:
       split: .8
       lr: .003
   one_step_det:
-    ensemble:
-      use: false
-      num_nets: 10
     training:
       hid_width: 250
       hid_depth: 2
@@ -48,9 +60,6 @@ nn:
       split: .8
       lr: .003
   one_step_prob:
-    ensemble:
-      use: false
-      num_nets: 10
     training:
       hid_width: 250
       hid_depth: 2
