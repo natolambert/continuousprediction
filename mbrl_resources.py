@@ -30,24 +30,28 @@ class Net(nn.Module):
         super(Net, self).__init__()
 
         # TODO: parameteric NN
-        # self.fc = []
+        fc = []
         self.n_layers = len(structure) - 1
-        # for idx in range(self.n_layers):
-        #     self.fc[idx] = nn.Linear(structure[idx], structure[idx+1])
-        self.fc1 = nn.Linear(structure[0], structure[1])
-        # self.d1 = nn.Dropout()
-        self.fc2 = nn.Linear(structure[1], structure[2])
-        # self.d2 = nn.Dropout()
-        self.fc3 = nn.Linear(structure[2], structure[3])
+        for i in range(self.n_layers):
+            fc.append(nn.Linear(structure[i], structure[i+1]))
+        # self.fc1 = nn.Linear(structure[0], structure[1])
+        # # self.d1 = nn.Dropout()
+        # self.fc2 = nn.Linear(structure[1], structure[2])
+        # # self.d2 = nn.Dropout()
+        # self.fc3 = nn.Linear(structure[2], structure[3])
+        self.linears = nn.ModuleList(fc)
         self.tf = tf
         self._onGPU = False
 
     def forward(self, x):
-        x = self.tf(self.fc1(x))
-        # x = self.d1(x)
-        x = self.tf(self.fc2(x))
-        # x = self.d2(x)
-        x = self.fc3(x)
+        for i in range(self.n_layers-1):
+            x = self.tf(self.linears[i](x))
+        x = self.linears[self.n_layers-1](x)
+        # x = self.tf(self.fc1(x))
+        # # x = self.d1(x)
+        # x = self.tf(self.fc2(x))
+        # # x = self.d2(x)
+        # x = self.fc3(x)
         return x
 
     def predict(self, x):
@@ -75,7 +79,7 @@ class Prob_Loss(nn.Module):
         # print(lg)
         # print(diff.size())
         # print(mid.size())
-        out = torch.trace(torch.mm(diff.t(), mid)) + lg
+        out = torch.trace(torch.mm(diff, mid.t())) + lg
         # print(out
         return out
 
