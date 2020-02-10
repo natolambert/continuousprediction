@@ -15,6 +15,8 @@ from envs import *
 import hydra
 import logging
 
+import multiprocessing as mp
+
 log = logging.getLogger(__name__)
 
 class Net(nn.Module):
@@ -90,25 +92,49 @@ class Ensemble:
         self.structure = structure
 
     def predict(self, x):
-        predictions = np.array([model.predict(x) for model in self.models])
-        return np.average(predictions, axis=1)
+        predictions = np.squeeze(np.array([model.predict(x) for model in self.models]))
+        return np.average(predictions, axis=0)
 
-    def train(self, dataset, parameters=DotMap()):
+    def train(self, dataset, parameters=DotMap(), parallel=False):
+        n = self.n
+
         # Partitioning data
-        partition_size = dataset.shape[1]//self.n
-        partitions = [dataset[:,i*partition_size:(i+1)*partition_size] for i in range(n)]
+        dataset_in = dataset[0]
+        dataset_out= dataset[1]
+        partition_size = dataset_in.shape[0]//self.n
+        partitions_in = [dataset_in[i*partition_size:(i+1)*partition_size,:] for i in range(n)]
+        partitions_out = [dataset_out[i*partition_size:(i+1)*partition_size,:] for i in range(n)]
         datasets = []
         for i in range(n):
-            ds = []
+            ds_in = []
+            ds_out = []
             for j in range(n):
                 if i==j:
                     continue
-                ds.extend(partitions[j])
-            datasets.append(ds)
+                ds_in.extend(partitions_in[j])
+                ds_out.extend(partitions_out[j])
+            ds_in = np.array(ds_in)
+            ds_out = np.array(ds_out)
+            datasets.append((ds_in, ds_out))
+        # else:
+        #     partition_size = min(dataset_in.shape[0]//self.n, 1000000)
+        #     datasets = [(dataset_in[i*partition_size:(i+1)*partition_size,:],
+        #         dataset_out[i*partition_size:(i+1)*partition_size,:]) for i in range(n)]
+
+        print(datasets[0][0].shape)
 
         # Training
-        for i in range(n):
-            train_network(datasets[i], models[i], parameters=parameters)
+        if parallel:
+            n = mp.cpu_count()
+            pool = mp.Pool(n)
+            wrapper = lambda i: train_network(datasets[i], self.models[i], parameters=parameters)
+            ugh = list(range(n))
+            pool.map(wrapper, ugh)
+        else:
+            for i in range(n):
+                train_network(datasets[i], self.models[i], parameters=parameters)
+
+        return self
 
 def train_network(dataset, model, parameters=DotMap()):
     import torch.optim as optim
@@ -178,13 +204,13 @@ def train_network(dataset, model, parameters=DotMap()):
     if logs.time is None:
         logs.time = [0]
 
-    print("Training for %d epochs" % p.opt.n_epochs)
+    # print("Training for %d epochs" % p.opt.n_epochs)
 
     for epoch in range(p.opt.n_epochs):
         epoch_error = 0
         log.info("Epoch %d" % (epoch))
         for i, data in enumerate(loader, 0):
-            if i % 100 == 0:
+            if i % 500 == 0 and i > 0:
                 print("    Batch %d" % i)
             # Load data
             # Variable is a wrapper for Tensors with autograd

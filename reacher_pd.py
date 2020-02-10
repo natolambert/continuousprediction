@@ -8,6 +8,7 @@ warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
 import numpy as np
 from dotmap import DotMap
+from sklearn.utils import shuffle
 
 from timeit import default_timer as timer
 import matplotlib.pyplot as plt
@@ -87,6 +88,7 @@ def create_dataset_t_pid(data, probabilistic=False):
                 # data_in.append(np.hstack((states[i], j-i, target)))
                 data_out.append(states[j])
 
+    # data_in, data_out = shuffle(data_in, data_out)
     data_in = np.array(data_in)
     data_out = np.array(data_out)
     return data_in, data_out
@@ -246,7 +248,7 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
 
     return logs
 
-def train_model(dataset, model, learning_rate, n_epochs, model_file=None, prob=False):
+def train_model(dataset, model, learning_rate, n_epochs, prob=False, model_file=None, max_dataset_size=1000000):
     """
     Wrapper for training models
 
@@ -270,13 +272,48 @@ def train_model(dataset, model, learning_rate, n_epochs, model_file=None, prob=F
     p.useGPU = False
     if prob:
         p.criterion = Prob_Loss()
+    dataset = (dataset[0][:max_dataset_size,:], dataset[1][:max_dataset_size,:])
     model, logs = train_network(dataset=dataset, model=model, parameters=p)
     if model_file:
         log.info('Saving model to file: %s' % model_file)
         torch.save(model.state_dict(), model_file)
     return model, logs
 
+def train_ensemble(dataset, ensemble, learning_rate, n_epochs, prob=False, model_folder=None):
+    p = DotMap()
+    p.opt.n_epochs = n_epochs# if n_epochs else cfg.nn.optimizer.epochs  # 1000
+    p.learning_rate = learning_rate
+    p.useGPU = False
+    if prob:
+        p.criterion = Prob_Loss()
+    ensemble.train(dataset, parameters=p, parallel=False)
+    if model_folder:
+        os.mkdir(model_folder)
+        for i in range(ensemble.n):
+            model = ensemble.models[i]
+            model_file = "%s/model%d.pth.tar" % (model_folder, i+1)
+            torch.save(model.state_dict(), model_file)
+
+    # TODO: come up with a way to effectively present an ensemble's training loss
+    logs = DotMap()
+    logs.training_error = []
+    logs.training_error_epoch = []
+    logs.time = None
+
+    return ensemble, logs
+
 def collect_and_dataset(cfg):
+    """
+    Collects data and returns it as a dataset in the format used for training
+
+    Params:
+        cfg: the hydra configuration object thing
+
+    Returns:
+        dataset: one step dataset, a tuple (data_in, data_out)
+        dataset_no_t: traj dataset, "    "       "     "      "
+        test_data: an array of dotmaps, each pertaining to a test trajectory
+    """
     log.info('Collecting data')
     train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=False)  # 50
     test_data = collect_data(nTrials=cfg.experiment.num_traj_test, horizon=cfg.experiment.traj_len_test, plot=False)  # 5
@@ -291,18 +328,30 @@ def collect_and_dataset(cfg):
 #               Plotting                  #
 ###########################################
 
-label_dict = {"traj":'Trajectory Based',
-              'det': "Deterministic",
-              'prob': 'Probabilistic',
-              'traj_prob': 'Trajectory Based Probabilistic'}
+label_dict = {'traj':'Trajectory Based Deterministic',
+              'det': 'One Step Deterministic',
+              'prob': 'One Step Probabilistic',
+              'traj_prob': 'Trajectory Based Probabilistic',
+              'traj_ens':'Trajectory Based Deterministic Ensemble',
+              'det_ens': 'One Step Deterministic Ensemble',
+              'prob_ens': 'One Step Probabilistic Ensemble',
+              'traj_prob_ens': 'Trajectory Based Probabilistic Ensemble'}
 color_dict = {'traj':'r',
               'det': 'b',
               'prob': 'g',
-              'traj_prob': 'y'}
+              'traj_prob': 'y',
+              'traj_ens':'#b53636',
+              'det_ens': '#3660b5',
+              'prob_ens': '#52b536',
+              'traj_prob_ens': '#b5af36'}
 marker_dict = {'traj':'s',
                'det': 'o',
                'prob': 'D',
-               'traj_prob': 'p'}
+               'traj_prob': 'p',
+               'traj_ens':'s',
+               'det_ens': 'o',
+               'prob_ens': 'D',
+               'traj_prob_ens': 'p',}
 
 def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None, show=True):
     """
@@ -533,17 +582,67 @@ def test_models_single(traj, models):
             elif key == 'traj_prob':
                 prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
                 prediction = prediction[:,:prediction.shape[1]//2]
-            # TODO: ensemble versions
+            elif key == "traj_ens":
+                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+            elif key == "det_ens":
+                prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
+            elif key == "prob_ens":
+                prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
+                prediction = prediction[:,:prediction.shape[1]//2]
+            elif key == 'traj_prob_ens':
+                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+                prediction = prediction[:,:prediction.shape[1]//2]
 
             predictions[key].append(prediction.squeeze())
             MSEs[key].append(np.square(groundtruth - prediction).mean())
             currents[key] = prediction.squeeze()
+            # print(currents[key].shape)
 
     MSEs = {key:np.array(MSEs[key]) for key in MSEs}
     predictions = {key:np.array(predictions[key]) for key in MSEs}
 
     outcomes = {'mse': MSEs, 'predictions':predictions}
     return outcomes
+
+def test_traj_ensemble(ensemble, test_data):
+    traj = test_data
+    states = traj.states
+    actions = traj.actions
+    initial = states[0,:]
+
+    model_predictions = [[] for _ in range(ensemble.n)]
+    ensemble_predictions = []
+    for i in range(1, states.shape[0]):
+        x = np.hstack((initial, i, traj.P, traj.D, traj.target))
+        ens_pred = ensemble.predict(x)
+        ensemble_predictions.append(ens_pred.squeeze())
+        for j in range(len(ensemble.models)):
+            model = ensemble.models[j]
+            model_pred = model.predict(x)
+            model_predictions[j].append(model_pred.squeeze())
+
+    ensemble_predictions = np.array(ensemble_predictions)
+    model_predictions = [np.array(x) for x in model_predictions]
+    # print(len(model_predictions))
+
+    for i in range(7):
+        fig, ax = plt.subplots()
+        gt = states[:, i]
+        plt.title("Predictions on one dimension")
+        plt.xlabel("Timestep")
+        plt.ylabel("State Value")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        plt.plot(gt, c='k', label='Groundtruth')
+        plt.plot(ensemble_predictions[:,i])
+        for pred in model_predictions:
+            # print(pred.shape)
+            plt.plot(pred[:,i], c='b')
+
+        plt.legend()
+
+        plt.show()
 
 ###########################################
 #             Main Functions              #
@@ -553,15 +652,7 @@ def test_models_single(traj, models):
 def contpred(cfg):
     COLLECT_DATA = cfg.collect_data
 
-    model_types = []
-    if cfg.train_traj:
-        model_types.append('traj')
-    if cfg.train_det:
-        model_types.append('det')
-    if cfg.train_prob:
-        model_types.append('prob')
-    if cfg.train_prob_traj:
-        model_types.append('traj_prob')
+    model_types = unpack_config_models(cfg)
 
     # Collect data
     if COLLECT_DATA:
@@ -570,20 +661,25 @@ def contpred(cfg):
         pass
 
     models = {}
-    logs = {}
+    loss_logs = {}
 
     configs = {'traj': cfg.nn.trajectory_based,
                'det': cfg.nn.one_step_det,
                'prob': cfg.nn.one_step_prob,
-               'traj_prob': cfg.nn.trajectory_based_prob}
+               'traj_prob': cfg.nn.trajectory_based_prob,
+               'traj_ens': cfg.nn.trajectory_based,
+               'det_ens': cfg.nn.one_step_det,
+               'prob_ens': cfg.nn.one_step_prob,
+               'traj_prob_ens': cfg.nn.trajectory_based_prob}
 
     for model_type in model_types:
         # TODO: update this to handle probabilistic loss
         log.info("Training %s model" % model_type)
         model_file = 'model_%s.pth.tar' % model_type
 
-        prob = (model_type in {'prob', 'traj_prob'})
-        traj = (model_type in {'traj', 'traj_prob'})
+        prob = ('prob' in model_type)
+        traj = ('traj' in model_type)
+        ens = ('ens' in model_type)
 
         dataset = traj_dataset if traj else one_step_dataset
 
@@ -594,17 +690,25 @@ def contpred(cfg):
         hid_width = configs[model_type].training.hid_width
         hid_count = configs[model_type].training.hid_depth
         struct = [n_in] + [hid_width] * hid_count + [n_out]
-        model = Net(structure=struct)
+        model = Net(structure=struct) if not ens else Ensemble(structure=struct, n=cfg.nn.ensemble.n)
 
-        model, logg = train_model(dataset,
-                                  model,
-                                  configs[model_type].optimizer.lr,
-                                  configs[model_type].optimizer.epochs,
-                                  model_file=model_file,
-                                  prob=prob)
+        if not ens:
+            model, loss_log = train_model(dataset,
+                                          model,
+                                          configs[model_type].optimizer.lr,
+                                          configs[model_type].optimizer.epochs,
+                                          prob,
+                                          model_file=model_file)
+        else:
+            model, loss_log = train_ensemble(dataset,
+                                             model,
+                                             configs[model_type].optimizer.lr,
+                                             configs[model_type].optimizer.epochs,
+                                             prob,
+                                             model_folder=model_type)
 
         models[model_type] = model
-        logs[model_type] = logg
+        loss_logs[model_type] = loss_log
 
     # TODO: loading old models
 
@@ -612,7 +716,11 @@ def contpred(cfg):
     graph_file = 'graphs'
     os.mkdir(graph_file)
 
-    plot_loss(logs, save_loc=graph_file)
+    # test_traj_ensemble(models['traj_ens'], test_data[0])
+
+    # x = 1/0
+
+    plot_loss(loss_logs, save_loc=graph_file, show=False)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
     for i in range(len(test_data)):
@@ -788,30 +896,33 @@ def test_multiple_n_epochs(cfg):
 
 
 
+###########################################
+#               Helpers                   #
+###########################################
+def unpack_config_models(cfg):
+    """
+    Reads the config to decide which models to use
+    """
+    model_types = []
+    if cfg.experiment.models.single.train_traj:
+        model_types.append('traj')
+    if cfg.experiment.models.single.train_det:
+        model_types.append('det')
+    if cfg.experiment.models.single.train_prob:
+        model_types.append('prob')
+    if cfg.experiment.models.single.train_prob_traj:
+        model_types.append('traj_prob')
+    if cfg.experiment.models.ensemble.train_traj:
+        model_types.append('traj_ens')
+    if cfg.experiment.models.ensemble.train_det:
+        model_types.append('det_ens')
+    if cfg.experiment.models.ensemble.train_prob:
+        model_types.append('prob_ens')
+    if cfg.experiment.models.ensemble.train_prob_traj:
+        model_types.append('traj_prob_ens')
 
-# train_data = collect_data(nTrials=50, horizon=300)  # 50
-# dataset = create_dataset_t_pid(train_data, probabilistic=True)
+    return model_types
+
+
 if __name__ == '__main__':
-    # sys.exit(test_multiple_n_epochs())
     sys.exit(contpred())
-
-
-###########################################
-#               Old Code                  #
-###########################################
-# def stateAction2forwardDyn(states, actions):
-#     data_in = np.concatenate((states[:-1, :], actions[:-1, :]), axis=1)
-#     data_out = states[1:, :]
-#     return [data_in, data_out]
-
-
-# def temp_generate_trajectories():
-#     lengths = [10, 50, 100, 150, 200, 250, 300, 500]
-#     for hor in lengths:
-#         print("Generating length {} trajectories".format(hor))
-#         data = np.array(collect_data(nTrials = 20, horizon=hor))
-#         out = []
-#         for trial in data:
-#             out.extend(trial.states)
-#         file = "trajectories/traj{}.npy".format(hor)
-#         np.save(file, out)

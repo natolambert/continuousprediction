@@ -1,22 +1,24 @@
 collect_data: true
-train_traj: true
-train_det: true
-train_prob: true
-train_prob_traj: true
-train_traj_ens: false
-train_det_ens: false
-train_prob_ens: false
-train_prob_traj_ens: false
-
-
 
 experiment:
-  traj_len: 600
-  traj_len_test: 800
-  num_traj: 10
+  traj_len: 1000
+  traj_len_test: 1000
+  num_traj: 50
+  num_traj_test: 5
   split: .8
   P: false
   D: false
+  models:
+    single:
+      train_traj: true
+      train_det: true
+      train_prob: false
+      train_prob_traj: false
+    ensemble:
+      train_traj: true
+      train_det: true
+      train_prob: false
+      train_prob_traj: false
 
 experiment_efficiency:
   traj_len: 30
@@ -54,7 +56,7 @@ nn:
       hid_depth: 2
       E: 5
     optimizer:
-      epochs: 1
+      epochs: 3
       batch: 128
       name: Adam
       split: .8
@@ -65,8 +67,8 @@ nn:
       hid_depth: 2
       E: 5
     optimizer:
-      epochs: 1
+      epochs: 10
       batch: 128
       name: Adam
       split: .8
-      lr: .003
+      lr: .001
