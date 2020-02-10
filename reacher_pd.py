@@ -66,7 +66,7 @@ def create_dataset_t_pid(data, probabilistic=False):
     :param states: A 2d np array. Each row is a state
     """
     data_in, data_out = [], []
-    threshold = 0.90
+    threshold = 0.95
     for sequence in data:
         states = sequence.states
         P = sequence.P
@@ -83,10 +83,26 @@ def create_dataset_t_pid(data, probabilistic=False):
                 # the datasets while still having a large variety
                 if probabilistic and np.random.random() < threshold:
                     continue
-
-
-                data_in.append(np.hstack((states[i], j - i, P/5, D, target)))
+                data_in.append(np.hstack((states[i], j - i, P, D, target)))
+                # data_in.append(np.hstack((states[i], j-i, target)))
                 data_out.append(states[j])
+
+    data_in = np.array(data_in)
+    data_out = np.array(data_out)
+    return data_in, data_out
+
+def create_dataset_t_pid_2(data):
+    data_in, data_out = [], []
+    for sequence in data:
+        states = sequence.states
+        P = sequence.P
+        D = sequence.D
+        target = sequence.target
+        initial = states[0]
+        for i in range(1, states.shape[0]):
+            data_in.append(np.hstack((initial, i, P/5, D, target)))
+            data_out.append(states[i])
+
     data_in = np.array(data_in)
     data_out = np.array(data_out)
     return data_in, data_out
@@ -164,17 +180,6 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
     # about <horizon> steps with actions, rewards and states
     logs = []
 
-    # def init_env(env):
-    #     qpos = np.copy(env.init_qpos)
-    #     qvel = np.copy(env.init_qvel)
-    #     qpos[0:7] += np.random.normal(loc=0.5, scale=1, size=[7])
-    #     qpos[-3:] += np.random.normal(loc=0, scale=1, size=[3])
-    #     qvel[-3:] = 0
-    #     env.goal = qpos[-3:]
-    #     env.set_state(qpos, qvel)
-    #     env.T = 0
-    #     return env
-
     for i in range(nTrials):
         log.info('Trial %d' % i)
         env.seed(i)
@@ -194,7 +199,7 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
 
         dotmap = run_controller(env, horizon=horizon, policy=policy)
         dotmap.target = target
-        dotmap.P = P
+        dotmap.P = P/5
         dotmap.I = I
         dotmap.D = D
         logs.append(dotmap)
@@ -274,7 +279,8 @@ def train_model(dataset, model, learning_rate, n_epochs, model_file=None, prob=F
 def collect_and_dataset(cfg):
     log.info('Collecting data')
     train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=False)  # 50
-    test_data = collect_data(nTrials=1, horizon=cfg.experiment.traj_len_test, plot=False)  # 5
+    test_data = collect_data(nTrials=cfg.experiment.num_traj_test, horizon=cfg.experiment.traj_len_test, plot=False)  # 5
+    # test_data = train_data[:1]
 
     log.info('Creating dataset')
     dataset = create_dataset_t_pid(train_data, probabilistic=True)
@@ -285,24 +291,24 @@ def collect_and_dataset(cfg):
 #               Plotting                  #
 ###########################################
 
-def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None):
+label_dict = {"traj":'Trajectory Based',
+              'det': "Deterministic",
+              'prob': 'Probabilistic',
+              'traj_prob': 'Trajectory Based Probabilistic'}
+color_dict = {'traj':'r',
+              'det': 'b',
+              'prob': 'g',
+              'traj_prob': 'y'}
+marker_dict = {'traj':'s',
+               'det': 'o',
+               'prob': 'D',
+               'traj_prob': 'p'}
+
+def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None, show=True):
     """
     Plots the states given in predictions against the groundtruth. Predictions
     is a dictionary mapping model types to predictions
     """
-    label_dict = {"traj":'Trajectory Based',
-                  'det': "Deterministic",
-                  'prob': 'Probabilistic',
-                  'traj_prob': 'Trajectory Based Probabilistic'}
-    color_dict = {'traj':'r',
-                  'det': 'b',
-                  'prob': 'g',
-                  'traj_prob': 'y'}
-    marker_dict = {'traj':'s',
-                   'det': 'o',
-                   'prob': 'D',
-                   'traj_prob': 'p'}
-
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
     if idx_plot is None:
@@ -329,7 +335,10 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
 
         if save_loc:
             plt.savefig(save_loc + "/state%d.pdf" % i)
-        plt.show()
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
     if plot_avg:
         fig, ax = plt.subplots()
@@ -352,29 +361,30 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             for i in idx_plot:
                 p = np.hstack((p, pred[:, i:i+1]))
             p_avg = np.average(p[:,1:], axis=1)
-            plt.plot(p_avg, c=color_dict[key], label=label_dict[key])
+            plt.plot(p_avg, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
         # plt.ylim(-.5, 1.5)
         plt.legend()
         if save_loc:
             plt.savefig(save_loc + "/avg_states.pdf")
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+def plot_loss(logs, save_loc=None, show=True):
+    plt.figure()
+    for key in logs:
+        log = logs[key]
+        plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
+    plt.title("Training Error")
+    plt.xlabel("Batch")
+    plt.ylabel("Loss function value")
+    if save_loc:
+        plt.savefig(save_loc + "/loss.pdf")
+    if show:
         plt.show()
-
-def plot_loss(training_error_t, training_error_no_t):
-    # TODO: autosaving
-
-    plt.figure()
-    plt.plot(np.array(training_error_t))
-    plt.title("Training Error with t")
-    plt.xlabel("epoch")
-    plt.ylabel("total loss")
-    plt.show()
-
-    plt.figure()
-    plt.plot(np.array(training_error_no_t))
-    plt.title("Training Error without t")
-    plt.xlabel("epoch")
-    plt.ylabel("total loss")
-    plt.show()
+    else:
+        plt.close()
 
 def plot_loss_epoch(training_error_t, training_error_no_t, epochs_t, epochs_no_t):
     # TODO: autosaving
@@ -393,23 +403,10 @@ def plot_loss_epoch(training_error_t, training_error_no_t, epochs_t, epochs_no_t
     plt.ylabel("total loss")
     plt.show()
 
-def plot_mse(MSEs, save_loc=None):
+def plot_mse(MSEs, save_loc=None, show=True):
     """
     Plots MSE graphs for the two sequences given
     """
-    label_dict = {"traj":'Trajectory Based',
-                  'det': "Deterministic",
-                  'prob': 'Probabilistic',
-                  'traj_prob': 'Trajectory Based Probabilistic'}
-    color_dict = {'traj':'r',
-                  'det': 'b',
-                  'prob': 'g',
-                  'traj_prob': 'y'}
-    marker_dict = {'traj':'s',
-                   'det': 'o',
-                   'prob': 'D',
-                   'traj_prob': 'p'}
-
     # Non-log version
     fig, ax = plt.subplots()
     plt.title("MSE for a variety of models")
@@ -423,7 +420,10 @@ def plot_mse(MSEs, save_loc=None):
     plt.legend()
     if save_loc:
         plt.savefig(save_loc + "/mse.pdf")
-    plt.show()
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
     # Log version
     fig, ax = plt.subplots()
@@ -438,7 +438,10 @@ def plot_mse(MSEs, save_loc=None):
     plt.legend()
     if save_loc:
         plt.savefig(save_loc + "/mse_log.pdf")
-    plt.show()
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
 def test_models(traj, models_t, models_no_t):
     """
@@ -543,7 +546,7 @@ def test_models_single(traj, models):
     return outcomes
 
 ###########################################
-#                 Misc                    #
+#             Main Functions              #
 ###########################################
 
 @hydra.main(config_path='conf/config.yaml')
@@ -566,10 +569,8 @@ def contpred(cfg):
     else:
         pass
 
-    # TODO: redo this part so that it is easier to adjust which models
-    #       you do and don't use
-
     models = {}
+    logs = {}
 
     configs = {'traj': cfg.nn.trajectory_based,
                'det': cfg.nn.one_step_det,
@@ -595,7 +596,7 @@ def contpred(cfg):
         struct = [n_in] + [hid_width] * hid_count + [n_out]
         model = Net(structure=struct)
 
-        model, logs = train_model(dataset,
+        model, logg = train_model(dataset,
                                   model,
                                   configs[model_type].optimizer.lr,
                                   configs[model_type].optimizer.epochs,
@@ -603,30 +604,27 @@ def contpred(cfg):
                                   prob=prob)
 
         models[model_type] = model
+        logs[model_type] = logg
 
     # TODO: loading old models
 
-    # print(models)
 
     graph_file = 'graphs'
     os.mkdir(graph_file)
 
-    # # Plot optimization NN
-    # TODO: redo this with new design
-    # plot_loss(logs.training_error, logs_no_t.training_error)
-    # plot_loss_epoch(logs.training_error_epoch,
-            # logs_no_t.training_error_epoch,
-            # cfg.nn.trajectory_based.optimizer.epochs,
-            # cfg.nn.one_step_det.optimizer.epochs)
+    plot_loss(logs, save_loc=graph_file)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
-    outcomes = test_models_single(test_data[0], models)
+    for i in range(len(test_data)):
+        test = test_data[i]
+        file = "%s/test%d" % (graph_file, i+1)
+        os.mkdir(file)
 
-    # print(outcomes)
+        outcomes = test_models_single(test, models)
+        plot_states(test.states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
+        plot_mse(outcomes['mse'], save_loc=file, show=False)
 
-    plot_states(test_data[0].states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=graph_file)
-
-    plot_mse(outcomes['mse'], save_loc=graph_file)
+    # train_data_sample =
 
     # Blocking this since it doesn't quite work
     if False:
