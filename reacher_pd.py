@@ -37,12 +37,11 @@ from plot import plot_reacher
 
 # Learn model t only
 # Creating a dataset for learning different T values
-# Don't use this, use the function below it
 def create_dataset_t_only(data):
     """
     Creates a dataset with an entry for how many timesteps in the future
     corresponding entries in the labels are
-    :param states: An array of dotmaps, where each dotmap has info about a trajectory
+    :param data: An array of dotmaps, where each dotmap has info about a trajectory
     """
     data_in = []
     data_out = []
@@ -64,7 +63,11 @@ def create_dataset_t_pid(data, probabilistic=False):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
-    :param states: A 2d np array. Each row is a state
+
+    Parameters:
+    -----------
+    data: An array of dotmaps where each dotmap has info about a trajectory
+    probabilistic: Whether it will only add a random subset of the data to the dataset
     """
     data_in, data_out = [], []
     threshold = 0.95
@@ -94,6 +97,7 @@ def create_dataset_t_pid(data, probabilistic=False):
     return data_in, data_out
 
 def create_dataset_t_pid_2(data):
+    """Garbage method"""
     data_in, data_out = [], []
     for sequence in data:
         states = sequence.states
@@ -130,6 +134,8 @@ def create_dataset_no_t(data):
 
 def run_controller(env, horizon, policy):
     """
+    Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
+
     :param env: A gym object
     :param horizon: The number of states forward to look
     :param policy: A policy object (see other python file)
@@ -172,7 +178,7 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
     Collect data for environment model
     :param nTrials:
     :param horizon:
-    :return: an array of DotMaps, where each DotMap contains info about a sequence of steps
+    :return: an array of DotMaps, where each DotMap contains info about a trajectory
     """
     env_model = 'Reacher3d-v2'
     env = gym.make(env_model)
@@ -259,6 +265,8 @@ def train_model(dataset, model, learning_rate, n_epochs, prob=False, model_file=
     learning_rate: the learning rate
     n_epochs: the number of epochs to train for
     model_file: the file to save this into, or None if it shouldn't be saved
+    prob: Whether to train a probabilistic model
+    max_dataset_size: upper bound for dataset size
 
     Returns:
     --------
@@ -280,6 +288,22 @@ def train_model(dataset, model, learning_rate, n_epochs, prob=False, model_file=
     return model, logs
 
 def train_ensemble(dataset, ensemble, learning_rate, n_epochs, prob=False, model_folder=None):
+    """
+    Trains and returns an ensemble of models
+
+    Parameters:
+    -----------
+    dataset: The dataset to use for training, a tuple (data_in, data_out)
+    ensemble: an ensemble object to train
+    learning_rate: the learning rate
+    n_epochs: the number of epochs to train each model for
+    model_folder: the folder to save models into, or None if it shouldn't be saved
+    prob: Whether to train a probabilistic model
+
+    Returns:
+    ensemble: a trained ensemble
+    logs: currently an empty list
+    """
     p = DotMap()
     p.opt.n_epochs = n_epochs# if n_epochs else cfg.nn.optimizer.epochs  # 1000
     p.learning_rate = learning_rate
@@ -421,6 +445,9 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             plt.close()
 
 def plot_loss(logs, save_loc=None, show=True):
+    """
+    Plots the training loss of all models, should be redesigned at some point
+    """
     plt.figure()
     for key in logs:
         log = logs[key]
@@ -436,6 +463,9 @@ def plot_loss(logs, save_loc=None, show=True):
         plt.close()
 
 def plot_loss_epoch(training_error_t, training_error_no_t, epochs_t, epochs_no_t):
+    """
+    OUTDATED: plots the loss by epoch
+    """
     # TODO: autosaving
 
     plt.figure()
@@ -454,7 +484,11 @@ def plot_loss_epoch(training_error_t, training_error_no_t, epochs_t, epochs_no_t
 
 def plot_mse(MSEs, save_loc=None, show=True):
     """
-    Plots MSE graphs for the two sequences given
+    Plots MSE graphs for the sequences given given
+
+    Parameters:
+    ------------
+    MSEs: a dictionary mapping model type key to an array of MSEs
     """
     # Non-log version
     fig, ax = plt.subplots()
@@ -494,7 +528,7 @@ def plot_mse(MSEs, save_loc=None, show=True):
 
 def test_models(traj, models_t, models_no_t):
     """
-    Evaluates the models on the given states with the given inputs, needs to be updated
+    [OUTDATED] Evaluates the models on the given states with the given inputs, needs to be updated
 
     Paramaters:
     -----------
@@ -605,6 +639,9 @@ def test_models_single(traj, models):
     return outcomes
 
 def test_traj_ensemble(ensemble, test_data):
+    """
+    Tests each model in the ensemble on one test trajectory and plots the output
+    """
     traj = test_data
     states = traj.states
     actions = traj.actions
