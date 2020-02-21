@@ -1,8 +1,8 @@
 collect_data: true
 
 experiment:
-  traj_len: 1000
-  traj_len_test: 1000
+  traj_len: 600
+  traj_len_test: 600
   num_traj: 50
   num_traj_test: 5
   split: .8
@@ -12,11 +12,11 @@ experiment:
     single:
       train_traj: true
       train_det: true
-      train_prob: false
-      train_prob_traj: false
+      train_prob: true
+      train_prob_traj: true
     ensemble:
-      train_traj: true
-      train_det: true
+      train_traj: false
+      train_det: false
       train_prob: false
       train_prob_traj: false
 
@@ -34,7 +34,7 @@ nn:
       hid_depth: 2
       E: 5
     optimizer:
-      epochs: 1
+      epochs: 3
       batch: 128
       name: Adam
       split: .8
@@ -71,4 +71,4 @@ nn:
       batch: 128
       name: Adam
       split: .8
-      lr: .001
+      lr: .0001

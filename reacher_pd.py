@@ -59,7 +59,7 @@ def create_dataset_t_only(data):
 
     return data_in, data_out
 
-def create_dataset_t_pid(data, probabilistic=False):
+def create_dataset_t_pid(data, threshold=0):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -67,10 +67,9 @@ def create_dataset_t_pid(data, probabilistic=False):
     Parameters:
     -----------
     data: An array of dotmaps where each dotmap has info about a trajectory
-    probabilistic: Whether it will only add a random subset of the data to the dataset
+    threshold: the probability of dropping a given data entry
     """
     data_in, data_out = [], []
-    threshold = 0.95
     for sequence in data:
         states = sequence.states
         P = sequence.P
@@ -85,13 +84,14 @@ def create_dataset_t_pid(data, probabilistic=False):
 
                 # The randomely continuing is something I thought of to shrink
                 # the datasets while still having a large variety
-                if probabilistic and np.random.random() < threshold:
+                if np.random.random() < threshold:
                     continue
                 data_in.append(np.hstack((states[i], j - i, P, D, target)))
                 # data_in.append(np.hstack((states[i], j-i, target)))
                 data_out.append(states[j])
 
-    # data_in, data_out = shuffle(data_in, data_out)
+    print("shuffling")
+    data_in, data_out = shuffle(data_in, data_out)
     data_in = np.array(data_in)
     data_out = np.array(data_out)
     return data_in, data_out
@@ -254,7 +254,7 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
 
     return logs
 
-def train_model(dataset, model, learning_rate, n_epochs, prob=False, model_file=None, max_dataset_size=1000000):
+def train_model(dataset, model, learning_rate, n_epochs, prob=False, model_file=None, max_dataset_size=1000000, evaluator=None):
     """
     Wrapper for training models
 
@@ -278,6 +278,7 @@ def train_model(dataset, model, learning_rate, n_epochs, prob=False, model_file=
     p.opt.n_epochs = n_epochs# if n_epochs else cfg.nn.optimizer.epochs  # 1000
     p.learning_rate = learning_rate
     p.useGPU = False
+    p.evaluator = evaluator
     if prob:
         p.criterion = Prob_Loss()
     dataset = (dataset[0][:max_dataset_size,:], dataset[1][:max_dataset_size,:])
@@ -336,6 +337,7 @@ def collect_and_dataset(cfg):
     Returns:
         dataset: one step dataset, a tuple (data_in, data_out)
         dataset_no_t: traj dataset, "    "       "     "      "
+        training_data: an array of dotmaps, each pertaining to a test trajectory
         test_data: an array of dotmaps, each pertaining to a test trajectory
     """
     log.info('Collecting data')
@@ -344,12 +346,12 @@ def collect_and_dataset(cfg):
     # test_data = train_data[:1]
 
     log.info('Creating dataset')
-    dataset = create_dataset_t_pid(train_data, probabilistic=True)
+    dataset = create_dataset_t_pid(train_data, threshold=0.95)
     dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
-    return dataset, dataset_no_t, test_data
+    return dataset, dataset_no_t, train_data, test_data
 
 ###########################################
-#               Plotting                  #
+#           Plotting / Output             #
 ###########################################
 
 label_dict = {'traj':'Trajectory Based Deterministic',
@@ -448,32 +450,31 @@ def plot_loss(logs, save_loc=None, show=True):
     """
     Plots the training loss of all models, should be redesigned at some point
     """
-    plt.figure()
     for key in logs:
+        plt.figure()
         log = logs[key]
         plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
-    plt.title("Training Error")
-    plt.xlabel("Batch")
-    plt.ylabel("Loss function value")
-    if save_loc:
-        plt.savefig(save_loc + "/loss.pdf")
-    if show:
-        plt.show()
-    else:
-        plt.close()
+        plt.title("Training Loss for %s"%label_dict[key])
+        plt.xlabel("Batch")
+        plt.ylabel("Loss")
+        if save_loc:
+            plt.savefig("%s/loss_%s.pdf"%(save_loc, key))
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
 def plot_loss_epoch(training_error_t, training_error_no_t, epochs_t, epochs_no_t):
     """
     OUTDATED: plots the loss by epoch
     """
-    # TODO: autosaving
-
-    plt.figure()
-    plt.bar(np.arange(epochs_t), np.array(training_error_t))
-    plt.title("Training Error with t")
-    plt.xlabel("epoch")
-    plt.ylabel("total loss")
-    plt.show()
+    for key in logs:
+        plt.figure()
+        plt.bar(np.arange(epochs_t), np.array(training_error_t))
+        plt.title("Training Error with t")
+        plt.xlabel("epoch")
+        plt.ylabel("total loss")
+        plt.show()
 
     plt.figure()
     plt.bar(np.arange(epochs_no_t), np.array(training_error_no_t))
@@ -681,6 +682,43 @@ def test_traj_ensemble(ensemble, test_data):
 
         plt.show()
 
+def log_hyperparams(cfg, configs, model_types):
+    log.info("General Hyperparams:")
+    log.info("  traj_len: %d" % cfg.experiment.traj_len)
+    log.info('  traj_len_test: %d' % cfg.experiment.traj_len_test)
+    log.info('  num_traj: %d' % cfg.experiment.num_traj)
+    log.info('  num_traj_test: %d' % cfg.experiment.num_traj_test)
+
+    for type in model_types:
+        conf = configs[type]
+        log.info(type)
+        log.info("  hid_width: %d" % conf.training.hid_width)
+        log.info('  hid_depth: %d' % conf.training.hid_depth)
+        log.info('  epochs: %d' % conf.optimizer.epochs)
+        log.info('  batch size: %d' % conf.optimizer.batch)
+        log.info('  optimizer: %s' % conf.optimizer.name)
+        log.info('  learning rate: %f' % conf.optimizer.lr)
+
+def make_evaluator(train_data, test_data, type):
+    def evaluator(model):
+        dic  = {type: model}
+        train_s = 0
+        num_train = len(train_data)
+        len_train = len(train_data[0].states)
+        denom_train = num_train*len_train
+        for traj in train_data:
+            outcomes = test_models_single(traj, dic)
+            train_s += np.sum(outcomes['mse'][type]) / denom_train
+        test_s = 0
+        num_test = len(test_data)
+        len_test = len(test_data[0].states)
+        denom_test = num_test * len_test
+        for traj in test_data:
+            outcomes = test_models_single(traj, dic)
+            test_s += np.sum(outcomes['mse'][type]) / denom_test
+        return (train_s,test_s)
+    return evaluator
+
 ###########################################
 #             Main Functions              #
 ###########################################
@@ -691,15 +729,6 @@ def contpred(cfg):
 
     model_types = unpack_config_models(cfg)
 
-    # Collect data
-    if COLLECT_DATA:
-        traj_dataset, one_step_dataset, test_data = collect_and_dataset(cfg)
-    else:
-        pass
-
-    models = {}
-    loss_logs = {}
-
     configs = {'traj': cfg.nn.trajectory_based,
                'det': cfg.nn.one_step_det,
                'prob': cfg.nn.one_step_prob,
@@ -709,8 +738,18 @@ def contpred(cfg):
                'prob_ens': cfg.nn.one_step_prob,
                'traj_prob_ens': cfg.nn.trajectory_based_prob}
 
+    log_hyperparams(cfg, configs, model_types)
+
+    # Collect data
+    if COLLECT_DATA:
+        traj_dataset, one_step_dataset, train_data, test_data = collect_and_dataset(cfg)
+    else:
+        pass
+
+    models = {}
+    loss_logs = {}
+
     for model_type in model_types:
-        # TODO: update this to handle probabilistic loss
         log.info("Training %s model" % model_type)
         model_file = 'model_%s.pth.tar' % model_type
 
@@ -730,19 +769,16 @@ def contpred(cfg):
         model = Net(structure=struct) if not ens else Ensemble(structure=struct, n=cfg.nn.ensemble.n)
 
         if not ens:
-            model, loss_log = train_model(dataset,
-                                          model,
+            model, loss_log = train_model(dataset, model,
                                           configs[model_type].optimizer.lr,
                                           configs[model_type].optimizer.epochs,
-                                          prob,
-                                          model_file=model_file)
+                                          prob, model_file=model_file)
+                                          #evaluator=make_evaluator(train_data, test_data, model_type))
         else:
-            model, loss_log = train_ensemble(dataset,
-                                             model,
+            model, loss_log = train_ensemble(dataset, model,
                                              configs[model_type].optimizer.lr,
                                              configs[model_type].optimizer.epochs,
-                                             prob,
-                                             model_folder=model_type)
+                                             prob, model_folder=model_type)
 
         models[model_type] = model
         loss_logs[model_type] = loss_log
@@ -752,10 +788,6 @@ def contpred(cfg):
 
     graph_file = 'graphs'
     os.mkdir(graph_file)
-
-    # test_traj_ensemble(models['traj_ens'], test_data[0])
-
-    # x = 1/0
 
     plot_loss(loss_logs, save_loc=graph_file, show=False)
 

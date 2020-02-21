@@ -150,12 +150,14 @@ def train_network(dataset, model, parameters=DotMap()):
     p.useGPU = parameters.get('useGPU', False)
     p.verbosity = parameters.get('verbosity', 1)
     p.logs = parameters.get('logs', None)
+    p.evaluator = parameters.get('evaluator', None) # A function to run on the model every 25 batches
 
     # Init logs
     if p.logs is None:
         logs = DotMap()
         logs.training_error = []
         logs.training_error_epoch = []
+        logs.evaluations = []
         logs.time = None
     else:
         logs = p.logs
@@ -233,6 +235,10 @@ def train_network(dataset, model, parameters=DotMap()):
             loss.backward()
             optimizer.step()  # Does the update
             logs.time.append(timer() - logs.time[-1])
+
+            if p.evaluator is not None and i % 25 == 0:
+                logs.evaluations.append(p.evaluator(model))
+
         logs.training_error_epoch.append(epoch_error)
 
     endTime = timer()
