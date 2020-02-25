@@ -1,0 +1,82 @@
+collect_data: false
+train_models: false
+data_dir: 10.dat
+model_dir: 10.dat
+plot: true
+
+lorenz:
+  sigma: 10
+  beta: 2.667
+  rho: 28
+  ex:
+    u0: 0
+    v0: 1
+    w0: 1.05
+  tmax: 2
+  n: 200
+
+experiment:
+  num_traj: 10
+  num_traj_test: 5
+  split: .8
+  P: false
+  D: false
+  models:
+    single:
+      train_traj: true
+      train_det: true
+      train_prob: true
+      train_prob_traj: true
+    ensemble:
+      train_traj: false
+      train_det: false
+      train_prob: false
+      train_prob_traj: false
+
+nn:
+  ensemble:
+    n: 10
+  trajectory_based:
+    training:
+      hid_width: 250
+      hid_depth: 2
+      E: 5
+    optimizer:
+      epochs: 3
+      batch: 128
+      name: Adam
+      split: .8
+      lr: .01
+  trajectory_based_prob:
+    training:
+      hid_width: 250
+      hid_depth: 2
+      E: 5
+    optimizer:
+      epochs: 1
+      batch: 128
+      name: Adam
+      split: .8
+      lr: .003
+  one_step_det:
+    training:
+      hid_width: 250
+      hid_depth: 2
+      E: 5
+    optimizer:
+      epochs: 3
+      batch: 128
+      name: Adam
+      split: .8
+      lr: .003
+  one_step_prob:
+    training:
+      hid_width: 250
+      hid_depth: 2
+      E: 5
+    optimizer:
+      epochs: 10
+      batch: 128
+      name: Adam
+      split: .8
+      lr: .0001
