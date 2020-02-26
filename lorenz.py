@@ -44,13 +44,23 @@ def lorenz(cfg):
 
         new_init = np.random.uniform(low=[-25, -25, -25], high=[25, 25, 25], size=(num_traj, 3))
 
-        #
+        for row in new_init:
+            u, v, w = row  # row[0], row[1], row[2]
+            f = odeint(sim_lorenz, (u, v, w), t, args=(sigma, beta, rho))
+            x, y, z = f.T
+            l = DotMap()
+            l.states = f
+            data_X = np.concatenate((data_X, f))
+            data_Seq.append(l)
+
 
         X = data_X[1:, :]
         dX = data_X[1:, :] - data_X[:-1, :]
-        torch.save((X, dX), hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'step' + cfg.data_dir)
-        torch.save((data_Seq), hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'traj' + cfg.data_dir)
-        log.info(f"Saved trajectories to {cfg.data_dir}")
+        if cfg.save_data:
+            log.info("Saving new default data")
+            torch.save((X, dX), hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'step' + cfg.data_dir)
+            torch.save((data_Seq), hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'traj' + cfg.data_dir)
+            log.info(f"Saved trajectories to {cfg.data_dir}")
     else:
         X, dX = torch.load(hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'step' + cfg.data_dir)
         data_Seq = torch.load(hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'traj' + cfg.data_dir)
@@ -70,8 +80,11 @@ def lorenz(cfg):
     if cfg.train_models:
         model_1s, train_log1 = train_network(dataset_1s, Net(structure=[3, 100, 100, 3]), parameters=p)
         model_ct, train_log2 = train_network(dataset_ct, Net(structure=[4, 100, 100, 3]), parameters=p)
-        torch.save((model_1s, train_log1), hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
-        torch.save((model_ct, train_log2), hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
+
+        if cfg.save_models:
+            log.info("Saving new default models")
+            torch.save((model_1s, train_log1), hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
+            torch.save((model_ct, train_log2), hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
 
     else:
         model_1s, train_log1 = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
@@ -153,9 +166,12 @@ def lorenz(cfg):
             height=800,
             autosize=False,
             scene=dict(
-                xaxis=dict(nticks=4, range=[-75, 75], ),
-                yaxis=dict(nticks=4, range=[-75, 75], ),
-                zaxis=dict(nticks=4, range=[-75, 75], ), ),
+                xaxis=dict(nticks=4, range=[-100, 100], ),
+                yaxis=dict(nticks=4, range=[-100, 100], ),
+                zaxis=dict(nticks=4, range=[-100, 100], ),
+                aspectratio=dict(x=1, y=1, z=0.7),
+                    aspectmode='manual'
+            ),
             margin=dict(r=10, l=10, b=10, t=10),
             # scene=dict(
             #     camera=dict(
@@ -181,6 +197,8 @@ def lorenz(cfg):
         fig.show()
         fig.write_image(os.getcwd() + "/lorenz.pdf")
 
+def plot_learning():
+    raise NotImplementedError("TODO")
 
 if __name__ == '__main__':
     sys.exit(lorenz())

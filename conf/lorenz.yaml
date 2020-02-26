@@ -3,6 +3,8 @@ defaults:
 
 collect_data: true
 train_models: true
+save_data: false
+save_models: false
 data_dir: 10.dat
 model_dir: 10.dat
 plot: true

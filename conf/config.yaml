@@ -1,3 +1,6 @@
+defaults:
+  - model: ???
+
 collect_data: true
 
 experiment:
