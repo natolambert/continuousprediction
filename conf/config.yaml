@@ -1,7 +1,21 @@
 defaults:
-  - model: ???
+  - models: ???
 
 collect_data: true
+
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  job:
+    config:
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: ['random_seed']
+
 
 experiment:
   traj_len: 600

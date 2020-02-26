@@ -682,22 +682,22 @@ def test_traj_ensemble(ensemble, test_data):
 
         plt.show()
 
-def log_hyperparams(cfg, configs, model_types):
+def log_hyperparams(cfg): #, configs, model_types):
     log.info("General Hyperparams:")
     log.info("  traj_len: %d" % cfg.experiment.traj_len)
     log.info('  traj_len_test: %d' % cfg.experiment.traj_len_test)
     log.info('  num_traj: %d' % cfg.experiment.num_traj)
     log.info('  num_traj_test: %d' % cfg.experiment.num_traj_test)
 
-    for type in model_types:
-        conf = configs[type]
-        log.info(type)
-        log.info("  hid_width: %d" % conf.training.hid_width)
-        log.info('  hid_depth: %d' % conf.training.hid_depth)
-        log.info('  epochs: %d' % conf.optimizer.epochs)
-        log.info('  batch size: %d' % conf.optimizer.batch)
-        log.info('  optimizer: %s' % conf.optimizer.name)
-        log.info('  learning rate: %f' % conf.optimizer.lr)
+    # for type in model_types:
+    #     conf = configs[type]
+    # log.info(type)
+    log.info("  hid_width: %d" % cfg.model.training.hid_width)
+    log.info('  hid_depth: %d' % cfg.model.training.hid_depth)
+    log.info('  epochs: %d' % cfg.model.optimizer.epochs)
+    log.info('  batch size: %d' % cfg.model.optimizer.batch)
+    log.info('  optimizer: %s' % cfg.model.optimizer.name)
+    log.info('  learning rate: %f' % cfg.model.optimizer.lr)
 
 def make_evaluator(train_data, test_data, type):
     def evaluator(model):
@@ -729,16 +729,16 @@ def contpred(cfg):
 
     model_types = unpack_config_models(cfg)
 
-    configs = {'traj': cfg.nn.trajectory_based,
-               'det': cfg.nn.one_step_det,
-               'prob': cfg.nn.one_step_prob,
-               'traj_prob': cfg.nn.trajectory_based_prob,
-               'traj_ens': cfg.nn.trajectory_based,
-               'det_ens': cfg.nn.one_step_det,
-               'prob_ens': cfg.nn.one_step_prob,
-               'traj_prob_ens': cfg.nn.trajectory_based_prob}
+    # configs = {'traj': cfg.nn.trajectory_based,
+    #            'det': cfg.nn.one_step_det,
+    #            'prob': cfg.nn.one_step_prob,
+    #            'traj_prob': cfg.nn.trajectory_based_prob,
+    #            'traj_ens': cfg.nn.trajectory_based,
+    #            'det_ens': cfg.nn.one_step_det,
+    #            'prob_ens': cfg.nn.one_step_prob,
+    #            'traj_prob_ens': cfg.nn.trajectory_based_prob}
 
-    log_hyperparams(cfg, configs, model_types)
+    log_hyperparams(cfg) #configs, model_types)
 
     # Collect data
     if COLLECT_DATA:

@@ -7,8 +7,8 @@ model:
     hid_depth: 2
     E: 5
   optimizer:
-    epochs: 10
-    batch: 128
+    epochs: 18
+    batch: 32
     name: Adam
     split: .8
     lr: .0001
