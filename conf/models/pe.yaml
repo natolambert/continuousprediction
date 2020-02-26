@@ -1,0 +1,14 @@
+model:
+  prob: true
+  ensemble: true
+  traj: false
+  training:
+    hid_width: 250
+    hid_depth: 2
+    E: 5
+  optimizer:
+    epochs: 10
+    batch: 128
+    name: Adam
+    split: .8
+    lr: .0001

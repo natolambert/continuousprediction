@@ -1,5 +1,8 @@
-collect_data: false
-train_models: false
+defaults:
+  - model: one_step
+
+collect_data: true
+train_models: true
 data_dir: 10.dat
 model_dir: 10.dat
 plot: true
@@ -12,11 +15,11 @@ lorenz:
     u0: 0
     v0: 1
     w0: 1.05
-  tmax: 2
-  n: 200
+  tmax: 5
+  n: 1000
 
 experiment:
-  num_traj: 10
+  num_traj: 1 #0
   num_traj_test: 5
   split: .8
   P: false
