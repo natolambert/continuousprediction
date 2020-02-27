@@ -448,7 +448,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
 
 def plot_loss(logs, save_loc=None, show=True):
     """
-    Plots the training loss of all models, should be redesigned at some point
+    Plots the training loss of all models
     """
     for key in logs:
         plt.figure()
@@ -464,24 +464,23 @@ def plot_loss(logs, save_loc=None, show=True):
         else:
             plt.close()
 
-def plot_loss_epoch(training_error_t, training_error_no_t, epochs_t, epochs_no_t):
+def plot_loss_epoch(logs, save_loc=None, show=True):
     """
-    OUTDATED: plots the loss by epoch
+    Plots the loss by epoch for each model in logs
     """
     for key in logs:
         plt.figure()
-        plt.bar(np.arange(epochs_t), np.array(training_error_t))
-        plt.title("Training Error with t")
-        plt.xlabel("epoch")
-        plt.ylabel("total loss")
-        plt.show()
-
-    plt.figure()
-    plt.bar(np.arange(epochs_no_t), np.array(training_error_no_t))
-    plt.title("Training Error without t")
-    plt.xlabel("epoch")
-    plt.ylabel("total loss")
-    plt.show()
+        log = logs[key]
+        plt.bar(np.arange(len(log.training_error_epoch)), np.array(log.training_error_epoch))
+        plt.title("Epoch Training Loss for %s"%label_dict[key])
+        plt.xlabel("Epoch")
+        plt.ylabel("Total Loss")
+        if save_loc:
+            plt.savefig("%s/loss_epoch_%s.pdf"%(save_loc, key))
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
 def plot_mse(MSEs, save_loc=None, show=True):
     """
@@ -527,57 +526,7 @@ def plot_mse(MSEs, save_loc=None, show=True):
     else:
         plt.close()
 
-def test_models(traj, models_t, models_no_t):
-    """
-    [OUTDATED] Evaluates the models on the given states with the given inputs, needs to be updated
-
-    Paramaters:
-    -----------
-    traj: a dotmap containing states and actions taken in the test
-    models_t: a list of t-param models
-    models_no_t: a list of step-by-step models
-
-    Returns:
-    -------
-    mse_t: a 2D array such that mse_t[j][i] is the MSE of the jth t param model
-        at the ith time step
-    mse_no_t: a 2D array such that mse_t[j][i] is the MSE of the jth iterative model
-        at the ith time step
-    predictions_t: a 3D array such that predictions_t[j][i,:] is the prediction for the
-        jth t-param model at the ith time step
-    predictions_no_t: a 3D array such that predictions_t[j][i,:] is the prediction for the
-        jth iterative model at the ith time step
-    """
-    log.info("Beginning testing of predictions")
-    mse_t = np.zeros((len(models_t), len(traj.states)))
-    mse_no_t = np.zeros((len(models_no_t), len(traj.states)))
-
-    states = traj.states
-    actions = traj.actions
-    initial = states[0]
-    current = initial
-
-    predictions_t = [[states[0,:]] for model in models_t]
-    predictions_no_t = [[states[0,:]] for model in models_no_t]
-    for i in range(1, states.shape[0]):
-        groundtruth = states[i]
-        for j in range(len(models_t)):
-            model = models_t[j]
-            pred = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-            predictions_t[j].append(pred.squeeze())
-            mse_t[j][i] = np.square(groundtruth-pred).mean()
-
-
-        for j in range(len(models_no_t)):
-            model = models_no_t[j]
-            pred = model.predict(np.concatenate((predictions_no_t[j][i-1], actions[i-1,:])))
-            predictions_no_t[j].append(pred.squeeze())
-            mse_no_t[j][i] = np.square(groundtruth-pred).mean()
-
-
-    return mse_t, mse_no_t, predictions_t, predictions_no_t
-
-def test_models_single(traj, models):
+def test_models(traj, models):
     """
     Tests each of the models in the dictionary "models" on the same trajectory
 
@@ -707,14 +656,14 @@ def make_evaluator(train_data, test_data, type):
         len_train = len(train_data[0].states)
         denom_train = num_train*len_train
         for traj in train_data:
-            outcomes = test_models_single(traj, dic)
+            outcomes = test_models(traj, dic)
             train_s += np.sum(outcomes['mse'][type]) / denom_train
         test_s = 0
         num_test = len(test_data)
         len_test = len(test_data[0].states)
         denom_test = num_test * len_test
         for traj in test_data:
-            outcomes = test_models_single(traj, dic)
+            outcomes = test_models(traj, dic)
             test_s += np.sum(outcomes['mse'][type]) / denom_test
         return (train_s,test_s)
     return evaluator
@@ -790,6 +739,7 @@ def contpred(cfg):
     os.mkdir(graph_file)
 
     plot_loss(loss_logs, save_loc=graph_file, show=False)
+    plot_loss_epoch(loss_logs, save_loc=graph_file, show=False)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
     for i in range(len(test_data)):
@@ -797,7 +747,7 @@ def contpred(cfg):
         file = "%s/test%d" % (graph_file, i+1)
         os.mkdir(file)
 
-        outcomes = test_models_single(test, models)
+        outcomes = test_models(test, models)
         plot_states(test.states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
         plot_mse(outcomes['mse'], save_loc=file, show=False)
 

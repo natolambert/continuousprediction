@@ -1,5 +1,5 @@
 defaults:
-  - models: ???
+  - models: d
 
 collect_data: true
 
@@ -41,4 +41,3 @@ experiment_efficiency:
   traj_len: 30
   traj_len_test: 200
   num_traj: 10
-
