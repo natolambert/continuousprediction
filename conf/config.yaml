@@ -1,7 +1,13 @@
 defaults:
-  - models: d
+  - models: p
 
-collect_data: true
+collect_data: false
+train_models: true
+save_data: true
+save_models: false
+data_dir: l500_t50_v5.dat
+model_dir: l500_t50_v5.dat
+plot: false
 
 hydra:
   run:
@@ -18,8 +24,8 @@ hydra:
 
 
 experiment:
-  traj_len: 600
-  traj_len_test: 600
+  traj_len: 500
+  traj_len_test: 500
   num_traj: 50
   num_traj_test: 5
   split: .8

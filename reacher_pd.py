@@ -31,6 +31,7 @@ from policy import PID
 from mbrl_resources import *
 from plot import plot_reacher
 
+
 ###########################################
 #            Model Training               #
 ###########################################
@@ -58,6 +59,7 @@ def create_dataset_t_only(data):
     data_out = np.array(data_out)
 
     return data_in, data_out
+
 
 def create_dataset_t_pid(data, threshold=0):
     """
@@ -96,6 +98,7 @@ def create_dataset_t_pid(data, threshold=0):
     data_out = np.array(data_out)
     return data_in, data_out
 
+
 def create_dataset_t_pid_2(data):
     """Garbage method"""
     data_in, data_out = [], []
@@ -106,12 +109,13 @@ def create_dataset_t_pid_2(data):
         target = sequence.target
         initial = states[0]
         for i in range(1, states.shape[0]):
-            data_in.append(np.hstack((initial, i, P/5, D, target)))
+            data_in.append(np.hstack((initial, i, P / 5, D, target)))
             data_out.append(states[i])
 
     data_in = np.array(data_in)
     data_out = np.array(data_out)
     return data_in, data_out
+
 
 def create_dataset_no_t(data):
     """
@@ -131,6 +135,7 @@ def create_dataset_no_t(data):
     data_out = np.array(data_out)
 
     return data_in, data_out
+
 
 def run_controller(env, horizon, policy):
     """
@@ -173,6 +178,7 @@ def run_controller(env, horizon, policy):
     logs.states = np.array(logs.states)
     return logs
 
+
 def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 points
     """
     Collect data for environment model
@@ -207,7 +213,7 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
 
         dotmap = run_controller(env, horizon=horizon, policy=policy)
         dotmap.target = target
-        dotmap.P = P/5
+        dotmap.P = P / 5
         dotmap.I = I
         dotmap.D = D
         logs.append(dotmap)
@@ -254,7 +260,9 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
 
     return logs
 
-def train_model(dataset, model, learning_rate, n_epochs, prob=False, model_file=None, max_dataset_size=1000000, evaluator=None):
+
+def train_model(cfg, dataset, model, learning_rate, n_epochs, prob=False, model_file=None, max_dataset_size=1000000,
+                evaluator=None):
     """
     Wrapper for training models
 
@@ -275,18 +283,19 @@ def train_model(dataset, model, learning_rate, n_epochs, prob=False, model_file=
         per epoch, and time
     """
     p = DotMap()
-    p.opt.n_epochs = n_epochs# if n_epochs else cfg.nn.optimizer.epochs  # 1000
+    p.opt.n_epochs = n_epochs  # if n_epochs else cfg.nn.optimizer.epochs  # 1000
     p.learning_rate = learning_rate
     p.useGPU = False
     p.evaluator = evaluator
     if prob:
-        p.criterion = Prob_Loss()
-    dataset = (dataset[0][:max_dataset_size,:], dataset[1][:max_dataset_size,:])
+        p.criterion = Prob_Loss(dataset[1].shape[1])
+    dataset = (dataset[0][:max_dataset_size, :], dataset[1][:max_dataset_size, :])
     model, logs = train_network(dataset=dataset, model=model, parameters=p)
     if model_file:
         log.info('Saving model to file: %s' % model_file)
         torch.save(model.state_dict(), model_file)
     return model, logs
+
 
 def train_ensemble(dataset, ensemble, learning_rate, n_epochs, prob=False, model_folder=None):
     """
@@ -306,17 +315,17 @@ def train_ensemble(dataset, ensemble, learning_rate, n_epochs, prob=False, model
     logs: currently an empty list
     """
     p = DotMap()
-    p.opt.n_epochs = n_epochs# if n_epochs else cfg.nn.optimizer.epochs  # 1000
+    p.opt.n_epochs = n_epochs  # if n_epochs else cfg.nn.optimizer.epochs  # 1000
     p.learning_rate = learning_rate
     p.useGPU = False
     if prob:
-        p.criterion = Prob_Loss()
+        p.criterion = Prob_Loss(dataset[1].shape[1])
     ensemble.train(dataset, parameters=p, parallel=False)
     if model_folder:
         os.mkdir(model_folder)
         for i in range(ensemble.n):
             model = ensemble.models[i]
-            model_file = "%s/model%d.pth.tar" % (model_folder, i+1)
+            model_file = "%s/model%d.pth.tar" % (model_folder, i + 1)
             torch.save(model.state_dict(), model_file)
 
     # TODO: come up with a way to effectively present an ensemble's training loss
@@ -326,6 +335,7 @@ def train_ensemble(dataset, ensemble, learning_rate, n_epochs, prob=False, model
     logs.time = None
 
     return ensemble, logs
+
 
 def collect_and_dataset(cfg):
     """
@@ -342,7 +352,8 @@ def collect_and_dataset(cfg):
     """
     log.info('Collecting data')
     train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=False)  # 50
-    test_data = collect_data(nTrials=cfg.experiment.num_traj_test, horizon=cfg.experiment.traj_len_test, plot=False)  # 5
+    test_data = collect_data(nTrials=cfg.experiment.num_traj_test, horizon=cfg.experiment.traj_len_test,
+                             plot=False)  # 5
     # test_data = train_data[:1]
 
     log.info('Creating dataset')
@@ -350,34 +361,36 @@ def collect_and_dataset(cfg):
     dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
     return dataset, dataset_no_t, train_data, test_data
 
+
 ###########################################
 #           Plotting / Output             #
 ###########################################
 
-label_dict = {'traj':'Trajectory Based Deterministic',
+label_dict = {'traj': 'Trajectory Based Deterministic',
               'det': 'One Step Deterministic',
               'prob': 'One Step Probabilistic',
               'traj_prob': 'Trajectory Based Probabilistic',
-              'traj_ens':'Trajectory Based Deterministic Ensemble',
+              'traj_ens': 'Trajectory Based Deterministic Ensemble',
               'det_ens': 'One Step Deterministic Ensemble',
               'prob_ens': 'One Step Probabilistic Ensemble',
               'traj_prob_ens': 'Trajectory Based Probabilistic Ensemble'}
-color_dict = {'traj':'r',
+color_dict = {'traj': 'r',
               'det': 'b',
               'prob': 'g',
               'traj_prob': 'y',
-              'traj_ens':'#b53636',
+              'traj_ens': '#b53636',
               'det_ens': '#3660b5',
               'prob_ens': '#52b536',
               'traj_prob_ens': '#b5af36'}
-marker_dict = {'traj':'s',
+marker_dict = {'traj': 's',
                'det': 'o',
                'prob': 'D',
                'traj_prob': 'p',
-               'traj_ens':'s',
+               'traj_ens': 's',
                'det_ens': 'o',
                'prob_ens': 'D',
-               'traj_prob_ens': 'p',}
+               'traj_prob_ens': 'p', }
+
 
 def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None, show=True):
     """
@@ -401,9 +414,9 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
         plt.plot(gt, c='k', label='Groundtruth')
         for key in predictions:
             # print(key)
-            pred = predictions[key][:,i]
+            pred = predictions[key][:, i]
             # TODO: find a better way to do what the following line does
-            chopped = np.maximum(np.minimum(pred, 3), -3) # to keep it from messing up graphs when it diverges
+            chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
             plt.plot(chopped, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
 
         plt.legend()
@@ -424,18 +437,18 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
 
-        gt = np.zeros(ground_truth[:,0:1].shape)
+        gt = np.zeros(ground_truth[:, 0:1].shape)
         for i in idx_plot:
-            gt = np.hstack((gt, ground_truth[:, i:i+1]))
-        gt_avg = np.average(gt[:,1:], axis=1)
+            gt = np.hstack((gt, ground_truth[:, i:i + 1]))
+        gt_avg = np.average(gt[:, 1:], axis=1)
         plt.plot(gt_avg, c='k', label='Groundtruth')
 
         for key in predictions:
             pred = predictions[key]
-            p = np.zeros(pred[:,0:1].shape)
+            p = np.zeros(pred[:, 0:1].shape)
             for i in idx_plot:
-                p = np.hstack((p, pred[:, i:i+1]))
-            p_avg = np.average(p[:,1:], axis=1)
+                p = np.hstack((p, pred[:, i:i + 1]))
+            p_avg = np.average(p[:, 1:], axis=1)
             plt.plot(p_avg, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
         # plt.ylim(-.5, 1.5)
         plt.legend()
@@ -446,6 +459,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
         else:
             plt.close()
 
+
 def plot_loss(logs, save_loc=None, show=True):
     """
     Plots the training loss of all models
@@ -454,15 +468,16 @@ def plot_loss(logs, save_loc=None, show=True):
         plt.figure()
         log = logs[key]
         plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
-        plt.title("Training Loss for %s"%label_dict[key])
+        plt.title("Training Loss for %s" % label_dict[key])
         plt.xlabel("Batch")
         plt.ylabel("Loss")
         if save_loc:
-            plt.savefig("%s/loss_%s.pdf"%(save_loc, key))
+            plt.savefig("%s/loss_%s.pdf" % (save_loc, key))
         if show:
             plt.show()
         else:
             plt.close()
+
 
 def plot_loss_epoch(logs, save_loc=None, show=True):
     """
@@ -472,15 +487,16 @@ def plot_loss_epoch(logs, save_loc=None, show=True):
         plt.figure()
         log = logs[key]
         plt.bar(np.arange(len(log.training_error_epoch)), np.array(log.training_error_epoch))
-        plt.title("Epoch Training Loss for %s"%label_dict[key])
+        plt.title("Epoch Training Loss for %s" % label_dict[key])
         plt.xlabel("Epoch")
         plt.ylabel("Total Loss")
         if save_loc:
-            plt.savefig("%s/loss_epoch_%s.pdf"%(save_loc, key))
+            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, key))
         if show:
             plt.show()
         else:
             plt.close()
+
 
 def plot_mse(MSEs, save_loc=None, show=True):
     """
@@ -526,6 +542,7 @@ def plot_mse(MSEs, save_loc=None, show=True):
     else:
         plt.close()
 
+
 def test_models(traj, models):
     """
     Tests each of the models in the dictionary "models" on the same trajectory
@@ -543,14 +560,14 @@ def test_models(traj, models):
     """
     log.info("Beginning testing of predictions")
 
-    MSEs = {key:[] for key in models}
+    MSEs = {key: [] for key in models}
 
     states = traj.states
     actions = traj.actions
-    initial = states[0,:]
+    initial = states[0, :]
 
-    predictions = {key:[states[0,:]] for key in models}
-    currents = {key: states[0,:] for key in models}
+    predictions = {key: [states[0, :]] for key in models}
+    currents = {key: states[0, :] for key in models}
     for i in range(1, states.shape[0]):
         groundtruth = states[i]
         for key in models:
@@ -559,34 +576,35 @@ def test_models(traj, models):
             if key == "traj":
                 prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
             elif key == "det":
-                prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
+                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
             elif key == "prob":
-                prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
-                prediction = prediction[:,:prediction.shape[1]//2]
+                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
+                prediction = prediction[:, :prediction.shape[1] // 2]
             elif key == 'traj_prob':
                 prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-                prediction = prediction[:,:prediction.shape[1]//2]
+                prediction = prediction[:, :prediction.shape[1] // 2]
             elif key == "traj_ens":
                 prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
             elif key == "det_ens":
-                prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
+                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
             elif key == "prob_ens":
-                prediction = model.predict(np.concatenate((currents[key], actions[i-1,:])))
-                prediction = prediction[:,:prediction.shape[1]//2]
+                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
+                prediction = prediction[:, :prediction.shape[1] // 2]
             elif key == 'traj_prob_ens':
                 prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-                prediction = prediction[:,:prediction.shape[1]//2]
+                prediction = prediction[:, :prediction.shape[1] // 2]
 
             predictions[key].append(prediction.squeeze())
             MSEs[key].append(np.square(groundtruth - prediction).mean())
             currents[key] = prediction.squeeze()
             # print(currents[key].shape)
 
-    MSEs = {key:np.array(MSEs[key]) for key in MSEs}
-    predictions = {key:np.array(predictions[key]) for key in MSEs}
+    MSEs = {key: np.array(MSEs[key]) for key in MSEs}
+    predictions = {key: np.array(predictions[key]) for key in MSEs}
 
-    outcomes = {'mse': MSEs, 'predictions':predictions}
+    outcomes = {'mse': MSEs, 'predictions': predictions}
     return outcomes
+
 
 def test_traj_ensemble(ensemble, test_data):
     """
@@ -595,7 +613,7 @@ def test_traj_ensemble(ensemble, test_data):
     traj = test_data
     states = traj.states
     actions = traj.actions
-    initial = states[0,:]
+    initial = states[0, :]
 
     model_predictions = [[] for _ in range(ensemble.n)]
     ensemble_predictions = []
@@ -622,16 +640,17 @@ def test_traj_ensemble(ensemble, test_data):
         ax.spines['top'].set_visible(False)
 
         plt.plot(gt, c='k', label='Groundtruth')
-        plt.plot(ensemble_predictions[:,i])
+        plt.plot(ensemble_predictions[:, i])
         for pred in model_predictions:
             # print(pred.shape)
-            plt.plot(pred[:,i], c='b')
+            plt.plot(pred[:, i], c='b')
 
         plt.legend()
 
         plt.show()
 
-def log_hyperparams(cfg): #, configs, model_types):
+
+def log_hyperparams(cfg):  # , configs, model_types):
     log.info("General Hyperparams:")
     log.info("  traj_len: %d" % cfg.experiment.traj_len)
     log.info('  traj_len_test: %d' % cfg.experiment.traj_len_test)
@@ -648,13 +667,14 @@ def log_hyperparams(cfg): #, configs, model_types):
     log.info('  optimizer: %s' % cfg.model.optimizer.name)
     log.info('  learning rate: %f' % cfg.model.optimizer.lr)
 
+
 def make_evaluator(train_data, test_data, type):
     def evaluator(model):
-        dic  = {type: model}
+        dic = {type: model}
         train_s = 0
         num_train = len(train_data)
         len_train = len(train_data[0].states)
-        denom_train = num_train*len_train
+        denom_train = num_train * len_train
         for traj in train_data:
             outcomes = test_models(traj, dic)
             train_s += np.sum(outcomes['mse'][type]) / denom_train
@@ -665,8 +685,10 @@ def make_evaluator(train_data, test_data, type):
         for traj in test_data:
             outcomes = test_models(traj, dic)
             test_s += np.sum(outcomes['mse'][type]) / denom_test
-        return (train_s,test_s)
+        return (train_s, test_s)
+
     return evaluator
+
 
 ###########################################
 #             Main Functions              #
@@ -687,64 +709,80 @@ def contpred(cfg):
     #            'prob_ens': cfg.nn.one_step_prob,
     #            'traj_prob_ens': cfg.nn.trajectory_based_prob}
 
-    log_hyperparams(cfg) #configs, model_types)
+    log_hyperparams(cfg)  # configs, model_types)
 
     # Collect data
-    if COLLECT_DATA:
+    if cfg.collect_data:
+        log.info(f"Collecting new trials")
         traj_dataset, one_step_dataset, train_data, test_data = collect_and_dataset(cfg)
+
+        if cfg.save_data:
+            log.info("Saving new default data")
+            torch.save((train_data, test_data),
+                       hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+            log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
     else:
-        pass
+        log.info(f"Loading default data")
+        (train_data, test_data) = torch.load(
+            hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+        traj_dataset = create_dataset_t_pid(train_data, threshold=1.0)
+        one_step_dataset = create_dataset_no_t(train_data)  # train_data[0].states)
 
-    models = {}
-    loss_logs = {}
+    prob = cfg.model.prob
+    traj = cfg.model.traj
+    ens = cfg.model.ensemble
 
-    for model_type in model_types:
-        log.info("Training %s model" % model_type)
-        model_file = 'model_%s.pth.tar' % model_type
+    # for model_type in model_types:
+    log.info(f"Training model P:{[prob]}, T:{traj}, E:{ens}")
+    # model_file = 'model_%s.pth.tar' % model_type
 
-        prob = ('prob' in model_type)
-        traj = ('traj' in model_type)
-        ens = ('ens' in model_type)
+    dataset = traj_dataset if traj else one_step_dataset
 
-        dataset = traj_dataset if traj else one_step_dataset
-
+    # TODO INTEGRATE
+    if cfg.train_models:
         n_in = dataset[0].shape[1]
         n_out = dataset[1].shape[1]
         if prob:
             n_out *= 2
-        hid_width = configs[model_type].training.hid_width
-        hid_count = configs[model_type].training.hid_depth
+
+        hid_width = cfg.model.training.hid_width
+        hid_count = cfg.model.training.hid_depth
         struct = [n_in] + [hid_width] * hid_count + [n_out]
         model = Net(structure=struct) if not ens else Ensemble(structure=struct, n=cfg.nn.ensemble.n)
 
         if not ens:
-            model, loss_log = train_model(dataset, model,
-                                          configs[model_type].optimizer.lr,
-                                          configs[model_type].optimizer.epochs,
-                                          prob, model_file=model_file)
-                                          #evaluator=make_evaluator(train_data, test_data, model_type))
+            model, loss_log = train_model(cfg, dataset, model,
+                                          cfg.model.optimizer.lr,
+                                          cfg.model.optimizer.epochs,
+                                          prob, model_file=cfg.model_dir)
+            # evaluator=make_evaluator(train_data, test_data, model_type))
         else:
-            model, loss_log = train_ensemble(dataset, model,
-                                             configs[model_type].optimizer.lr,
-                                             configs[model_type].optimizer.epochs,
-                                             prob, model_folder=model_type)
+            model, loss_log = train_ensemble(cfg, dataset, model,
+                                             cfg.model.optimizer.lr,
+                                             cfg.model.optimizer.epochs,
+                                             prob, model_folder=cfg.model_dir)
 
-        models[model_type] = model
-        loss_logs[model_type] = loss_log
+        # models[model_type] = model
+        # loss_logs[model_type] = loss_log
 
-    # TODO: loading old models
+        # graph_file = 'graphs'
+        # os.mkdir(graph_file)
 
+        plot_loss(loss_log, save_loc='loss', show=False)
+        plot_loss_epoch(loss_log, save_loc='loss_epochs', show=False)
+        if cfg.save_models:
+            log.info("Saving new default models")
+            torch.save((model, loss_log),
+                       hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + cfg.model_dir)
 
-    graph_file = 'graphs'
-    os.mkdir(graph_file)
-
-    plot_loss(loss_logs, save_loc=graph_file, show=False)
-    plot_loss_epoch(loss_logs, save_loc=graph_file, show=False)
+    else:
+        model_1s, train_log1 = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
+        model_ct, train_log2 = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
     for i in range(len(test_data)):
         test = test_data[i]
-        file = "%s/test%d" % (graph_file, i+1)
+        file = "%s/test%d" % (graph_file, i + 1)
         os.mkdir(file)
 
         outcomes = test_models(test, models)
@@ -782,8 +820,8 @@ def contpred(cfg):
             plt.legend()
             plt.show()
 
-def test_sample_efficiency(cfg):
 
+def test_sample_efficiency(cfg):
     # Collect test data
     log.info('Collecting test data')
     test_data = collect_data(nTrials=1, horizon=cfg.experiment_efficiency.traj_len_test)  # 5
@@ -808,8 +846,8 @@ def test_sample_efficiency(cfg):
         hid_width = cfg.nn.trajectory_based.training.hid_width
         model_t = Net(structure=[n_in, hid_width, hid_width, n_out])
         model_no_t, logs = train_model(dataset_t, model,
-                        model_file, cfg.nn.trajectory_based.optimizer.lr,
-                        cfg.nn.trajectory_based.optimizer.epochs)
+                                       model_file, cfg.nn.trajectory_based.optimizer.lr,
+                                       cfg.nn.trajectory_based.optimizer.epochs)
 
         # Train no t model
         n_in = dataset_no_t[0].shape[1]
@@ -817,8 +855,8 @@ def test_sample_efficiency(cfg):
         hid_width = cfg.nn.one_step_det.training.hid_width
         model_no_t = Net(structure=[n_in, hid_width, hid_width, n_out])
         model_no_t, logs_no_t = train_model(dataset_no_t, model_no_t,
-                        model_file, cfg.nn.one_step_det.optimizer.lr,
-                        cfg.nn.one_step_det.optimizer.epochs)
+                                            model_file, cfg.nn.one_step_det.optimizer.lr,
+                                            cfg.nn.one_step_det.optimizer.epochs)
 
         models_t.append(model_t)
         models_no_t.append(model_no_t)
@@ -833,7 +871,8 @@ def test_sample_efficiency(cfg):
 
     mse_t, mse_no_t, predictions_t, predictions_no_t = test_models(test_data[0], models, models_no_t)
 
-    plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
+    plot_states(test_data[0].states, np.array(predictions_t), np.array(predictions_no_t),
+                idx_plot=[0, 1, 2, 3, 4, 5, 6])
 
     plot_mse(mse_t, mse_no_t)
 
@@ -843,7 +882,8 @@ def test_sample_efficiency(cfg):
 def test_multiple_n_epochs(cfg):
     # Collect data
     log.info('Collecting data')
-    train_data = collect_data(nTrials=cfg.experiment_one_model.num_traj, horizon=cfg.experiment_one_model.traj_len)  # 50
+    train_data = collect_data(nTrials=cfg.experiment_one_model.num_traj,
+                              horizon=cfg.experiment_one_model.traj_len)  # 50
     test_data = collect_data(nTrials=1, horizon=cfg.experiment_one_model.traj_len)  # 5
 
     # Create dataset
@@ -912,7 +952,6 @@ def test_multiple_n_epochs(cfg):
     plt.show()
 
     plot_states(states, np.array(predictions_t), np.array(predictions_no_t), idx_plot=[0, 1, 2, 3, 4, 5, 6])
-
 
 
 ###########################################

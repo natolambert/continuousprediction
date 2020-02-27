@@ -1,11 +1,12 @@
 model:
+  str: tp
   prob: true
   ensemble: false
   traj: true
   training:
     hid_width: 250
     hid_depth: 2
-    E: 5
+    E: 1
   optimizer:
     epochs: 3
     batch: 128

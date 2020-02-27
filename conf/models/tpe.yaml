@@ -1,4 +1,5 @@
 model:
+  str: tpe
   prob: true
   ensemble: true
   traj: true
