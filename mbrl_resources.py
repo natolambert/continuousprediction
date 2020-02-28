@@ -189,11 +189,13 @@ class Model(object):
             self.model = Net(structure=struct)
             self.model, self.loss_log = train_network(dataset, self.model, params)
 
-    def save(self, file):
-        torch.save((self.model, self.loss_log), file)
 
     def predict(self, x):
-        pass
+        return self.model.predict(x)
+
+def load_model(file):
+    model, log = torch.load(file)
+    return model
 
 def train_network(dataset, model, parameters=DotMap()):
     """

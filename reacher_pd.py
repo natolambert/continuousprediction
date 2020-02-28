@@ -641,23 +641,16 @@ def contpred(cfg):
         model.train(dataset)
         loss_log = model.loss_log
 
-        # models[model_type] = model
-        # loss_logs[model_type] = loss_log
-
-        # graph_file = 'graphs'
-        # os.mkdir(graph_file)
-        # print(loss_log)
-
         plot_loss(loss_log, save_loc='loss', show=False)
         plot_loss_epoch(loss_log, save_loc='loss_epochs', show=False)
         if cfg.save_models:
             log.info("Saving new default models")
-            torch.save((model, loss_log),
+            torch.save(model,
                        hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + cfg.model_dir)
 
     else:
-        model_1s, train_log1 = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
-        model_ct, train_log2 = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
+        model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
+        model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
     for i in range(len(test_data)):
