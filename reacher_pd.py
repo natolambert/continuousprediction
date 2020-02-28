@@ -72,6 +72,10 @@ def create_dataset_t_pid(data, threshold=0):
     threshold: the probability of dropping a given data entry
     """
     data_in, data_out = [], []
+    print(data[0].states.shape)
+    print(data[0].P.shape)
+    print(data[0].D.shape)
+    print(data[0].target.shape)
     for sequence in data:
         states = sequence.states
         P = sequence.P

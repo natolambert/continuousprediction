@@ -12,6 +12,9 @@ import torch.backends.cudnn as cudnn
 import gym
 from envs import *
 
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
+
 import hydra
 import logging
 
@@ -39,8 +42,28 @@ class Net(nn.Module):
         self.linears = nn.ModuleList(fc)
         self.tf = tf
         self._onGPU = False
+    def preprocess(self, dataset):
+        input = dataset[0]
+        output = dataset[1]
+
+        # Select scaling, minmax vs standard (fits to a gaussian with unit variance and 0 mean)
+        # TODO: Selection should be in config
+        #scalerInput = StandardScaler()
+        #scalerOutput = StandardScaler()
+        scalerInput = MinMaxScaler((-1,1))
+        scalerOutput = MinMaxScaler((-1,1))
+
+        scalerInput.fit(input)
+        scalerOutput.fit(output)
+
+        normInput = scalerInput.transform(input)
+        normOutput = scalerOutput.transform(output)
+        return normInput, normOutput
 
     def forward(self, x):
+        """
+        x: M(training samples) x
+        """
         for i in range(self.n_layers-1):
             x = self.tf(self.linears[i](x))
         x = self.linears[self.n_layers-1](x)
@@ -75,7 +98,6 @@ class Prob_Loss(nn.Module):
         B = torch.tensor(1, dtype=torch.float)
         return (torch.log(1 + torch.exp(input.mul_(B)))).div_(B)
 
-        # TODO: This function has been observed outputting negative values. needs fix
     def forward(self, inputs, targets):
         # size = targets.size()[1]
         mean = inputs[:,:self.size]
@@ -193,8 +215,9 @@ def train_network(dataset, model, parameters=DotMap()):
     # Wrapper representing map-style PyTorch dataset
     class PytorchDataset(Dataset):
         def __init__(self, dataset):
-            self.inputs = torch.from_numpy(dataset[0]).float()
-            self.outputs = torch.from_numpy(dataset[1]).float()
+            scaled_input, scaled_output = model.preprocess(dataset)
+            self.inputs = torch.from_numpy(scaled_input).float()
+            self.outputs = torch.from_numpy(scaled_output).float()
             self.n_data = dataset[0].shape[0]
             self.n_inputs = dataset[0].shape[1]
             self.n_outputs = dataset[1].shape[1]
