@@ -33,7 +33,7 @@ from plot import plot_reacher
 
 
 ###########################################
-#            Model Training               #
+#                Datasets                 #
 ###########################################
 
 # Learn model t only
@@ -86,7 +86,6 @@ def create_dataset_t_pid(data, threshold=0):
             for j in range(i + 1, n):
                 # This creates an entry for a given state concatenated
                 # with a number t of time steps as well as the PID parameters
-                # NOTE: Since integral controller is not yet implemented, I am removing it here
 
                 # The randomely continuing is something I thought of to shrink
                 # the datasets while still having a large variety
@@ -101,24 +100,6 @@ def create_dataset_t_pid(data, threshold=0):
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
-    return data_in, data_out
-
-
-def create_dataset_t_pid_2(data):
-    """Garbage method"""
-    data_in, data_out = [], []
-    for sequence in data:
-        states = sequence.states
-        P = sequence.P
-        D = sequence.D
-        target = sequence.target
-        initial = states[0]
-        for i in range(1, states.shape[0]):
-            data_in.append(np.hstack((initial, i, P / 5, D, target)))
-            data_out.append(states[i])
-
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
     return data_in, data_out
 
 
@@ -142,46 +123,47 @@ def create_dataset_no_t(data):
     return data_in, data_out
 
 
-def run_controller(env, horizon, policy):
+def create_dataset(data, traj=False, pid=False, threshold=0):
     """
-    Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
+    Create a dataset based on data
 
-    :param env: A gym object
-    :param horizon: The number of states forward to look
-    :param policy: A policy object (see other python file)
+    Parameters:
+    -----------
+    data: an array of dotmaps, where each dotmap holds information about one trajectory
+    traj: whether to make a trajectory based dataset
+    pid: whether to add PID parameters
+    threshold: the probability that a dataset entry will be dropped for trajectory based dataset
+
+    Returns:
+    --------
+    data_in: An ndarray of model inputs
+    data_out: An ndarray of model outputs
     """
+    data_in, data_out = [], []
 
-    # WHat is going on here?
-    def obs2q(obs):
-        return obs[0:5]
+    for sequence in data:
+        states = sequence.states
+        n = states.shape[0]
+        if pid:
+            P = sequence.P
+            D = sequence.D
+        for i in range(n-1):
+            if traj:
+                for i in range(i+1, n):
+                    if np.random.random() < threshold:
+                        continue
+                    if pid:
+                        data_in.append(np.hstack((states[i], j-i, P, D, target)))
+                    else:
+                        data_in.append(np.hstack((states[i], j-i, target)))
+                    data_out.append(states[j])
+            else:
+                data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
+                data_out.append(sequence.states[i + 1])
 
-    logs = DotMap()
-    logs.states = []
-    logs.actions = []
-    logs.rewards = []
-    logs.times = []
-
-    observation = env.reset()
-    for t in range(horizon):
-        # env.render()
-        state = observation
-        action, t = policy.act(obs2q(state))
-
-        # print(action)
-
-        observation, reward, done, info = env.step(action)
-
-        # Log
-        # logs.times.append()
-        logs.actions.append(action)
-        logs.rewards.append(reward)
-        logs.states.append(observation)
-
-    # Cluster state
-    logs.actions = np.array(logs.actions)
-    logs.rewards = np.array(logs.rewards)
-    logs.states = np.array(logs.states)
-    return logs
+    data_in = np.array(data_in)
+    data_out = np.array(data_out)
+    return data_in, data_out
 
 
 def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 points
@@ -191,6 +173,47 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
     :param horizon:
     :return: an array of DotMaps, where each DotMap contains info about a trajectory
     """
+    def run_controller(env, horizon, policy):
+        """
+        Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
+
+        :param env: A gym object
+        :param horizon: The number of states forward to look
+        :param policy: A policy object (see other python file)
+        """
+
+        # WHat is going on here?
+        def obs2q(obs):
+            return obs[0:5]
+
+        logs = DotMap()
+        logs.states = []
+        logs.actions = []
+        logs.rewards = []
+        logs.times = []
+
+        observation = env.reset()
+        for t in range(horizon):
+            # env.render()
+            state = observation
+            action, t = policy.act(obs2q(state))
+
+            # print(action)
+
+            observation, reward, done, info = env.step(action)
+
+            # Log
+            # logs.times.append()
+            logs.actions.append(action)
+            logs.rewards.append(reward)
+            logs.states.append(observation)
+
+        # Cluster state
+        logs.actions = np.array(logs.actions)
+        logs.rewards = np.array(logs.rewards)
+        logs.states = np.array(logs.states)
+        return logs
+
     env_model = 'Reacher3d-v2'
     env = gym.make(env_model)
     log.info('Initializing env: %s' % env_model)
@@ -222,13 +245,6 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
         dotmap.I = I
         dotmap.D = D
         logs.append(dotmap)
-        # print("end pos is: ", logs[i].states[-1, -3:])
-        # # Visualize
-        # plt.figure()
-        # # h = plt.plot(logs[i].states[:, 0:7])
-        # h = plt.plot(logs[i].states[:, -3:])
-        # plt.legend(h)
-        # plt.show()
 
     if plot:
         import plotly.graph_objects as go
@@ -266,82 +282,6 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
     return logs
 
 
-def train_model(cfg, dataset, model, learning_rate, n_epochs, prob=False, model_file=None, max_dataset_size=1000000,
-                evaluator=None):
-    """
-    Wrapper for training models
-
-    Parameters:
-    ----------
-    dataset: The dataset to use for training, a tuple (data_in, data_out)
-    model: a PyTorch model to train
-    learning_rate: the learning rate
-    n_epochs: the number of epochs to train for
-    model_file: the file to save this into, or None if it shouldn't be saved
-    prob: Whether to train a probabilistic model
-    max_dataset_size: upper bound for dataset size
-
-    Returns:
-    --------
-    model: the trained model, a PyTorch model
-    logs: the logs, a dotmap containing training error per iteration, training error
-        per epoch, and time
-    """
-    p = DotMap()
-    p.opt.n_epochs = n_epochs  # if n_epochs else cfg.nn.optimizer.epochs  # 1000
-    p.learning_rate = learning_rate
-    p.useGPU = False
-    p.evaluator = evaluator
-    if prob:
-        p.criterion = Prob_Loss(dataset[1].shape[1])
-    dataset = (dataset[0][:max_dataset_size, :], dataset[1][:max_dataset_size, :])
-    model, logs = train_network(dataset=dataset, model=model, parameters=p)
-    if model_file:
-        log.info('Saving model to file: %s' % model_file)
-        torch.save(model.state_dict(), model_file)
-    return model, logs
-
-
-def train_ensemble(dataset, ensemble, learning_rate, n_epochs, prob=False, model_folder=None):
-    """
-    Trains and returns an ensemble of models
-
-    Parameters:
-    -----------
-    dataset: The dataset to use for training, a tuple (data_in, data_out)
-    ensemble: an ensemble object to train
-    learning_rate: the learning rate
-    n_epochs: the number of epochs to train each model for
-    model_folder: the folder to save models into, or None if it shouldn't be saved
-    prob: Whether to train a probabilistic model
-
-    Returns:
-    ensemble: a trained ensemble
-    logs: currently an empty list
-    """
-    p = DotMap()
-    p.opt.n_epochs = n_epochs  # if n_epochs else cfg.nn.optimizer.epochs  # 1000
-    p.learning_rate = learning_rate
-    p.useGPU = False
-    if prob:
-        p.criterion = Prob_Loss(dataset[1].shape[1])
-    ensemble.train(dataset, parameters=p, parallel=False)
-    if model_folder:
-        os.mkdir(model_folder)
-        for i in range(ensemble.n):
-            model = ensemble.models[i]
-            model_file = "%s/model%d.pth.tar" % (model_folder, i + 1)
-            torch.save(model.state_dict(), model_file)
-
-    # TODO: come up with a way to effectively present an ensemble's training loss
-    logs = DotMap()
-    logs.training_error = []
-    logs.training_error_epoch = []
-    logs.time = None
-
-    return ensemble, logs
-
-
 def collect_and_dataset(cfg):
     """
     Collects data and returns it as a dataset in the format used for training
@@ -371,30 +311,30 @@ def collect_and_dataset(cfg):
 #           Plotting / Output             #
 ###########################################
 
-label_dict = {'traj': 'Trajectory Based Deterministic',
-              'det': 'One Step Deterministic',
-              'prob': 'One Step Probabilistic',
-              'traj_prob': 'Trajectory Based Probabilistic',
-              'traj_ens': 'Trajectory Based Deterministic Ensemble',
-              'det_ens': 'One Step Deterministic Ensemble',
-              'prob_ens': 'One Step Probabilistic Ensemble',
-              'traj_prob_ens': 'Trajectory Based Probabilistic Ensemble'}
-color_dict = {'traj': 'r',
-              'det': 'b',
-              'prob': 'g',
-              'traj_prob': 'y',
-              'traj_ens': '#b53636',
-              'det_ens': '#3660b5',
-              'prob_ens': '#52b536',
-              'traj_prob_ens': '#b5af36'}
-marker_dict = {'traj': 's',
-               'det': 'o',
-               'prob': 'D',
-               'traj_prob': 'p',
-               'traj_ens': 's',
-               'det_ens': 'o',
-               'prob_ens': 'D',
-               'traj_prob_ens': 'p', }
+label_dict = {'t': 'Trajectory Based Deterministic',
+              'd': 'One Step Deterministic',
+              'p': 'One Step Probabilistic',
+              'tp': 'Trajectory Based Probabilistic',
+              'te': 'Trajectory Based Deterministic Ensemble',
+              'de': 'One Step Deterministic Ensemble',
+              'pe': 'One Step Probabilistic Ensemble',
+              'tpe': 'Trajectory Based Probabilistic Ensemble'}
+color_dict = {'t': 'r',
+              'd': 'b',
+              'p': 'g',
+              'tp': 'y',
+              'te': '#b53636',
+              'de': '#3660b5',
+              'pe': '#52b536',
+              'tpe': '#b5af36'}
+marker_dict = {'t': 's',
+               'd': 'o',
+               'p': 'D',
+               'tp': 'p',
+               'te': 's',
+               'de': 'o',
+               'pe': 'D',
+               'tpe': 'p', }
 
 
 def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None, show=True):
@@ -465,38 +405,68 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             plt.close()
 
 
-def plot_loss(logs, save_loc=None, show=True):
+def plot_loss(logs, save_loc=None, show=True, s=None):
     """
     Plots the training loss of all models
     """
-    for key in logs:
+    if type(logs) == dict:
+        for key in logs:
+            plt.figure()
+            log = logs[key]
+            plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
+            plt.title("Training Loss for %s" % label_dict[key])
+            plt.xlabel("Batch")
+            plt.ylabel("Loss")
+            if save_loc:
+                plt.savefig("%s/loss_%s.pdf" % (save_loc, key))
+            if show:
+                plt.show()
+            else:
+                plt.close()
+    elif type(logs) == DotMap:
         plt.figure()
-        log = logs[key]
-        plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
-        plt.title("Training Loss for %s" % label_dict[key])
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        plt.plot(np.array(logs.training_error[10:]), c=color_dict[s], label=label_dict[s])
+        plt.title("Training Loss for %s" % label_dict[s])
         plt.xlabel("Batch")
         plt.ylabel("Loss")
         if save_loc:
-            plt.savefig("%s/loss_%s.pdf" % (save_loc, key))
+            plt.savefig("%s/loss_%s.pdf" % (save_loc, s))
         if show:
             plt.show()
         else:
             plt.close()
 
 
-def plot_loss_epoch(logs, save_loc=None, show=True):
+def plot_loss_epoch(logs, save_loc=None, show=True, s=None):
     """
     Plots the loss by epoch for each model in logs
     """
-    for key in logs:
+    if type(logs) == dict:
+        for key in logs:
+            plt.figure()
+            log = logs[key]
+            plt.bar(np.arange(len(log.training_error_epoch)), np.array(log.training_error_epoch), color=color_dict[key])
+            plt.title("Epoch Training Loss for %s" % label_dict[key])
+            plt.xlabel("Epoch")
+            plt.ylabel("Total Loss")
+            if save_loc:
+                plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, key))
+            if show:
+                plt.show()
+            else:
+                plt.close()
+    elif type(logs) == DotMap:
         plt.figure()
-        log = logs[key]
-        plt.bar(np.arange(len(log.training_error_epoch)), np.array(log.training_error_epoch))
-        plt.title("Epoch Training Loss for %s" % label_dict[key])
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        plt.bar(np.arange(len(logs.training_error_epoch)), np.array(logs.training_error_epoch), color=color_dict[s])
+        plt.title("Epoch Training Loss for %s" % label_dict[s])
         plt.xlabel("Epoch")
         plt.ylabel("Total Loss")
         if save_loc:
-            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, key))
+            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, s))
         if show:
             plt.show()
         else:
@@ -550,7 +520,8 @@ def plot_mse(MSEs, save_loc=None, show=True):
 
 def test_models(traj, models):
     """
-    Tests each of the models in the dictionary "models" on the same trajectory
+    Tests each of the models in the dictionary "models" on the same trajectory.
+    Not to be confused with the function below, which tests a single model
 
     Parameters:
     ------------
@@ -561,7 +532,7 @@ def test_models(traj, models):
     outcomes: a dictionary of MSEs and predictions. As an example of how to
               get info from this distionary, to get the MSE data from a trajectory
               -based model you'd do
-                    outcomes['mse']['traj']
+                    outcomes['mse']['t']
     """
     log.info("Beginning testing of predictions")
 
@@ -578,25 +549,11 @@ def test_models(traj, models):
         for key in models:
             model = models[key]
 
-            if key == "traj":
+            if 't' in key:
                 prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-            elif key == "det":
-                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
-            elif key == "prob":
-                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
-                prediction = prediction[:, :prediction.shape[1] // 2]
-            elif key == 'traj_prob':
-                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-                prediction = prediction[:, :prediction.shape[1] // 2]
-            elif key == "traj_ens":
-                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-            elif key == "det_ens":
-                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
-            elif key == "prob_ens":
-                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
-                prediction = prediction[:, :prediction.shape[1] // 2]
-            elif key == 'traj_prob_ens':
-                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+            else:
+                prediction = model.predict(np.concatenate((current, actions[i - 1, :])))
+            if 'p' in key:
                 prediction = prediction[:, :prediction.shape[1] // 2]
 
             predictions[key].append(prediction.squeeze())
@@ -606,6 +563,48 @@ def test_models(traj, models):
 
     MSEs = {key: np.array(MSEs[key]) for key in MSEs}
     predictions = {key: np.array(predictions[key]) for key in MSEs}
+
+    outcomes = {'mse': MSEs, 'predictions': predictions}
+    return outcomes
+
+
+def test_model(traj, model):
+    """
+    Tests a single model on the trajectory given
+
+    Parameters:
+    -----------
+    traj: a trajectory to test on
+    model: a model object to evaluate
+
+    Returns:
+    --------
+    outcomes: a dictionary of MSEs and predictions:
+                {'mse': MSEs, 'predictions': predictions}
+    """
+    log.info("Beginning testing of predictions")
+
+    states = traj.states
+    actions = traj.actions
+    initial = states[0, :]
+    key = model.str
+
+    MSEs = []
+    predictions = [states[0, :]]
+    current = states[0, :]
+    for i in range(1, states.shape[0]):
+        groundtruth = states[i]
+
+        if 't' in key:
+            prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+        else:
+            prediction = model.predict(np.concatenate((current, actions[i - 1, :])))
+        if 'p' in key:
+            prediction = prediction[:, :prediction.shape[1] // 2]
+
+        predictions.append(prediction.squeeze())
+        MSEs.append(np.square(groundtruth - prediction).mean())
+        current = prediction.squeeze()
 
     outcomes = {'mse': MSEs, 'predictions': predictions}
     return outcomes
@@ -705,16 +704,19 @@ def contpred(cfg):
 
     model_types = unpack_config_models(cfg)
 
-    # configs = {'traj': cfg.nn.trajectory_based,
-    #            'det': cfg.nn.one_step_det,
-    #            'prob': cfg.nn.one_step_prob,
-    #            'traj_prob': cfg.nn.trajectory_based_prob,
-    #            'traj_ens': cfg.nn.trajectory_based,
-    #            'det_ens': cfg.nn.one_step_det,
-    #            'prob_ens': cfg.nn.one_step_prob,
-    #            'traj_prob_ens': cfg.nn.trajectory_based_prob}
+    # configs = {'t': cfg.nn.trajectory_based,
+    #            'd': cfg.nn.one_step_det,
+    #            'p': cfg.nn.one_step_prob,
+    #            'tp': cfg.nn.trajectory_based_prob,
+    #            'te': cfg.nn.trajectory_based,
+    #            'de': cfg.nn.one_step_det,
+    #            'pe': cfg.nn.one_step_prob,
+    #            'tpe': cfg.nn.trajectory_based_prob}
 
     log_hyperparams(cfg)  # configs, model_types)
+
+    graph_file = 'graphs'
+    os.mkdir(graph_file)
 
     # Collect data
     if cfg.collect_data:
@@ -745,44 +747,20 @@ def contpred(cfg):
 
     # TODO INTEGRATE
     if cfg.train_models:
-        n_in = dataset[0].shape[1]
-        n_out = dataset[1].shape[1]
-        if prob:
-            n_out *= 2
+        model = Model(cfg.model)
+        model.train(dataset)
+        loss_log = model.loss_log
 
-        hid_width = cfg.model.training.hid_width
-        hid_count = cfg.model.training.hid_depth
-        struct = [n_in] + [hid_width] * hid_count + [n_out]
-        model = Net(structure=struct) if not ens else Ensemble(structure=struct, n=cfg.nn.ensemble.n)
-
-        if not ens:
-            model, loss_log = train_model(cfg, dataset, model,
-                                          cfg.model.optimizer.lr,
-                                          cfg.model.optimizer.epochs,
-                                          prob, model_file=cfg.model_dir)
-            # evaluator=make_evaluator(train_data, test_data, model_type))
-        else:
-            model, loss_log = train_ensemble(cfg, dataset, model,
-                                             cfg.model.optimizer.lr,
-                                             cfg.model.optimizer.epochs,
-                                             prob, model_folder=cfg.model_dir)
-
-        # models[model_type] = model
-        # loss_logs[model_type] = loss_log
-
-        # graph_file = 'graphs'
-        # os.mkdir(graph_file)
-
-        plot_loss(loss_log, save_loc='loss', show=False)
-        plot_loss_epoch(loss_log, save_loc='loss_epochs', show=False)
+        plot_loss(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
+        plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
         if cfg.save_models:
             log.info("Saving new default models")
-            torch.save((model, loss_log),
+            torch.save(model,
                        hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + cfg.model_dir)
 
     else:
-        model_1s, train_log1 = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
-        model_ct, train_log2 = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
+        model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
+        model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
     for i in range(len(test_data)):
@@ -790,7 +768,7 @@ def contpred(cfg):
         file = "%s/test%d" % (graph_file, i + 1)
         os.mkdir(file)
 
-        outcomes = test_models(test, models)
+        outcomes = test_model(test, model)
         plot_states(test.states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
         plot_mse(outcomes['mse'], save_loc=file, show=False)
 
@@ -968,21 +946,21 @@ def unpack_config_models(cfg):
     """
     model_types = []
     if cfg.experiment.models.single.train_traj:
-        model_types.append('traj')
+        model_types.append('t')
     if cfg.experiment.models.single.train_det:
-        model_types.append('det')
+        model_types.append('d')
     if cfg.experiment.models.single.train_prob:
-        model_types.append('prob')
+        model_types.append('p')
     if cfg.experiment.models.single.train_prob_traj:
-        model_types.append('traj_prob')
+        model_types.append('tp')
     if cfg.experiment.models.ensemble.train_traj:
-        model_types.append('traj_ens')
+        model_types.append('te')
     if cfg.experiment.models.ensemble.train_det:
-        model_types.append('det_ens')
+        model_types.append('de')
     if cfg.experiment.models.ensemble.train_prob:
-        model_types.append('prob_ens')
+        model_types.append('pe')
     if cfg.experiment.models.ensemble.train_prob_traj:
-        model_types.append('traj_prob_ens')
+        model_types.append('tpe')
 
     return model_types
 
