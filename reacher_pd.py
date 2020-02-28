@@ -33,7 +33,7 @@ from plot import plot_reacher
 
 
 ###########################################
-#            Model Training               #
+#                Datasets                 #
 ###########################################
 
 # Learn model t only
@@ -115,6 +115,49 @@ def create_dataset_no_t(data):
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
+    return data_in, data_out
+
+
+def create_dataset(data, traj=False, pid=False, threshold=0):
+    """
+    Create a dataset based on data
+
+    Parameters:
+    -----------
+    data: an array of dotmaps, where each dotmap holds information about one trajectory
+    traj: whether to make a trajectory based dataset
+    pid: whether to add PID parameters
+    threshold: the probability that a dataset entry will be dropped for trajectory based dataset
+
+    Returns:
+    --------
+    data_in: An ndarray of model inputs
+    data_out: An ndarray of model outputs
+    """
+    data_in, data_out = [], []
+
+    for sequence in data:
+        states = sequence.states
+        n = states.shape[0]
+        if pid:
+            P = sequence.P
+            D = sequence.D
+        for i in range(n-1):
+            if traj:
+                for i in range(i+1, n):
+                    if np.random.random() < threshold:
+                        continue
+                    if pid:
+                        data_in.append(np.hstack((states[i], j-i, P, D, target)))
+                    else:
+                        data_in.append(np.hstack((states[i], j-i, target)))
+                    data_out.append(states[j])
+            else:
+                data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
+                data_out.append(sequence.states[i + 1])
+
+    data_in = np.array(data_in)
+    data_out = np.array(data_out)
     return data_in, data_out
 
 
@@ -263,30 +306,30 @@ def collect_and_dataset(cfg):
 #           Plotting / Output             #
 ###########################################
 
-label_dict = {'traj': 'Trajectory Based Deterministic',
-              'det': 'One Step Deterministic',
-              'prob': 'One Step Probabilistic',
-              'traj_prob': 'Trajectory Based Probabilistic',
-              'traj_ens': 'Trajectory Based Deterministic Ensemble',
-              'det_ens': 'One Step Deterministic Ensemble',
-              'prob_ens': 'One Step Probabilistic Ensemble',
-              'traj_prob_ens': 'Trajectory Based Probabilistic Ensemble'}
-color_dict = {'traj': 'r',
-              'det': 'b',
-              'prob': 'g',
-              'traj_prob': 'y',
-              'traj_ens': '#b53636',
-              'det_ens': '#3660b5',
-              'prob_ens': '#52b536',
-              'traj_prob_ens': '#b5af36'}
-marker_dict = {'traj': 's',
-               'det': 'o',
-               'prob': 'D',
-               'traj_prob': 'p',
-               'traj_ens': 's',
-               'det_ens': 'o',
-               'prob_ens': 'D',
-               'traj_prob_ens': 'p', }
+label_dict = {'t': 'Trajectory Based Deterministic',
+              'd': 'One Step Deterministic',
+              'p': 'One Step Probabilistic',
+              'tp': 'Trajectory Based Probabilistic',
+              'te': 'Trajectory Based Deterministic Ensemble',
+              'de': 'One Step Deterministic Ensemble',
+              'pe': 'One Step Probabilistic Ensemble',
+              'tpe': 'Trajectory Based Probabilistic Ensemble'}
+color_dict = {'t': 'r',
+              'd': 'b',
+              'p': 'g',
+              'tp': 'y',
+              'te': '#b53636',
+              'de': '#3660b5',
+              'pe': '#52b536',
+              'tpe': '#b5af36'}
+marker_dict = {'t': 's',
+               'd': 'o',
+               'p': 'D',
+               'tp': 'p',
+               'te': 's',
+               'de': 'o',
+               'pe': 'D',
+               'tpe': 'p', }
 
 
 def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None, show=True):
@@ -357,38 +400,68 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             plt.close()
 
 
-def plot_loss(logs, save_loc=None, show=True):
+def plot_loss(logs, save_loc=None, show=True, s=None):
     """
     Plots the training loss of all models
     """
-    for key in logs:
+    if type(logs) == dict:
+        for key in logs:
+            plt.figure()
+            log = logs[key]
+            plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
+            plt.title("Training Loss for %s" % label_dict[key])
+            plt.xlabel("Batch")
+            plt.ylabel("Loss")
+            if save_loc:
+                plt.savefig("%s/loss_%s.pdf" % (save_loc, key))
+            if show:
+                plt.show()
+            else:
+                plt.close()
+    elif type(logs) == DotMap:
         plt.figure()
-        log = logs[key]
-        plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
-        plt.title("Training Loss for %s" % label_dict[key])
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        plt.plot(np.array(logs.training_error[10:]), c=color_dict[s], label=label_dict[s])
+        plt.title("Training Loss for %s" % label_dict[s])
         plt.xlabel("Batch")
         plt.ylabel("Loss")
         if save_loc:
-            plt.savefig("%s/loss_%s.pdf" % (save_loc, key))
+            plt.savefig("%s/loss_%s.pdf" % (save_loc, s))
         if show:
             plt.show()
         else:
             plt.close()
 
 
-def plot_loss_epoch(logs, save_loc=None, show=True):
+def plot_loss_epoch(logs, save_loc=None, show=True, s=None):
     """
     Plots the loss by epoch for each model in logs
     """
-    for key in logs:
+    if type(logs) == dict:
+        for key in logs:
+            plt.figure()
+            log = logs[key]
+            plt.bar(np.arange(len(log.training_error_epoch)), np.array(log.training_error_epoch), color=color_dict[key])
+            plt.title("Epoch Training Loss for %s" % label_dict[key])
+            plt.xlabel("Epoch")
+            plt.ylabel("Total Loss")
+            if save_loc:
+                plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, key))
+            if show:
+                plt.show()
+            else:
+                plt.close()
+    elif type(logs) == DotMap:
         plt.figure()
-        log = logs[key]
-        plt.bar(np.arange(len(log.training_error_epoch)), np.array(log.training_error_epoch))
-        plt.title("Epoch Training Loss for %s" % label_dict[key])
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        plt.bar(np.arange(len(logs.training_error_epoch)), np.array(logs.training_error_epoch), color=color_dict[s])
+        plt.title("Epoch Training Loss for %s" % label_dict[s])
         plt.xlabel("Epoch")
         plt.ylabel("Total Loss")
         if save_loc:
-            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, key))
+            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, s))
         if show:
             plt.show()
         else:
@@ -442,7 +515,8 @@ def plot_mse(MSEs, save_loc=None, show=True):
 
 def test_models(traj, models):
     """
-    Tests each of the models in the dictionary "models" on the same trajectory
+    Tests each of the models in the dictionary "models" on the same trajectory.
+    Not to be confused with the function below, which tests a single model
 
     Parameters:
     ------------
@@ -453,7 +527,7 @@ def test_models(traj, models):
     outcomes: a dictionary of MSEs and predictions. As an example of how to
               get info from this distionary, to get the MSE data from a trajectory
               -based model you'd do
-                    outcomes['mse']['traj']
+                    outcomes['mse']['t']
     """
     log.info("Beginning testing of predictions")
 
@@ -470,25 +544,11 @@ def test_models(traj, models):
         for key in models:
             model = models[key]
 
-            if key == "traj":
+            if 't' in key:
                 prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-            elif key == "det":
-                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
-            elif key == "prob":
-                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
-                prediction = prediction[:, :prediction.shape[1] // 2]
-            elif key == 'traj_prob':
-                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-                prediction = prediction[:, :prediction.shape[1] // 2]
-            elif key == "traj_ens":
-                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-            elif key == "det_ens":
-                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
-            elif key == "prob_ens":
-                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
-                prediction = prediction[:, :prediction.shape[1] // 2]
-            elif key == 'traj_prob_ens':
-                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+            else:
+                prediction = model.predict(np.concatenate((current, actions[i - 1, :])))
+            if 'p' in key:
                 prediction = prediction[:, :prediction.shape[1] // 2]
 
             predictions[key].append(prediction.squeeze())
@@ -498,6 +558,48 @@ def test_models(traj, models):
 
     MSEs = {key: np.array(MSEs[key]) for key in MSEs}
     predictions = {key: np.array(predictions[key]) for key in MSEs}
+
+    outcomes = {'mse': MSEs, 'predictions': predictions}
+    return outcomes
+
+
+def test_model(traj, model):
+    """
+    Tests a single model on the trajectory given
+
+    Parameters:
+    -----------
+    traj: a trajectory to test on
+    model: a model object to evaluate
+
+    Returns:
+    --------
+    outcomes: a dictionary of MSEs and predictions:
+                {'mse': MSEs, 'predictions': predictions}
+    """
+    log.info("Beginning testing of predictions")
+
+    states = traj.states
+    actions = traj.actions
+    initial = states[0, :]
+    key = model.str
+
+    MSEs = []
+    predictions = [states[0, :]]
+    current = states[0, :]
+    for i in range(1, states.shape[0]):
+        groundtruth = states[i]
+
+        if 't' in key:
+            prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+        else:
+            prediction = model.predict(np.concatenate((current, actions[i - 1, :])))
+        if 'p' in key:
+            prediction = prediction[:, :prediction.shape[1] // 2]
+
+        predictions.append(prediction.squeeze())
+        MSEs.append(np.square(groundtruth - prediction).mean())
+        current = prediction.squeeze()
 
     outcomes = {'mse': MSEs, 'predictions': predictions}
     return outcomes
@@ -597,16 +699,19 @@ def contpred(cfg):
 
     model_types = unpack_config_models(cfg)
 
-    # configs = {'traj': cfg.nn.trajectory_based,
-    #            'det': cfg.nn.one_step_det,
-    #            'prob': cfg.nn.one_step_prob,
-    #            'traj_prob': cfg.nn.trajectory_based_prob,
-    #            'traj_ens': cfg.nn.trajectory_based,
-    #            'det_ens': cfg.nn.one_step_det,
-    #            'prob_ens': cfg.nn.one_step_prob,
-    #            'traj_prob_ens': cfg.nn.trajectory_based_prob}
+    # configs = {'t': cfg.nn.trajectory_based,
+    #            'd': cfg.nn.one_step_det,
+    #            'p': cfg.nn.one_step_prob,
+    #            'tp': cfg.nn.trajectory_based_prob,
+    #            'te': cfg.nn.trajectory_based,
+    #            'de': cfg.nn.one_step_det,
+    #            'pe': cfg.nn.one_step_prob,
+    #            'tpe': cfg.nn.trajectory_based_prob}
 
     log_hyperparams(cfg)  # configs, model_types)
+
+    graph_file = 'graphs'
+    os.mkdir(graph_file)
 
     # Collect data
     if cfg.collect_data:
@@ -641,8 +746,8 @@ def contpred(cfg):
         model.train(dataset)
         loss_log = model.loss_log
 
-        plot_loss(loss_log, save_loc='loss', show=False)
-        plot_loss_epoch(loss_log, save_loc='loss_epochs', show=False)
+        plot_loss(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
+        plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
         if cfg.save_models:
             log.info("Saving new default models")
             torch.save(model,
@@ -658,7 +763,7 @@ def contpred(cfg):
         file = "%s/test%d" % (graph_file, i + 1)
         os.mkdir(file)
 
-        outcomes = test_models(test, models)
+        outcomes = test_model(test, model)
         plot_states(test.states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
         plot_mse(outcomes['mse'], save_loc=file, show=False)
 
@@ -836,21 +941,21 @@ def unpack_config_models(cfg):
     """
     model_types = []
     if cfg.experiment.models.single.train_traj:
-        model_types.append('traj')
+        model_types.append('t')
     if cfg.experiment.models.single.train_det:
-        model_types.append('det')
+        model_types.append('d')
     if cfg.experiment.models.single.train_prob:
-        model_types.append('prob')
+        model_types.append('p')
     if cfg.experiment.models.single.train_prob_traj:
-        model_types.append('traj_prob')
+        model_types.append('tp')
     if cfg.experiment.models.ensemble.train_traj:
-        model_types.append('traj_ens')
+        model_types.append('te')
     if cfg.experiment.models.ensemble.train_det:
-        model_types.append('det_ens')
+        model_types.append('de')
     if cfg.experiment.models.ensemble.train_prob:
-        model_types.append('prob_ens')
+        model_types.append('pe')
     if cfg.experiment.models.ensemble.train_prob_traj:
-        model_types.append('traj_prob_ens')
+        model_types.append('tpe')
 
     return model_types
 
