@@ -82,7 +82,6 @@ def create_dataset_t_pid(data, threshold=0):
             for j in range(i + 1, n):
                 # This creates an entry for a given state concatenated
                 # with a number t of time steps as well as the PID parameters
-                # NOTE: Since integral controller is not yet implemented, I am removing it here
 
                 # The randomely continuing is something I thought of to shrink
                 # the datasets while still having a large variety
@@ -94,24 +93,6 @@ def create_dataset_t_pid(data, threshold=0):
 
     print("shuffling")
     data_in, data_out = shuffle(data_in, data_out)
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
-    return data_in, data_out
-
-
-def create_dataset_t_pid_2(data):
-    """Garbage method"""
-    data_in, data_out = [], []
-    for sequence in data:
-        states = sequence.states
-        P = sequence.P
-        D = sequence.D
-        target = sequence.target
-        initial = states[0]
-        for i in range(1, states.shape[0]):
-            data_in.append(np.hstack((initial, i, P / 5, D, target)))
-            data_out.append(states[i])
-
     data_in = np.array(data_in)
     data_out = np.array(data_out)
     return data_in, data_out
@@ -137,48 +118,6 @@ def create_dataset_no_t(data):
     return data_in, data_out
 
 
-def run_controller(env, horizon, policy):
-    """
-    Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
-
-    :param env: A gym object
-    :param horizon: The number of states forward to look
-    :param policy: A policy object (see other python file)
-    """
-
-    # WHat is going on here?
-    def obs2q(obs):
-        return obs[0:5]
-
-    logs = DotMap()
-    logs.states = []
-    logs.actions = []
-    logs.rewards = []
-    logs.times = []
-
-    observation = env.reset()
-    for t in range(horizon):
-        # env.render()
-        state = observation
-        action, t = policy.act(obs2q(state))
-
-        # print(action)
-
-        observation, reward, done, info = env.step(action)
-
-        # Log
-        # logs.times.append()
-        logs.actions.append(action)
-        logs.rewards.append(reward)
-        logs.states.append(observation)
-
-    # Cluster state
-    logs.actions = np.array(logs.actions)
-    logs.rewards = np.array(logs.rewards)
-    logs.states = np.array(logs.states)
-    return logs
-
-
 def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 points
     """
     Collect data for environment model
@@ -186,6 +125,47 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
     :param horizon:
     :return: an array of DotMaps, where each DotMap contains info about a trajectory
     """
+    def run_controller(env, horizon, policy):
+        """
+        Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
+
+        :param env: A gym object
+        :param horizon: The number of states forward to look
+        :param policy: A policy object (see other python file)
+        """
+
+        # WHat is going on here?
+        def obs2q(obs):
+            return obs[0:5]
+
+        logs = DotMap()
+        logs.states = []
+        logs.actions = []
+        logs.rewards = []
+        logs.times = []
+
+        observation = env.reset()
+        for t in range(horizon):
+            # env.render()
+            state = observation
+            action, t = policy.act(obs2q(state))
+
+            # print(action)
+
+            observation, reward, done, info = env.step(action)
+
+            # Log
+            # logs.times.append()
+            logs.actions.append(action)
+            logs.rewards.append(reward)
+            logs.states.append(observation)
+
+        # Cluster state
+        logs.actions = np.array(logs.actions)
+        logs.rewards = np.array(logs.rewards)
+        logs.states = np.array(logs.states)
+        return logs
+
     env_model = 'Reacher3d-v2'
     env = gym.make(env_model)
     log.info('Initializing env: %s' % env_model)
@@ -217,13 +197,6 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
         dotmap.I = I
         dotmap.D = D
         logs.append(dotmap)
-        # print("end pos is: ", logs[i].states[-1, -3:])
-        # # Visualize
-        # plt.figure()
-        # # h = plt.plot(logs[i].states[:, 0:7])
-        # h = plt.plot(logs[i].states[:, -3:])
-        # plt.legend(h)
-        # plt.show()
 
     if plot:
         import plotly.graph_objects as go
@@ -259,82 +232,6 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
             plot_reacher(states, actions)
 
     return logs
-
-
-def train_model(cfg, dataset, model, learning_rate, n_epochs, prob=False, model_file=None, max_dataset_size=1000000,
-                evaluator=None):
-    """
-    Wrapper for training models
-
-    Parameters:
-    ----------
-    dataset: The dataset to use for training, a tuple (data_in, data_out)
-    model: a PyTorch model to train
-    learning_rate: the learning rate
-    n_epochs: the number of epochs to train for
-    model_file: the file to save this into, or None if it shouldn't be saved
-    prob: Whether to train a probabilistic model
-    max_dataset_size: upper bound for dataset size
-
-    Returns:
-    --------
-    model: the trained model, a PyTorch model
-    logs: the logs, a dotmap containing training error per iteration, training error
-        per epoch, and time
-    """
-    p = DotMap()
-    p.opt.n_epochs = n_epochs  # if n_epochs else cfg.nn.optimizer.epochs  # 1000
-    p.learning_rate = learning_rate
-    p.useGPU = False
-    p.evaluator = evaluator
-    if prob:
-        p.criterion = Prob_Loss(dataset[1].shape[1])
-    dataset = (dataset[0][:max_dataset_size, :], dataset[1][:max_dataset_size, :])
-    model, logs = train_network(dataset=dataset, model=model, parameters=p)
-    if model_file:
-        log.info('Saving model to file: %s' % model_file)
-        torch.save(model.state_dict(), model_file)
-    return model, logs
-
-
-def train_ensemble(dataset, ensemble, learning_rate, n_epochs, prob=False, model_folder=None):
-    """
-    Trains and returns an ensemble of models
-
-    Parameters:
-    -----------
-    dataset: The dataset to use for training, a tuple (data_in, data_out)
-    ensemble: an ensemble object to train
-    learning_rate: the learning rate
-    n_epochs: the number of epochs to train each model for
-    model_folder: the folder to save models into, or None if it shouldn't be saved
-    prob: Whether to train a probabilistic model
-
-    Returns:
-    ensemble: a trained ensemble
-    logs: currently an empty list
-    """
-    p = DotMap()
-    p.opt.n_epochs = n_epochs  # if n_epochs else cfg.nn.optimizer.epochs  # 1000
-    p.learning_rate = learning_rate
-    p.useGPU = False
-    if prob:
-        p.criterion = Prob_Loss(dataset[1].shape[1])
-    ensemble.train(dataset, parameters=p, parallel=False)
-    if model_folder:
-        os.mkdir(model_folder)
-        for i in range(ensemble.n):
-            model = ensemble.models[i]
-            model_file = "%s/model%d.pth.tar" % (model_folder, i + 1)
-            torch.save(model.state_dict(), model_file)
-
-    # TODO: come up with a way to effectively present an ensemble's training loss
-    logs = DotMap()
-    logs.training_error = []
-    logs.training_error_epoch = []
-    logs.time = None
-
-    return ensemble, logs
 
 
 def collect_and_dataset(cfg):
@@ -740,33 +637,16 @@ def contpred(cfg):
 
     # TODO INTEGRATE
     if cfg.train_models:
-        n_in = dataset[0].shape[1]
-        n_out = dataset[1].shape[1]
-        if prob:
-            n_out *= 2
-
-        hid_width = cfg.model.training.hid_width
-        hid_count = cfg.model.training.hid_depth
-        struct = [n_in] + [hid_width] * hid_count + [n_out]
-        model = Net(structure=struct) if not ens else Ensemble(structure=struct, n=cfg.nn.ensemble.n)
-
-        if not ens:
-            model, loss_log = train_model(cfg, dataset, model,
-                                          cfg.model.optimizer.lr,
-                                          cfg.model.optimizer.epochs,
-                                          prob, model_file=cfg.model_dir)
-            # evaluator=make_evaluator(train_data, test_data, model_type))
-        else:
-            model, loss_log = train_ensemble(cfg, dataset, model,
-                                             cfg.model.optimizer.lr,
-                                             cfg.model.optimizer.epochs,
-                                             prob, model_folder=cfg.model_dir)
+        model = Model(cfg.model)
+        model.train(dataset)
+        loss_log = model.loss_log
 
         # models[model_type] = model
         # loss_logs[model_type] = loss_log
 
         # graph_file = 'graphs'
         # os.mkdir(graph_file)
+        # print(loss_log)
 
         plot_loss(loss_log, save_loc='loss', show=False)
         plot_loss_epoch(loss_log, save_loc='loss_epochs', show=False)

@@ -150,6 +150,51 @@ class Ensemble:
 
         return self
 
+class Model(object):
+    """
+    A wrapper class for general models, including single nets and ensembles
+    """
+    def __init__(self, cfg):
+        self.optim_params = cfg.optimizer
+        self.training_params = cfg.training
+        self.prob = cfg.prob
+        self.ens = cfg.ensemble
+        self.traj = cfg.traj
+        self.str = cfg.str
+
+    def train(self, dataset):
+        data, labels = dataset
+        n_in = data.shape[1]
+        n_out = labels.shape[1]
+        if self.prob:
+            n_out *= 2
+
+        hid_width = self.training_params.hid_width
+        hid_count = self.training_params.hid_depth
+        struct = [n_in] + [hid_width] * hid_count + [n_out]
+
+        params = DotMap()
+        params.opt.n_epochs = self.optim_params.epochs
+        params.opt.batch_size = self.optim_params.batch
+        params.learning_rate = self.optim_params.lr
+        if self.prob:
+            params.criterion = Prob_loss(n_out)
+
+        if self.ens:
+            self.model = Ensemble(structure=struct, n=self.training_params.E)
+            self.model.train(dataset, params)
+            # TODO: thoughtfully log ensemble training
+            self.loss_log=None
+        else:
+            self.model = Net(structure=struct)
+            self.model, self.loss_log = train_network(dataset, self.model, params)
+
+    def save(self, file):
+        torch.save((self.model, self.loss_log), file)
+
+    def predict(self, x):
+        pass
+
 def train_network(dataset, model, parameters=DotMap()):
     """
     Trains model on dataset
