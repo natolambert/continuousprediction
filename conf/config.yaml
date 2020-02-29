@@ -1,9 +1,10 @@
 defaults:
   - models: p
+  - envs: reacher
 
-collect_data: false
+collect_data: true
 train_models: true
-save_data: true
+save_data: false
 save_models: false
 data_dir: l500_t50_v5.dat
 model_dir: l500_t50_v5.dat

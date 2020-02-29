@@ -38,7 +38,7 @@ class Net(nn.Module):
         fc = []
         self.n_layers = len(structure) - 1
         for i in range(self.n_layers):
-            fc.append(nn.Linear(structure[i], structure[i+1]))
+            fc.append(nn.Linear(structure[i], structure[i + 1]))
         self.linears = nn.ModuleList(fc)
         self.tf = tf
         self._onGPU = False
@@ -61,12 +61,9 @@ class Net(nn.Module):
         return normInput, normOutput
 
     def forward(self, x):
-        """
-        x: M(training samples) x
-        """
-        for i in range(self.n_layers-1):
+        for i in range(self.n_layers - 1):
             x = self.tf(self.linears[i](x))
-        x = self.linears[self.n_layers-1](x)
+        x = self.linears[self.n_layers - 1](x)
         return x
 
     def predict(self, x):
@@ -80,10 +77,12 @@ class Net(nn.Module):
         else:
             return self.forward(Variable(torch.from_numpy(np.matrix(x)).float())).data.cpu().numpy()
 
+
 class Prob_Loss(nn.Module):
     """
     Class for probabilistic loss function
     """
+
     def __init__(self, size):
         super(Prob_Loss, self).__init__()
         self.size = size
@@ -98,10 +97,12 @@ class Prob_Loss(nn.Module):
         B = torch.tensor(1, dtype=torch.float)
         return (torch.log(1 + torch.exp(input.mul_(B)))).div_(B)
 
+        # TODO: This function has been observed outputting negative values. needs fix
+
     def forward(self, inputs, targets):
         # size = targets.size()[1]
-        mean = inputs[:,:self.size]
-        logvar = inputs[:,self.size:]
+        mean = inputs[:, :self.size]
+        logvar = inputs[:, self.size:]
 
         # Caps max and min log to avoid NaNs
         logvar = self.max_logvar - self.softplus_raw(self.max_logvar - logvar)
@@ -109,16 +110,18 @@ class Prob_Loss(nn.Module):
 
         var = torch.exp(logvar)
 
-        diff = mean-targets
+        diff = mean - targets
         mid = diff / var
         lg = torch.sum(torch.log(var))
         out = torch.trace(torch.mm(diff, mid.t())) + lg
         return out
 
+
 class Ensemble:
     """
     A neural network ensemble
     """
+
     def __init__(self, structure=[20, 100, 100, 1], n=10):
         self.models = [Net(structure=structure) for _ in range(n)]
         self.n = n
@@ -136,16 +139,16 @@ class Ensemble:
 
         # Partitioning data
         dataset_in = dataset[0]
-        dataset_out= dataset[1]
-        partition_size = dataset_in.shape[0]//self.n
-        partitions_in = [dataset_in[i*partition_size:(i+1)*partition_size,:] for i in range(n)]
-        partitions_out = [dataset_out[i*partition_size:(i+1)*partition_size,:] for i in range(n)]
+        dataset_out = dataset[1]
+        partition_size = dataset_in.shape[0] // self.n
+        partitions_in = [dataset_in[i * partition_size:(i + 1) * partition_size, :] for i in range(n)]
+        partitions_out = [dataset_out[i * partition_size:(i + 1) * partition_size, :] for i in range(n)]
         datasets = []
         for i in range(n):
             ds_in = []
             ds_out = []
             for j in range(n):
-                if i==j:
+                if i == j:
                     continue
                 ds_in.extend(partitions_in[j])
                 ds_out.extend(partitions_out[j])
@@ -172,10 +175,12 @@ class Ensemble:
 
         return self
 
+
 class Model(object):
     """
     A wrapper class for general models, including single nets and ensembles
     """
+
     def __init__(self, cfg):
         self.optim_params = cfg.optimizer
         self.training_params = cfg.training
@@ -206,18 +211,22 @@ class Model(object):
             self.model = Ensemble(structure=struct, n=self.training_params.E)
             self.model.train(dataset, params)
             # TODO: thoughtfully log ensemble training
-            self.loss_log=None
+            self.loss_log = None
         else:
             self.model = Net(structure=struct)
             self.model, self.loss_log = train_network(dataset, self.model, params)
 
-
     def predict(self, x):
-        return self.model.predict(x)
+        if self.traj:
+            return self.model.predict(x)
+        else:
+            raise NotImplementedError("Need to formulate as change in state")
+
 
 def load_model(file):
     model, log = torch.load(file)
     return model
+
 
 def train_network(dataset, model, parameters=DotMap()):
     """
@@ -237,7 +246,7 @@ def train_network(dataset, model, parameters=DotMap()):
     p.useGPU = parameters.get('useGPU', False)
     p.verbosity = parameters.get('verbosity', 1)
     p.logs = parameters.get('logs', None)
-    p.evaluator = parameters.get('evaluator', None) # A function to run on the model every 25 batches
+    p.evaluator = parameters.get('evaluator', None)  # A function to run on the model every 25 batches
 
     # Init logs
     if p.logs is None:
@@ -285,6 +294,10 @@ def train_network(dataset, model, parameters=DotMap()):
     #
     # DataLoader is an iterable
     dataset = PytorchDataset(dataset=dataset)  # Using PyTorch
+    raise NotImplementedError("Needs Config")
+    split = cfg.model.optimizer.split
+    trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=batch_size, shuffle=True)
+    testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=batch_size, shuffle=True)
     loader = DataLoader(dataset, batch_size=p.opt.batch_size, shuffle=True)  ##shuffle=True #False
     # pin_memory=True
     # drop_last=False
@@ -298,7 +311,7 @@ def train_network(dataset, model, parameters=DotMap()):
     for epoch in range(p.opt.n_epochs):
         epoch_error = 0
         log.info("Epoch %d" % (epoch))
-        for i, data in enumerate(loader):
+        for i, data in enumerate(trainLoader):
             if i % 500 == 0 and i > 0:
                 print("    Batch %d" % i)
             # Load data
@@ -318,14 +331,22 @@ def train_network(dataset, model, parameters=DotMap()):
 
             e = loss.item()
             logs.training_error.append(e)
-            epoch_error += e
-            # log.info('Iter %010d - %f ' % (epoch, e))
+            epoch_error += e / (len(trainLoader) * batch_size)
+
             loss.backward()
             optimizer.step()  # Does the update
             logs.time.append(timer() - logs.time[-1])
 
             if p.evaluator is not None and i % 25 == 0:
                 logs.evaluations.append(p.evaluator(model))
+
+        test_error = torch.zeros(1)
+        for i, (input, target) in enumerate(testLoader):
+            outputs = model.forward(inputs)
+            loss = p.criterion(outputs, targets)
+
+            test_error += loss.item() / (len(testLoader) * batch_size)
+        test_error = test_error
 
         logs.training_error_epoch.append(epoch_error)
 

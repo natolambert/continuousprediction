@@ -1,0 +1,8 @@
+env:
+  name: Cartpole-v0
+  state_size: 4
+  action_size: 1
+  param_multiplier: 3
+
+num_trials: 20
+trial_timesteps: 200

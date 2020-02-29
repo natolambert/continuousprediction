@@ -36,32 +36,7 @@ from plot import plot_reacher
 #                Datasets                 #
 ###########################################
 
-# Learn model t only
-# Creating a dataset for learning different T values
-def create_dataset_t_only(data):
-    """
-    Creates a dataset with an entry for how many timesteps in the future
-    corresponding entries in the labels are
-    :param data: An array of dotmaps, where each dotmap has info about a trajectory
-    """
-    data_in = []
-    data_out = []
-    for sequence in data:
-        states = sequence.states
-        for i in range(states.shape[0]):  # From one state p
-            for j in range(i + 1, states.shape[0]):
-                # This creates an entry for a given state concatenated with a number t of time steps
-                data_in.append(np.hstack((states[i], j - i)))
-                # data_in = np.vstack((data_in, np.hstack(())))
-                # This creates an entry for the state t timesteps in the future
-                data_out.append(states[j])
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
-
-    return data_in, data_out
-
-
-def create_dataset_t_pid(data, threshold=0):
+def create_dataset_traj(data, control_params=True, threshold=0):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -91,10 +66,14 @@ def create_dataset_t_pid(data, threshold=0):
                 # the datasets while still having a large variety
                 if np.random.random() < threshold:
                     continue
-                data_in.append(np.hstack((states[i], j - i, P, D, target)))
+                if control_params:
+                    data_in.append(np.hstack((states[i], j - i, P, D, target)))
+                else:
+                    data_in.append(np.hstack((states[i], j - i)))
                 # data_in.append(np.hstack((states[i], j-i, target)))
                 data_out.append(states[j])
 
+    # TODO we maybe don't need this, the data processor should handle it
     print("shuffling")
     data_in, data_out = shuffle(data_in, data_out)
     data_in = np.array(data_in)
@@ -103,7 +82,7 @@ def create_dataset_t_pid(data, threshold=0):
     return data_in, data_out
 
 
-def create_dataset_no_t(data):
+def create_dataset_step(data, delta=True):
     """
     Creates a dataset for learning how one state progresses to the next
 
@@ -116,105 +95,68 @@ def create_dataset_no_t(data):
     for sequence in data:
         for i in range(sequence.states.shape[0] - 1):
             data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
-            data_out.append(sequence.states[i + 1])
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
-
-    return data_in, data_out
-
-
-def create_dataset(data, traj=False, pid=False, threshold=0):
-    """
-    Create a dataset based on data
-
-    Parameters:
-    -----------
-    data: an array of dotmaps, where each dotmap holds information about one trajectory
-    traj: whether to make a trajectory based dataset
-    pid: whether to add PID parameters
-    threshold: the probability that a dataset entry will be dropped for trajectory based dataset
-
-    Returns:
-    --------
-    data_in: An ndarray of model inputs
-    data_out: An ndarray of model outputs
-    """
-    data_in, data_out = [], []
-
-    for sequence in data:
-        states = sequence.states
-        n = states.shape[0]
-        if pid:
-            P = sequence.P
-            D = sequence.D
-        for i in range(n-1):
-            if traj:
-                for i in range(i+1, n):
-                    if np.random.random() < threshold:
-                        continue
-                    if pid:
-                        data_in.append(np.hstack((states[i], j-i, P, D, target)))
-                    else:
-                        data_in.append(np.hstack((states[i], j-i, target)))
-                    data_out.append(states[j])
+            if delta:
+                data_out.append(sequence.states[i + 1] - sequence.states[i])
             else:
-                data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
                 data_out.append(sequence.states[i + 1])
-
     data_in = np.array(data_in)
     data_out = np.array(data_out)
+
     return data_in, data_out
 
 
-def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 points
+def run_controller(env, horizon, policy):
+    """
+    Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
+
+    :param env: A gym object
+    :param horizon: The number of states forward to look
+    :param policy: A policy object (see other python file)
+    """
+
+    # WHat is going on here?
+    # nol 29 feb - action only acts on first 5 variables
+    def obs2q(obs):
+        return obs[0:5]
+
+    logs = DotMap()
+    logs.states = []
+    logs.actions = []
+    logs.rewards = []
+    logs.times = []
+
+    observation = env.reset()
+    for t in range(horizon):
+        # env.render()
+        state = observation
+        action, t = policy.act(obs2q(state))
+
+        # print(action)
+
+        observation, reward, done, info = env.step(action)
+
+        # Log
+        # logs.times.append()
+        logs.actions.append(action)
+        logs.rewards.append(reward)
+        logs.states.append(observation)
+
+    # Cluster state
+    logs.actions = np.array(logs.actions)
+    logs.rewards = np.array(logs.rewards)
+    logs.states = np.array(logs.states)
+    return logs
+
+
+def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
     """
     Collect data for environment model
     :param nTrials:
     :param horizon:
     :return: an array of DotMaps, where each DotMap contains info about a trajectory
     """
-    def run_controller(env, horizon, policy):
-        """
-        Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
 
-        :param env: A gym object
-        :param horizon: The number of states forward to look
-        :param policy: A policy object (see other python file)
-        """
-
-        # WHat is going on here?
-        def obs2q(obs):
-            return obs[0:5]
-
-        logs = DotMap()
-        logs.states = []
-        logs.actions = []
-        logs.rewards = []
-        logs.times = []
-
-        observation = env.reset()
-        for t in range(horizon):
-            # env.render()
-            state = observation
-            action, t = policy.act(obs2q(state))
-
-            # print(action)
-
-            observation, reward, done, info = env.step(action)
-
-            # Log
-            # logs.times.append()
-            logs.actions.append(action)
-            logs.rewards.append(reward)
-            logs.states.append(observation)
-
-        # Cluster state
-        logs.actions = np.array(logs.actions)
-        logs.rewards = np.array(logs.rewards)
-        logs.states = np.array(logs.states)
-        return logs
-
-    env_model = 'Reacher3d-v2'
+    env_model = cfg.env.name
     env = gym.make(env_model)
     log.info('Initializing env: %s' % env_model)
 
@@ -222,7 +164,7 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
     # about <horizon> steps with actions, rewards and states
     logs = []
 
-    for i in range(nTrials):
+    for i in range(cfg.num_trials):
         log.info('Trial %d' % i)
         env.seed(i)
         s0 = env.reset()
@@ -239,7 +181,7 @@ def collect_data(nTrials=20, horizon=150, plot=True):  # Creates horizon^2/2 poi
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         # print(type(env))
 
-        dotmap = run_controller(env, horizon=horizon, policy=policy)
+        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy)
         dotmap.target = target
         dotmap.P = P / 5
         dotmap.I = I
@@ -296,15 +238,11 @@ def collect_and_dataset(cfg):
         test_data: an array of dotmaps, each pertaining to a test trajectory
     """
     log.info('Collecting data')
-    train_data = collect_data(nTrials=cfg.experiment.num_traj, horizon=cfg.experiment.traj_len, plot=False)  # 50
-    test_data = collect_data(nTrials=cfg.experiment.num_traj_test, horizon=cfg.experiment.traj_len_test,
-                             plot=False)  # 5
-    # test_data = train_data[:1]
-
+    exper_data = collect_data(cfg, plot=False)  # 50
     log.info('Creating dataset')
-    dataset = create_dataset_t_pid(train_data, threshold=0.95)
-    dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
-    return dataset, dataset_no_t, train_data, test_data
+    dataset = create_dataset_traj(exper_data, threshold=1.0)
+    dataset_no_t = create_dataset_step(exper_data)  # train_data[0].states)
+    return dataset, dataset_no_t, exper_data
 
 
 ###########################################
@@ -732,8 +670,8 @@ def contpred(cfg):
         log.info(f"Loading default data")
         (train_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
-        traj_dataset = create_dataset_t_pid(train_data, threshold=1.0)
-        one_step_dataset = create_dataset_no_t(train_data)  # train_data[0].states)
+        traj_dataset = create_dataset_traj(train_data, threshold=1.0)
+        one_step_dataset = create_dataset_step(train_data)  # train_data[0].states)
 
     prob = cfg.model.prob
     traj = cfg.model.traj
@@ -820,8 +758,8 @@ def test_sample_efficiency(cfg):
         data_t.extend(new_data)
         data_no_t.extend(new_data)
 
-        dataset_t = create_dataset_t_pid(data_t)
-        dataset_no_t = create_dataset_no_t(data_no_t)
+        dataset_t = create_dataset_traj(data_t)
+        dataset_no_t = create_dataset_step(data_no_t)
 
         # Train t model
         n_in = dataset_t[0].shape[1]
@@ -871,8 +809,8 @@ def test_multiple_n_epochs(cfg):
 
     # Create dataset
     log.info('Creating dataset')
-    dataset = create_dataset_t_pid(train_data)
-    dataset_no_t = create_dataset_no_t(train_data)  # train_data[0].states)
+    dataset = create_dataset_traj(train_data)
+    dataset_no_t = create_dataset_step(train_data)  # train_data[0].states)
 
     # Set up the models
     n_in = dataset[0].shape[1]
