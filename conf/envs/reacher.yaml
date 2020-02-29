@@ -1,0 +1,8 @@
+env:
+  name: Reacher3d-v2
+  state_size: 21
+  action_size: 5
+  param_size: 15
+
+num_trials: 20
+trial_timesteps: 500
