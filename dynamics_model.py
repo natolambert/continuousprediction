@@ -128,17 +128,23 @@ class DynamicsModel(object):
 
         from sklearn.model_selection import KFold  # for dataset
 
-        # setup cross validation-ish datasets for training ensemble
-        kf = KFold(n_splits=self.E)
-        kf.get_n_splits(dataset)
+        if self.ens:
+            # setup cross validation-ish datasets for training ensemble
+            kf = KFold(n_splits=self.E)
+            kf.get_n_splits(dataset)
 
-        # iterate through the validation sets
-        for (i, n), (train_idx, test_idx) in zip(enumerate(self.nets), kf.split(dataset[0])):
-            # only train on training data to ensure diversity
-            raise NotImplementedError("Fix K-folding")
-            sub_data = dataset[train_idx]
-            train_e, test_e = n.optimize(sub_data, cfg)
+            # iterate through the validation sets
+            for (i, n), (train_idx, test_idx) in zip(enumerate(self.nets), kf.split(dataset[0])):
+                # only train on training data to ensure diversity
+                raise NotImplementedError("Fix K-folding")
+                sub_data = dataset[train_idx]
+                train_e, test_e = n.optimize(sub_data, cfg)
+                acctrain_l.append(train_e)
+                acctest_l.append(test_e)
+        else:
+            train_e, test_e = self.nets[0].optimize(dataset, cfg)
+            acctrain_l.append(train_e)
+            acctest_l.append(test_e)
 
-        # Loop over models, train each
-        for sub_data, n in zip(ensemble_sets, self.nets):
-            n.optimize(sub_data, cfg)
+        return acctrain_l, acctest_l
+
