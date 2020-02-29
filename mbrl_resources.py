@@ -48,17 +48,58 @@ class Net(nn.Module):
 
         # Select scaling, minmax vs standard (fits to a gaussian with unit variance and 0 mean)
         # TODO: Selection should be in config
-        #scalerInput = StandardScaler()
-        #scalerOutput = StandardScaler()
-        scalerInput = MinMaxScaler((-1,1))
-        scalerOutput = MinMaxScaler((-1,1))
+        # StandardScaler, MinMaxScaler
+        # TODO: Instead of hardcoding, include in config, trajectory vs. one-step, length of different inputs, etc.
+        # 26 -> one-step, 37 -> trajectory
+        if(input.shape[1] == 26):
+            stateScaler = MinMaxScaler((-1, 1))
+            actionScaler = MinMaxScaler((-1, 1))
+            outputScaler = MinMaxScaler((-1, 1))
 
-        scalerInput.fit(input)
-        scalerOutput.fit(output)
+            inputStates = input[:, :21]
+            inputActions = input[:, 21:]
 
-        normInput = scalerInput.transform(input)
-        normOutput = scalerOutput.transform(output)
-        return normInput, normOutput
+            stateScaler.fit(inputStates)
+            actionScaler.fit(inputActions)
+            outputScaler.fit(output)
+
+            normStates = stateScaler.transform(inputStates)
+            normActions = actionScaler.transform(inputActions)
+            normOutput = outputScaler.transform(output)
+
+            return np.hstack((normStates, normActions)), normOutput
+        elif(input.shape[1] == 37):
+            stateScaler = MinMaxScaler((-1, 1))
+            indexScaler = MinMaxScaler((-1, 1))
+            PScaler = MinMaxScaler((-1, 1))
+            DScaler = MinMaxScaler((-1, 1))
+            targetScaler = MinMaxScaler((-1, 1))
+            outputScaler = MinMaxScaler((-1, 1))
+
+            inputStates = input[:, :21]
+            inputIndex = input[:, 21]
+            inputP = input[:, 22:27]
+            inputD = input[:, 27:32]
+            inputTargets = input[:, 32:]
+
+            stateScaler.fit(inputStates)
+            indexScaler.fit(inputIndex)
+            PScaler.fit(inputP)
+            DScaler.fit(inputD)
+            targetScaler.fit(inputTargets)
+            outputScaler.fit(output)
+
+            normStates = stateScaler.transform(inputStates)
+            normIndex = indexScaler.transform(inputIndex)
+            normP = PScaler.transform(inputP)
+            normD = DScaler.transform(inputD)
+            normTargets = targetScaler.transform(inputTargets)
+            normOutput = outputScaler.transform(output)
+
+            return np.hstack((normStates, normIndex, normP, normD, normTargets)), normOutput
+        else:
+            print("Incorrect dataset length, no normalization performed")
+            return input, output
 
     def forward(self, x):
         for i in range(self.n_layers - 1):
@@ -205,7 +246,7 @@ class Model(object):
         params.opt.batch_size = self.optim_params.batch
         params.learning_rate = self.optim_params.lr
         if self.prob:
-            params.criterion = Prob_loss(n_out)
+            params.criterion = Prob_Loss(n_out)
 
         if self.ens:
             self.model = Ensemble(structure=struct, n=self.training_params.E)
