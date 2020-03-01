@@ -633,18 +633,7 @@ def make_evaluator(train_data, test_data, type):
 
 @hydra.main(config_path='conf/config.yaml')
 def contpred(cfg):
-    COLLECT_DATA = cfg.collect_data
-
     model_types = unpack_config_models(cfg)
-
-    # configs = {'t': cfg.nn.trajectory_based,
-    #            'd': cfg.nn.one_step_det,
-    #            'p': cfg.nn.one_step_prob,
-    #            'tp': cfg.nn.trajectory_based_prob,
-    #            'te': cfg.nn.trajectory_based,
-    #            'de': cfg.nn.one_step_det,
-    #            'pe': cfg.nn.one_step_prob,
-    #            'tpe': cfg.nn.trajectory_based_prob}
 
     log_hyperparams(cfg)  # configs, model_types)
 
@@ -654,19 +643,21 @@ def contpred(cfg):
     # Collect data
     if cfg.collect_data:
         log.info(f"Collecting new trials")
-        traj_dataset, one_step_dataset, train_data, test_data = collect_and_dataset(cfg)
+        traj_dataset, one_step_dataset, exper_data = collect_and_dataset(cfg)
 
         if cfg.save_data:
             log.info("Saving new default data")
-            torch.save((train_data, test_data),
+            torch.save(exper_data,
                        hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
             log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
     else:
         log.info(f"Loading default data")
-        (train_data, test_data) = torch.load(
+        raise ValueError("Current Saved data old format")
+        #Todo re-save data
+        exper_data = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
-        traj_dataset = create_dataset_traj(train_data, threshold=1.0)
-        one_step_dataset = create_dataset_step(train_data)  # train_data[0].states)
+        traj_dataset = create_dataset_traj(exper_data, threshold=1.0)
+        one_step_dataset = create_dataset_step(exper_data)  # train_data[0].states)
 
     prob = cfg.model.prob
     traj = cfg.model.traj
@@ -681,7 +672,7 @@ def contpred(cfg):
     # TODO INTEGRATE
     if cfg.train_models:
         model = Model(cfg.model)
-        model.train(dataset)
+        model.train(cfg, dataset)
         loss_log = model.loss_log
 
         plot_loss(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
@@ -696,6 +687,7 @@ def contpred(cfg):
         model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
+    raise ValueError("Test data needs to be regenerated")
     for i in range(len(test_data)):
         test = test_data[i]
         file = "%s/test%d" % (graph_file, i + 1)

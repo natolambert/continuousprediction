@@ -19,6 +19,7 @@ import multiprocessing as mp
 
 log = logging.getLogger(__name__)
 
+
 class Net(nn.Module):
     """
     Deterministic Neural Network
@@ -58,13 +59,13 @@ class Net(nn.Module):
             return self.forward(Variable(torch.from_numpy(np.matrix(x)).float())).data.cpu().numpy()
 
 
-class Prob_Loss(nn.Module):
+class ProbLoss(nn.Module):
     """
     Class for probabilistic loss function
     """
 
     def __init__(self, size):
-        super(Prob_Loss, self).__init__()
+        super(ProbLoss, self).__init__()
         self.size = size
         self.max_logvar = torch.nn.Parameter(
             torch.tensor(1 * np.ones([1, size]), dtype=torch.float, requires_grad=True))
@@ -111,7 +112,7 @@ class Ensemble:
         predictions = np.squeeze(np.array([model.predict(x) for model in self.models]))
         return np.average(predictions, axis=0)
 
-    def train(self, dataset, parameters=DotMap(), parallel=False):
+    def train(self, cfg, dataset, parameters=DotMap(), parallel=False):
         """
         Trains this ensemble on dataset
         """
@@ -146,12 +147,12 @@ class Ensemble:
         if parallel:
             n = mp.cpu_count()
             pool = mp.Pool(n)
-            wrapper = lambda i: train_network(datasets[i], self.models[i], parameters=parameters)
+            wrapper = lambda i: train_network(datasets[i], self.models[i], cfg, parameters=parameters)
             ugh = list(range(n))
             pool.map(wrapper, ugh)
         else:
             for i in range(n):
-                train_network(datasets[i], self.models[i], parameters=parameters)
+                train_network(datasets[i], self.models[i], cfg, parameters=parameters)
 
         return self
 
@@ -169,7 +170,7 @@ class Model(object):
         self.traj = cfg.traj
         self.str = cfg.str
 
-    def train(self, dataset):
+    def train(self, cfg, dataset):
         data, labels = dataset
         n_in = data.shape[1]
         n_out = labels.shape[1]
@@ -185,16 +186,16 @@ class Model(object):
         params.opt.batch_size = self.optim_params.batch
         params.learning_rate = self.optim_params.lr
         if self.prob:
-            params.criterion = Prob_loss(n_out)
+            params.criterion = ProbLoss(labels.shape[1])
 
         if self.ens:
             self.model = Ensemble(structure=struct, n=self.training_params.E)
-            self.model.train(dataset, params)
+            self.model.train(cfg, dataset, params)
             # TODO: thoughtfully log ensemble training
             self.loss_log = None
         else:
             self.model = Net(structure=struct)
-            self.model, self.loss_log = train_network(dataset, self.model, params)
+            self.model, self.loss_log = train_network(dataset, self.model, cfg, params)
 
     def predict(self, x):
         if self.traj:
@@ -208,7 +209,7 @@ def load_model(file):
     return model
 
 
-def train_network(dataset, model, parameters=DotMap()):
+def train_network(dataset, model, cfg, parameters=DotMap()):
     """
     Trains model on dataset
     """
@@ -272,12 +273,13 @@ def train_network(dataset, model, parameters=DotMap()):
     # Puts it in PyTorch dataset form and then converts to DataLoader
     #
     # DataLoader is an iterable
-    dataset = PytorchDataset(dataset=dataset)  # Using PyTorch
-    raise NotImplementedError("Needs Config")
+    # dataset = PytorchDataset(dataset=dataset)  # Using PyTorch
+    # dataset = np.hstack((dataset[0], dataset[1]))
+    dataset = list(zip(dataset[0], dataset[1]))
     split = cfg.model.optimizer.split
-    trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=batch_size, shuffle=True)
-    testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=batch_size, shuffle=True)
-    loader = DataLoader(dataset, batch_size=p.opt.batch_size, shuffle=True)  ##shuffle=True #False
+    trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=p.opt.batch_size, shuffle=True)
+    testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=p.opt.batch_size, shuffle=True)
+    # loader = DataLoader(dataset, batch_size=p.opt.batch_size, shuffle=True)  ##shuffle=True #False
     # pin_memory=True
     # drop_last=False
 
@@ -290,12 +292,12 @@ def train_network(dataset, model, parameters=DotMap()):
     for epoch in range(p.opt.n_epochs):
         epoch_error = 0
         log.info("Epoch %d" % (epoch))
-        for i, data in enumerate(trainLoader):
+        for i, (inputs, targets) in enumerate(trainLoader):
             if i % 500 == 0 and i > 0:
                 print("    Batch %d" % i)
             # Load data
             # Variable is a wrapper for Tensors with autograd
-            inputs, targets = data
+            # inputs, targets = data
             if p.useGPU:
                 inputs = Variable(inputs.cuda())
                 targets = Variable(targets.cuda())
@@ -304,13 +306,13 @@ def train_network(dataset, model, parameters=DotMap()):
                 targets = Variable(targets)
 
             optimizer.zero_grad()
-            outputs = model.forward(inputs)
+            outputs = model.forward(inputs.float())
             loss = p.criterion(outputs, targets)
             # print(loss)
 
             e = loss.item()
             logs.training_error.append(e)
-            epoch_error += e / (len(trainLoader) * batch_size)
+            epoch_error += e / (len(trainLoader) * p.opt.batch_size)
 
             loss.backward()
             optimizer.step()  # Does the update
@@ -320,11 +322,11 @@ def train_network(dataset, model, parameters=DotMap()):
                 logs.evaluations.append(p.evaluator(model))
 
         test_error = torch.zeros(1)
-        for i, (input, target) in enumerate(testLoader):
-            outputs = model.forward(inputs)
+        for i, (inputs, targets) in enumerate(testLoader):
+            outputs = model.forward(inputs.float())
             loss = p.criterion(outputs, targets)
 
-            test_error += loss.item() / (len(testLoader) * batch_size)
+            test_error += loss.item() / (len(testLoader) * p.opt.batch_size)
         test_error = test_error
 
         logs.training_error_epoch.append(epoch_error)
