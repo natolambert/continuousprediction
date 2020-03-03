@@ -7,6 +7,9 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly
 
+import matplotlib.pyplot as plt
+from dotmap import DotMap
+
 import logging
 
 log = logging.getLogger(__name__)
@@ -57,6 +60,7 @@ def find_latest_checkpoint(cfg):
     last_modified_file = max(files, key=os.path.getmtime)
 
     return last_modified_file
+
 
 def plot_reacher(states, actions):
 

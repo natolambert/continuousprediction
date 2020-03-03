@@ -10,17 +10,19 @@ import logging
 import torch
 import numpy as np
 
+from plot import *
+
 log = logging.getLogger(__name__)
 
-def test_models(traj, models):
+
+def test_models(test_data, models):
     """
-    Tests each of the models in the dictionary "models" on the same trajectory.
-    Not to be confused with the function below, which tests a single model
+    Tests each of the models in the dictionary "models" on each of the trajectories in test_data
 
     Parameters:
     ------------
-    traj: the trajectory to test on
-    models: a dictionary of models to test
+    test_data: the trajectories to test on, N trajectories
+    models: a dictionary of models to test, M models
 
     Returns:
     outcomes: a dictionary of MSEs and predictions. As an example of how to
@@ -28,77 +30,54 @@ def test_models(traj, models):
               -based model you'd do
                     outcomes['mse']['t']
     """
+
+    # TODO: debug this function which is almost definitely not gonna work
+
     log.info("Beginning testing of predictions")
 
     MSEs = {key: [] for key in models}
 
-    states = traj.states
-    actions = traj.actions
-    initial = states[0, :]
+    states, actions, initials = [], [], []
+    P, D, target = [], [], []
 
-    predictions = {key: [states[0, :]] for key in models}
-    currents = {key: states[0, :] for key in models}
-    for i in range(1, states.shape[0]):
-        groundtruth = states[i]
+    for traj in test_data:
+        states.append(traj.states)
+        actions.append(traj.actions)
+        initials.append(traj.states[0, :])
+        P.append(traj.P)
+        D.append(traj.D)
+        target.append(traj.target)
+
+    states = np.array(states)
+    actions = np.array(actions)
+    initials = np.array(initials)
+    P_param = np.array(P)
+    D_param = np.array(D)
+    target = np.array(target)
+
+    N, T, D = states.shape
+
+    predictions = {key: [states[:, 0, :]] for key in models}
+    currents = {key: states[:, 0, :] for key in models}
+    for i in range(1, T):
+        groundtruth = states[:, i]
         for key in models:
             model = models[key]
 
             if 't' in key:
-                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
+                prediction = model.predict(np.hstack((initials, i*np.ones((N, 1)), P_param, D_param, target)))
             else:
-                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
+                prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
             if 'p' in key:
-                prediction = prediction[:, :prediction.shape[1] // 2]
+                prediction = prediction[:, :, :D // 2]
 
             predictions[key].append(prediction.squeeze())
-            MSEs[key].append(np.square(groundtruth - prediction).mean())
+            MSEs[key].append(np.square(groundtruth - prediction).mean(axis=1))
             currents[key] = prediction.squeeze()
             # print(currents[key].shape)
 
     MSEs = {key: np.array(MSEs[key]) for key in MSEs}
-    predictions = {key: np.array(predictions[key]) for key in MSEs}
-
-    outcomes = {'mse': MSEs, 'predictions': predictions}
-    return outcomes
-
-
-def test_model(traj, model):
-    """
-    Tests a single model on the trajectory given
-
-    Parameters:
-    -----------
-    traj: a trajectory to test on
-    model: a model object to evaluate
-
-    Returns:
-    --------
-    outcomes: a dictionary of MSEs and predictions:
-                {'mse': MSEs, 'predictions': predictions}
-    """
-    log.info("Beginning testing of predictions")
-
-    states = traj.states
-    actions = traj.actions
-    initial = states[0, :]
-    key = model.str
-
-    MSEs = []
-    predictions = [states[0, :]]
-    current = states[0, :]
-    for i in range(1, states.shape[0]):
-        groundtruth = states[i]
-
-        if 't' in key:
-            prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-        else:
-            prediction = model.predict(np.concatenate((current, actions[i - 1, :])))
-        if 'p' in key:
-            prediction = prediction[:, :prediction.shape[1] // 2]
-
-        predictions.append(prediction.squeeze())
-        MSEs.append(np.square(groundtruth - prediction).mean())
-        current = prediction.squeeze()
+    predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in MSEs}
 
     outcomes = {'mse': MSEs, 'predictions': predictions}
     return outcomes
@@ -131,25 +110,53 @@ def unpack_config_models(cfg):
 
 @hydra.main(config_path='conf/config.yaml')
 def evaluate(cfg):
-
+    # print("here")
+    graph_file = 'graphs'
+    os.mkdir(graph_file)
 
     # Load test data
     log.info(f"Loading default data")
-    (exper_data, test_data) = torch.load(
+    (_, test_data) = torch.load(
         hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
 
     # Load models
-    model_types = unpack_config_models(cfg)
+    model_types = cfg.plotting.models
+    models = {}
+    for model_type in model_types:
+        models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + model_type + cfg.model_dir)
+
+    # Plot losses
+    log.info("Plotting loss")
+    for model_type in models:
+        model = models[model_type]
+        loss_log = model.loss_log
+        plot_loss(loss_log, save_loc=graph_file, show=False, s=model_type)
+        plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=model_type)
 
     # Evaluate models
-
+    outcomes = test_models(test_data, models)
 
     # Plot shit
+    MSEs, predictions = outcomes['mse'], outcomes['predictions']
+    MSE_avg = {key: np.average(MSEs[key], axis=0) for key in MSEs}
 
-    pass
+    log.info("Plotting states")
+    for i in range(len(test_data)):
+        gt = test_data[i].states
+        mse = {key: MSEs[key][i] for key in MSEs}
+        pred = {key: predictions[key][i] for key in predictions}
+
+        file = "%s/test%d" % (graph_file, i + 1)
+        os.mkdir(file)
+
+        plot_states(gt, pred, idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
+        plot_mse(mse, save_loc=file, show=False)
+
+    # plot_mse(MSE_avg, save_loc=file+"/mse_avg")
 
 
 
 
-if __name__=='main':
+
+if __name__ == '__main__':
     sys.exit(evaluate())
