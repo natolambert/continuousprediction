@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from collections import OrderedDict
-from .mbrl_resources import Prob_Loss
+from .mbrl_resources import ProbLoss
 
 
 class Net(nn.Module):
@@ -106,7 +106,7 @@ class DynamicsModel(object):
         self.n_out = cfg.env.state_size
         if self.prob:
             # ordering matters here, because size is the number of predicted output states
-            self.loss_fn = Prob_Loss(self.n_out)
+            self.loss_fn = ProbLoss(self.n_out)
             self.n_out = self.n_out * 2
         else:
             self.loss_fn = nn.MSELoss()
