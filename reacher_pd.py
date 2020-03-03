@@ -31,6 +31,7 @@ from policy import PID
 from mbrl_resources import *
 from plot import plot_reacher
 
+from dynamics_model import DynamicsModel
 
 ###########################################
 #                Datasets                 #
@@ -370,6 +371,22 @@ def plot_loss(logs, save_loc=None, show=True, s=None):
             plt.show()
         else:
             plt.close()
+    elif type(logs) == list:
+        plt.figure()
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        for i in range(len(logs)):
+            log = logs[i]
+            plt.plot(np.array(log.training_error[10:]), label="Net %d" % i)
+        plt.title("Training Loss for %s Ensemble" % label_dict[s])
+        plt.xlabel("Batch")
+        plt.ylabel("Loss")
+        if save_loc:
+            plt.savefig("%s/loss_%s.pdf" % (save_loc, s))
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
 
 def plot_loss_epoch(logs, save_loc=None, show=True, s=None):
@@ -404,6 +421,23 @@ def plot_loss_epoch(logs, save_loc=None, show=True, s=None):
             plt.show()
         else:
             plt.close()
+    elif type(logs) == list:
+        plt.figure()
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        for i in range(len(logs)):
+            log = logs[i]
+            plt.plot(np.array(log.training_error[10:]), label="Net %d" % i)
+        plt.title("Epoch Training Loss for %s Ensemble" % label_dict[s])
+        plt.xlabel("Epoch")
+        plt.ylabel("Total Loss")
+        if save_loc:
+            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, s))
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
 
 
 def plot_mse(MSEs, save_loc=None, show=True):
@@ -485,7 +519,7 @@ def test_models(traj, models):
             if 't' in key:
                 prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
             else:
-                prediction = model.predict(np.concatenate((current, actions[i - 1, :])))
+                prediction = model.predict(np.concatenate((currents[key], actions[i - 1, :])))
             if 'p' in key:
                 prediction = prediction[:, :prediction.shape[1] // 2]
 
@@ -674,17 +708,20 @@ def contpred(cfg):
         model = Model(cfg.model)
         model.train(cfg, dataset)
         loss_log = model.loss_log
+        # model = DynamicsModel(cfg)
+        # train_logs, test_logs = model.train(dataset, cfg)
 
         plot_loss(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
         plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
+
         if cfg.save_models:
             log.info("Saving new default models")
             torch.save(model,
                        hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + cfg.model_dir)
 
     else:
-        model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
-        model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
+        model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'step' + cfg.model_dir)
+        model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'traj' + cfg.model_dir)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
     raise ValueError("Test data needs to be regenerated")
