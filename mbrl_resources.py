@@ -202,8 +202,9 @@ class Model(object):
             return self.model.predict(x)
         else:
             # TODO: redo this to be generalizable outside of reacher (ie not hardcoded)
+            # TODO: better sampling for probabilistic
             d = self.model.predict(x)
-            return x[:, :21] + d
+            return x[:, :21] + d[:, :21]
 
 
 def load_model(file):
