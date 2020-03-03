@@ -11,6 +11,31 @@ import logging
 
 log = logging.getLogger(__name__)
 
+label_dict = {'t': 'Trajectory Based Deterministic',
+              'd': 'One Step Deterministic',
+              'p': 'One Step Probabilistic',
+              'tp': 'Trajectory Based Probabilistic',
+              'te': 'Trajectory Based Deterministic Ensemble',
+              'de': 'One Step Deterministic Ensemble',
+              'pe': 'One Step Probabilistic Ensemble',
+              'tpe': 'Trajectory Based Probabilistic Ensemble'}
+color_dict = {'t': 'r',
+              'd': 'b',
+              'p': 'g',
+              'tp': 'y',
+              'te': '#b53636',
+              'de': '#3660b5',
+              'pe': '#52b536',
+              'tpe': '#b5af36'}
+marker_dict = {'t': 's',
+               'd': 'o',
+               'p': 'D',
+               'tp': 'p',
+               'te': 's',
+               'de': 'o',
+               'pe': 'D',
+               'tpe': 'p', }
+
 
 def find_latest_checkpoint(cfg):
     '''
@@ -145,11 +170,228 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
     return err_traces, xs, ys
 
 
+def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None, show=True):
+    """
+    Plots the states given in predictions against the groundtruth. Predictions
+    is a dictionary mapping model types to predictions
+    """
+    num = np.shape(ground_truth)[0]
+    dx = np.shape(ground_truth)[1]
+    if idx_plot is None:
+        idx_plot = list(range(dx))
+
+    for i in idx_plot:
+        fig, ax = plt.subplots()
+        gt = ground_truth[:, i]
+        plt.title("Predictions on one dimension")
+        plt.xlabel("Timestep")
+        plt.ylabel("State Value")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        plt.plot(gt, c='k', label='Groundtruth')
+        for key in predictions:
+            # print(key)
+            pred = predictions[key][:, i]
+            # TODO: find a better way to do what the following line does
+            chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
+            plt.plot(chopped, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+
+        plt.legend()
+
+        if save_loc:
+            plt.savefig(save_loc + "/state%d.pdf" % i)
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+    if plot_avg:
+        fig, ax = plt.subplots()
+        gt = ground_truth[:, i]
+        plt.title("Predictions Averaged")
+        plt.xlabel("Timestep")
+        plt.ylabel("Average State Value")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        gt = np.zeros(ground_truth[:, 0:1].shape)
+        for i in idx_plot:
+            gt = np.hstack((gt, ground_truth[:, i:i + 1]))
+        gt_avg = np.average(gt[:, 1:], axis=1)
+        plt.plot(gt_avg, c='k', label='Groundtruth')
+
+        for key in predictions:
+            pred = predictions[key]
+            p = np.zeros(pred[:, 0:1].shape)
+            for i in idx_plot:
+                p = np.hstack((p, pred[:, i:i + 1]))
+            p_avg = np.average(p[:, 1:], axis=1)
+            plt.plot(p_avg, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+        # plt.ylim(-.5, 1.5)
+        plt.legend()
+        if save_loc:
+            plt.savefig(save_loc + "/avg_states.pdf")
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+
+def plot_loss(logs, save_loc=None, show=True, s=None):
+    """
+    Plots the training loss of all models
+    """
+    if type(logs) == dict:
+        for key in logs:
+            plt.figure()
+            log = logs[key]
+            plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
+            plt.title("Training Loss for %s" % label_dict[key])
+            plt.xlabel("Batch")
+            plt.ylabel("Loss")
+            if save_loc:
+                plt.savefig("%s/loss_%s.pdf" % (save_loc, key))
+            if show:
+                plt.show()
+            else:
+                plt.close()
+    elif type(logs) == DotMap:
+        plt.figure()
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        plt.plot(np.array(logs.training_error[10:]), c=color_dict[s], label=label_dict[s])
+        plt.title("Training Loss for %s" % label_dict[s])
+        plt.xlabel("Batch")
+        plt.ylabel("Loss")
+        if save_loc:
+            plt.savefig("%s/loss_%s.pdf" % (save_loc, s))
+        if show:
+            plt.show()
+        else:
+            plt.close()
+    elif type(logs) == list:
+        plt.figure()
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        for i in range(len(logs)):
+            log = logs[i]
+            plt.plot(np.array(log.training_error[10:]), label="Net %d" % i)
+        plt.title("Training Loss for %s Ensemble" % label_dict[s])
+        plt.xlabel("Batch")
+        plt.ylabel("Loss")
+        if save_loc:
+            plt.savefig("%s/loss_%s.pdf" % (save_loc, s))
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+
+def plot_loss_epoch(logs, save_loc=None, show=True, s=None):
+    """
+    Plots the loss by epoch for each model in logs
+    """
+    if type(logs) == dict:
+        for key in logs:
+            plt.figure()
+            log = logs[key]
+            plt.bar(np.arange(len(log.training_error_epoch)), np.array(log.training_error_epoch), color=color_dict[key])
+            plt.title("Epoch Training Loss for %s" % label_dict[key])
+            plt.xlabel("Epoch")
+            plt.ylabel("Total Loss")
+            if save_loc:
+                plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, key))
+            if show:
+                plt.show()
+            else:
+                plt.close()
+    elif type(logs) == DotMap:
+        plt.figure()
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        plt.bar(np.arange(len(logs.training_error_epoch)), np.array(logs.training_error_epoch), color=color_dict[s])
+        plt.title("Epoch Training Loss for %s" % label_dict[s])
+        plt.xlabel("Epoch")
+        plt.ylabel("Total Loss")
+        if save_loc:
+            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, s))
+        if show:
+            plt.show()
+        else:
+            plt.close()
+    elif type(logs) == list:
+        plt.figure()
+        if s not in label_dict:
+            raise ValueError("s must be a model type when plotting one model")
+        for i in range(len(logs)):
+            log = logs[i]
+            plt.plot(np.array(log.training_error[10:]), label="Net %d" % i)
+        plt.title("Epoch Training Loss for %s Ensemble" % label_dict[s])
+        plt.xlabel("Epoch")
+        plt.ylabel("Total Loss")
+        if save_loc:
+            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, s))
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+
+def plot_mse(MSEs, save_loc=None, show=True):
+    """
+    Plots MSE graphs for the sequences given given
+
+    Parameters:
+    ------------
+    MSEs: a dictionary mapping model type key to an array of MSEs
+    """
+    # Non-log version
+    fig, ax = plt.subplots()
+    plt.title("MSE for a variety of models")
+    plt.xlabel("Timesteps")
+    plt.ylabel('Mean Square Error')
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    for key in MSEs:
+        mse = MSEs[key]
+        plt.plot(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+    plt.legend()
+    if save_loc:
+        plt.savefig(save_loc + "/mse.pdf")
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    # Log version
+    fig, ax = plt.subplots()
+    plt.title("Log MSE for a variety of models")
+    plt.xlabel("Timesteps")
+    plt.ylabel('Mean Square Error')
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    for key in MSEs:
+        mse = MSEs[key]
+        plt.semilogy(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+    plt.legend()
+    if save_loc:
+        plt.savefig(save_loc + "/mse_log.pdf")
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+
 @hydra.main(config_path='config-plot.yaml')
 def plot(cfg):
-    data = Data([new_trace1])
+    pass
 
-    plot_url = py.plot(data, filename='append plot', fileopt='append')
+
+
+    # data = Data([new_trace1])
+    #
+    # plot_url = py.plot(data, filename='append plot', fileopt='append')
 
 
 if __name__ == '__main__':

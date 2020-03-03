@@ -71,8 +71,8 @@ def create_dataset_traj(data, control_params=True, threshold=0):
                 data_out.append(states[j])
 
     # TODO we maybe don't need this, the data processor should handle it
-    print("shuffling")
-    data_in, data_out = shuffle(data_in, data_out)
+    # print("shuffling")
+    # data_in, data_out = shuffle(data_in, data_out)
     data_in = np.array(data_in)
     data_out = np.array(data_out)
     return data_in, data_out
@@ -144,7 +144,7 @@ def run_controller(env, horizon, policy):
     return logs
 
 
-def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
+def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
     """
     Collect data for environment model
     :param nTrials:
@@ -439,7 +439,6 @@ def plot_loss_epoch(logs, save_loc=None, show=True, s=None):
             plt.close()
 
 
-
 def plot_mse(MSEs, save_loc=None, show=True):
     """
     Plots MSE graphs for the sequences given given
@@ -667,8 +666,6 @@ def make_evaluator(train_data, test_data, type):
 
 @hydra.main(config_path='conf/config.yaml')
 def contpred(cfg):
-    model_types = unpack_config_models(cfg)
-
     log_hyperparams(cfg)  # configs, model_types)
 
     graph_file = 'graphs'
@@ -679,16 +676,19 @@ def contpred(cfg):
         log.info(f"Collecting new trials")
         traj_dataset, one_step_dataset, exper_data = collect_and_dataset(cfg)
 
+        test_data = collect_data(cfg)
+
         if cfg.save_data:
             log.info("Saving new default data")
-            torch.save(exper_data,
+            torch.save((exper_data, test_data),
                        hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
             log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
+    # Load data
     else:
         log.info(f"Loading default data")
-        raise ValueError("Current Saved data old format")
+        # raise ValueError("Current Saved data old format")
         #Todo re-save data
-        exper_data = torch.load(
+        (exper_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
         traj_dataset = create_dataset_traj(exper_data, threshold=1.0)
         one_step_dataset = create_dataset_step(exper_data)  # train_data[0].states)
@@ -718,21 +718,24 @@ def contpred(cfg):
             log.info("Saving new default models")
             torch.save(model,
                        hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + cfg.model_dir)
+        torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
 
     else:
-        model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'step' + cfg.model_dir)
-        model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'traj' + cfg.model_dir)
+        pass
+        # TODO: Not sure what we would put in here if the point of this function is to sweep and train models
+        # model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'step' + cfg.model_dir)
+        # model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'traj' + cfg.model_dir)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
-    raise ValueError("Test data needs to be regenerated")
-    for i in range(len(test_data)):
-        test = test_data[i]
-        file = "%s/test%d" % (graph_file, i + 1)
-        os.mkdir(file)
-
-        outcomes = test_model(test, model)
-        plot_states(test.states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
-        plot_mse(outcomes['mse'], save_loc=file, show=False)
+    # raise ValueError("Test data needs to be regenerated")
+    # for i in range(len(test_data)):
+    #     test = test_data[i]
+    #     file = "%s/test%d" % (graph_file, i + 1)
+    #     os.mkdir(file)
+    #
+    #     outcomes = test_model(test, model)
+    #     plot_states(test.states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
+    #     plot_mse(outcomes['mse'], save_loc=file, show=False)
 
     # train_data_sample =
 
