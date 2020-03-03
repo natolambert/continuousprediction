@@ -43,7 +43,7 @@ class Net(nn.Module):
         self.linears = nn.ModuleList(fc)
         self.tf = tf
         self._onGPU = False
-    def preprocess(self, dataset):
+    def preprocess(self, dataset, cfg):
         input = dataset[0]
         output = dataset[1]
 
@@ -53,9 +53,9 @@ class Net(nn.Module):
         # TODO: Instead of hardcoding, include in config, trajectory vs. one-step, length of different inputs, etc.
         # 26 -> one-step, 37 -> trajectory
         if(input.shape[1] == 26):
-            stateScaler = MinMaxScaler((-1, 1))
-            actionScaler = MinMaxScaler((-1, 1))
-            outputScaler = MinMaxScaler((-1, 1))
+            stateScaler = hydra.utils.instantiate(cfg.preprocess.state)
+            actionScaler = hydra.utils.instantiate(cfg.preprocess.action)
+            outputScaler = hydra.utils.instantiate(cfg.preprocess.output)
 
             inputStates = input[:, :21]
             inputActions = input[:, 21:]
@@ -70,12 +70,12 @@ class Net(nn.Module):
 
             return np.hstack((normStates, normActions)), normOutput
         elif(input.shape[1] == 37):
-            stateScaler = MinMaxScaler((-1, 1))
-            indexScaler = MinMaxScaler((-1, 1))
-            PScaler = MinMaxScaler((-1, 1))
-            DScaler = MinMaxScaler((-1, 1))
-            targetScaler = MinMaxScaler((-1, 1))
-            outputScaler = MinMaxScaler((-1, 1))
+            stateScaler = hydra.utils.instantiate(cfg.preprocess.state)
+            indexScaler = hydra.utils.instantiate(cfg.preprocess.index)
+            PScaler = hydra.utils.instantiate(cfg.preprocess.P)
+            DScaler = hydra.utils.instantiate(cfg.preprocess.D)
+            targetScaler = hydra.utils.instantiate(cfg.preprocess.target)
+            outputScaler = hydra.utils.instantiate(cfg.preprocess.output)
 
             inputStates = input[:, :21]
             inputIndex = input[:, 21]
@@ -247,7 +247,6 @@ class Model(object):
         params.opt.batch_size = self.optim_params.batch
         params.learning_rate = self.optim_params.lr
         if self.prob:
-            params.criterion = Prob_Loss(n_out)
             params.criterion = ProbLoss(labels.shape[1])
 
         if self.ens:
@@ -338,7 +337,8 @@ def train_network(dataset, model, cfg, parameters=DotMap()):
     # DataLoader is an iterable
     # dataset = PytorchDataset(dataset=dataset)  # Using PyTorch
     # dataset = np.hstack((dataset[0], dataset[1]))
-    dataset = list(zip(dataset[0], dataset[1]))
+    scaled_input, scaled_output = model.preprocess(dataset, cfg)
+    dataset = list(zip(scaled_input, scaled_output))
     split = cfg.model.optimizer.split
     trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=p.opt.batch_size, shuffle=True)
     testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=p.opt.batch_size, shuffle=True)
