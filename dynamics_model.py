@@ -43,7 +43,10 @@ class Net(nn.Module):
         self.features = nn.Sequential(OrderedDict([*layers]))
 
     def forward(self, x):
-        x = self.features(x)
+        # TODO: to make it run I had the model call .float() on inputs, but this might affect performance
+        if type(x) == np.ndarray:
+            x = torch.from_numpy(x)
+        x = self.features(x.float())
         return x
 
     def optimize(self, dataset, cfg):
@@ -74,7 +77,7 @@ class Net(nn.Module):
             for i, (inputs, targets) in enumerate(trainLoader):
                 optimizer.zero_grad()
                 outputs = self.forward(inputs)
-                loss = self.loss_fn(outputs, targets)
+                loss = self.loss_fn(outputs.float(), targets.float())
                 train_error += loss.item() / (len(trainLoader) * bs)
 
                 loss.backward()
@@ -83,7 +86,7 @@ class Net(nn.Module):
             test_error = torch.zeros(1)
             for i, (inputs, targets) in enumerate(testLoader):
                 outputs = self.forward(inputs)
-                loss = self.loss_fn(outputs, targets)
+                loss = self.loss_fn(outputs.float(), targets.float())
                 test_error += loss.item() / (len(testLoader) * bs)
 
             train_errors.append(train_error)
@@ -120,13 +123,16 @@ class DynamicsModel(object):
         self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
 
     def predict(self, x):
-        prediction = torch.zeros(self.n_out)
+        if type(x) == np.ndarray:
+            x = torch.from_numpy(x)
+        prediction = torch.zeros((x.shape[0], self.n_out))
         for n in self.nets:
             prediction += n.forward(x) / len(self.nets)
         if self.traj:
             return prediction
         else:
-            return x + prediction
+            # TODO: fix hardcoding
+            return x[:,:21] + prediction
 
     def train(self, dataset, cfg):
         acctest_l = []
@@ -151,6 +157,8 @@ class DynamicsModel(object):
             train_e, test_e = self.nets[0].optimize(dataset, cfg)
             acctrain_l.append(train_e)
             acctest_l.append(test_e)
+
+        self.acctrain, self.acctest = acctrain_l, acctest_l
 
         return acctrain_l, acctest_l
 

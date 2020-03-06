@@ -12,6 +12,8 @@ import numpy as np
 
 from plot import *
 
+from mbrl_resources import Model
+
 log = logging.getLogger(__name__)
 
 
@@ -30,8 +32,6 @@ def test_models(test_data, models):
               -based model you'd do
                     outcomes['mse']['t']
     """
-
-    # TODO: debug this function which is almost definitely not gonna work
 
     log.info("Beginning testing of predictions")
 
@@ -66,18 +66,20 @@ def test_models(test_data, models):
 
             if 't' in key:
                 prediction = model.predict(np.hstack((initials, i*np.ones((N, 1)), P_param, D_param, target)))
+                prediction = np.array(prediction.detach())
             else:
                 prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
-            if 'p' in key:
-                prediction = prediction[:, :, :D // 2]
+                prediction = np.array(prediction.detach())
+            # if 'p' in key:
+            #     prediction = prediction[:, :D // 2]
 
             predictions[key].append(prediction.squeeze())
             MSEs[key].append(np.square(groundtruth - prediction).mean(axis=1))
             currents[key] = prediction.squeeze()
             # print(currents[key].shape)
 
-    MSEs = {key: np.array(MSEs[key]) for key in MSEs}
-    predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in MSEs}
+    MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
+    predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in MSEs}
 
     outcomes = {'mse': MSEs, 'predictions': predictions}
     return outcomes
@@ -126,12 +128,18 @@ def evaluate(cfg):
         models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + model_type + cfg.model_dir)
 
     # Plot losses
-    log.info("Plotting loss")
-    for model_type in models:
-        model = models[model_type]
-        loss_log = model.loss_log
-        plot_loss(loss_log, save_loc=graph_file, show=False, s=model_type)
-        plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=model_type)
+    # log.info("Plotting loss")
+    # for model_type in models:
+    #     model = models[model_type]
+    #     if type(model) == Model:
+    #         loss_log = model.loss_log
+    #         plot_loss(loss_log, save_loc=graph_file, show=False, s=model_type)
+    #         plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=model_type)
+    #     else:
+    #         loss_log = model.acctrain
+    #         test_log = model.acctest
+    #         plot_loss(loss_log, save_loc=graph_file, show=False, s=model_type)
+
 
     # Evaluate models
     outcomes = test_models(test_data, models)

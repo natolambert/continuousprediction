@@ -25,6 +25,8 @@ hydra:
 
 plotting:
   models: []
+  states: true
+  mse: true
 
 experiment:
   traj_len: 500
