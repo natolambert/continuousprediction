@@ -43,9 +43,32 @@ class Net(nn.Module):
         self.linears = nn.ModuleList(fc)
         self.tf = tf
         self._onGPU = False
+    def testPreprocess(self, input):
+        if(input.shape[1] == 26):
+            inputStates = input[:, :21]
+            inputActions = input[:, 21:]
+            normStates = self.stateScaler.transform(inputStates)
+            normActions = self.actionScaler.transform(inputActions)
+            return np.hstack((normStates, normActions))
+        elif(input.shape[1] == 37):
+            inputStates = input[:, :21]
+            inputIndex = input[:, 21]
+            inputP = input[:, 22:27]
+            inputD = input[:, 27:32]
+            inputTargets = input[:, 32:]
+            normStates = self.stateScaler.transform(inputStates)
+            normIndex = self.indexScaler.transform(inputIndex)
+            normP = self.PScaler.transform(inputP)
+            normD = self.DScaler.transform(inputD)
+            normTargets = self.targetScaler.transform(inputTargets)
+            return np.hstack((normStates, normIndex, normP, normD, normTargets))
+        else:
+            print("Incorrect dataset length, no normalization performed")
+            return input
+    def testPostprocess(self, output):
+        return self.outputScaler.inverse_transform(output)
+
     def preprocess(self, dataset, cfg):
-        input = dataset[0]
-        output = dataset[1]
 
         # Select scaling, minmax vs standard (fits to a gaussian with unit variance and 0 mean)
         # TODO: Selection should be in config
@@ -53,9 +76,9 @@ class Net(nn.Module):
         # TODO: Instead of hardcoding, include in config, trajectory vs. one-step, length of different inputs, etc.
         # 26 -> one-step, 37 -> trajectory
         if(input.shape[1] == 26):
-            stateScaler = hydra.utils.instantiate(cfg.preprocess.state)
-            actionScaler = hydra.utils.instantiate(cfg.preprocess.action)
-            outputScaler = hydra.utils.instantiate(cfg.preprocess.output)
+            self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
+            self.actionScaler = hydra.utils.instantiate(cfg.model.preprocess.action)
+            self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
 
             inputStates = input[:, :21]
             inputActions = input[:, 21:]
@@ -64,18 +87,18 @@ class Net(nn.Module):
             actionScaler.fit(inputActions)
             outputScaler.fit(output)
 
-            normStates = stateScaler.transform(inputStates)
-            normActions = actionScaler.transform(inputActions)
-            normOutput = outputScaler.transform(output)
+            normStates = self.stateScaler.transform(inputStates)
+            normActions = self.actionScaler.transform(inputActions)
+            normOutput = self.outputScaler.transform(output)
 
             return np.hstack((normStates, normActions)), normOutput
         elif(input.shape[1] == 37):
-            stateScaler = hydra.utils.instantiate(cfg.preprocess.state)
-            indexScaler = hydra.utils.instantiate(cfg.preprocess.index)
-            PScaler = hydra.utils.instantiate(cfg.preprocess.P)
-            DScaler = hydra.utils.instantiate(cfg.preprocess.D)
-            targetScaler = hydra.utils.instantiate(cfg.preprocess.target)
-            outputScaler = hydra.utils.instantiate(cfg.preprocess.output)
+            self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
+            self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
+            self.PScaler = hydra.utils.instantiate(cfg.model.preprocess.P)
+            self.DScaler = hydra.utils.instantiate(cfg.model.preprocess.D)
+            self.targetScaler = hydra.utils.instantiate(cfg.model.preprocess.target)
+            self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
 
             inputStates = input[:, :21]
             inputIndex = input[:, 21]
@@ -90,12 +113,12 @@ class Net(nn.Module):
             targetScaler.fit(inputTargets)
             outputScaler.fit(output)
 
-            normStates = stateScaler.transform(inputStates)
-            normIndex = indexScaler.transform(inputIndex)
-            normP = PScaler.transform(inputP)
-            normD = DScaler.transform(inputD)
-            normTargets = targetScaler.transform(inputTargets)
-            normOutput = outputScaler.transform(output)
+            normStates = self.stateScaler.transform(inputStates)
+            normIndex = self.indexScaler.transform(inputIndex)
+            normP = self.PScaler.transform(inputP)
+            normD = self.DScaler.transform(inputD)
+            normTargets = self.targetScaler.transform(inputTargets)
+            normOutput = self.outputScaler.transform(output)
 
             return np.hstack((normStates, normIndex, normP, normD, normTargets)), normOutput
         else:
@@ -117,7 +140,9 @@ class Net(nn.Module):
         if self._onGPU:
             pass
         else:
-            return self.forward(Variable(torch.from_numpy(np.matrix(x)).float())).data.cpu().numpy()
+            scaledInput = self.testPreprocess(x)
+            output = self.forward(Variable(torch.from_numpy(np.matrix(scaledInput)).float())).data.cpu().numpy()
+            return self.testPostprocess(output)
 
 
 class ProbLoss(nn.Module):
