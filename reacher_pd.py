@@ -31,6 +31,7 @@ from policy import PID
 from mbrl_resources import *
 from plot import plot_reacher
 
+from dynamics_model import DynamicsModel
 
 ###########################################
 #                Datasets                 #
@@ -70,8 +71,8 @@ def create_dataset_traj(data, control_params=True, threshold=0):
                 data_out.append(states[j])
 
     # TODO we maybe don't need this, the data processor should handle it
-    print("shuffling")
-    data_in, data_out = shuffle(data_in, data_out)
+    # print("shuffling")
+    # data_in, data_out = shuffle(data_in, data_out)
     data_in = np.array(data_in)
     data_out = np.array(data_out)
     return data_in, data_out
@@ -143,7 +144,7 @@ def run_controller(env, horizon, policy):
     return logs
 
 
-def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
+def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
     """
     Collect data for environment model
     :param nTrials:
@@ -244,307 +245,9 @@ def collect_and_dataset(cfg):
 #           Plotting / Output             #
 ###########################################
 
-label_dict = {'t': 'Trajectory Based Deterministic',
-              'd': 'One Step Deterministic',
-              'p': 'One Step Probabilistic',
-              'tp': 'Trajectory Based Probabilistic',
-              'te': 'Trajectory Based Deterministic Ensemble',
-              'de': 'One Step Deterministic Ensemble',
-              'pe': 'One Step Probabilistic Ensemble',
-              'tpe': 'Trajectory Based Probabilistic Ensemble'}
-color_dict = {'t': 'r',
-              'd': 'b',
-              'p': 'g',
-              'tp': 'y',
-              'te': '#b53636',
-              'de': '#3660b5',
-              'pe': '#52b536',
-              'tpe': '#b5af36'}
-marker_dict = {'t': 's',
-               'd': 'o',
-               'p': 'D',
-               'tp': 'p',
-               'te': 's',
-               'de': 'o',
-               'pe': 'D',
-               'tpe': 'p', }
-
-
-def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None, show=True):
-    """
-    Plots the states given in predictions against the groundtruth. Predictions
-    is a dictionary mapping model types to predictions
-    """
-    num = np.shape(ground_truth)[0]
-    dx = np.shape(ground_truth)[1]
-    if idx_plot is None:
-        idx_plot = list(range(dx))
-
-    for i in idx_plot:
-        fig, ax = plt.subplots()
-        gt = ground_truth[:, i]
-        plt.title("Predictions on one dimension")
-        plt.xlabel("Timestep")
-        plt.ylabel("State Value")
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-
-        plt.plot(gt, c='k', label='Groundtruth')
-        for key in predictions:
-            # print(key)
-            pred = predictions[key][:, i]
-            # TODO: find a better way to do what the following line does
-            chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-            plt.plot(chopped, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
-
-        plt.legend()
-
-        if save_loc:
-            plt.savefig(save_loc + "/state%d.pdf" % i)
-        if show:
-            plt.show()
-        else:
-            plt.close()
-
-    if plot_avg:
-        fig, ax = plt.subplots()
-        gt = ground_truth[:, i]
-        plt.title("Predictions Averaged")
-        plt.xlabel("Timestep")
-        plt.ylabel("Average State Value")
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-
-        gt = np.zeros(ground_truth[:, 0:1].shape)
-        for i in idx_plot:
-            gt = np.hstack((gt, ground_truth[:, i:i + 1]))
-        gt_avg = np.average(gt[:, 1:], axis=1)
-        plt.plot(gt_avg, c='k', label='Groundtruth')
-
-        for key in predictions:
-            pred = predictions[key]
-            p = np.zeros(pred[:, 0:1].shape)
-            for i in idx_plot:
-                p = np.hstack((p, pred[:, i:i + 1]))
-            p_avg = np.average(p[:, 1:], axis=1)
-            plt.plot(p_avg, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
-        # plt.ylim(-.5, 1.5)
-        plt.legend()
-        if save_loc:
-            plt.savefig(save_loc + "/avg_states.pdf")
-        if show:
-            plt.show()
-        else:
-            plt.close()
-
-
-def plot_loss(logs, save_loc=None, show=True, s=None):
-    """
-    Plots the training loss of all models
-    """
-    if type(logs) == dict:
-        for key in logs:
-            plt.figure()
-            log = logs[key]
-            plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
-            plt.title("Training Loss for %s" % label_dict[key])
-            plt.xlabel("Batch")
-            plt.ylabel("Loss")
-            if save_loc:
-                plt.savefig("%s/loss_%s.pdf" % (save_loc, key))
-            if show:
-                plt.show()
-            else:
-                plt.close()
-    elif type(logs) == DotMap:
-        plt.figure()
-        if s not in label_dict:
-            raise ValueError("s must be a model type when plotting one model")
-        plt.plot(np.array(logs.training_error[10:]), c=color_dict[s], label=label_dict[s])
-        plt.title("Training Loss for %s" % label_dict[s])
-        plt.xlabel("Batch")
-        plt.ylabel("Loss")
-        if save_loc:
-            plt.savefig("%s/loss_%s.pdf" % (save_loc, s))
-        if show:
-            plt.show()
-        else:
-            plt.close()
-
-
-def plot_loss_epoch(logs, save_loc=None, show=True, s=None):
-    """
-    Plots the loss by epoch for each model in logs
-    """
-    if type(logs) == dict:
-        for key in logs:
-            plt.figure()
-            log = logs[key]
-            plt.bar(np.arange(len(log.training_error_epoch)), np.array(log.training_error_epoch), color=color_dict[key])
-            plt.title("Epoch Training Loss for %s" % label_dict[key])
-            plt.xlabel("Epoch")
-            plt.ylabel("Total Loss")
-            if save_loc:
-                plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, key))
-            if show:
-                plt.show()
-            else:
-                plt.close()
-    elif type(logs) == DotMap:
-        plt.figure()
-        if s not in label_dict:
-            raise ValueError("s must be a model type when plotting one model")
-        plt.bar(np.arange(len(logs.training_error_epoch)), np.array(logs.training_error_epoch), color=color_dict[s])
-        plt.title("Epoch Training Loss for %s" % label_dict[s])
-        plt.xlabel("Epoch")
-        plt.ylabel("Total Loss")
-        if save_loc:
-            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, s))
-        if show:
-            plt.show()
-        else:
-            plt.close()
-
-
-def plot_mse(MSEs, save_loc=None, show=True):
-    """
-    Plots MSE graphs for the sequences given given
-
-    Parameters:
-    ------------
-    MSEs: a dictionary mapping model type key to an array of MSEs
-    """
-    # Non-log version
-    fig, ax = plt.subplots()
-    plt.title("MSE for a variety of models")
-    plt.xlabel("Timesteps")
-    plt.ylabel('Mean Square Error')
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    for key in MSEs:
-        mse = MSEs[key]
-        plt.plot(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
-    plt.legend()
-    if save_loc:
-        plt.savefig(save_loc + "/mse.pdf")
-    if show:
-        plt.show()
-    else:
-        plt.close()
-
-    # Log version
-    fig, ax = plt.subplots()
-    plt.title("Log MSE for a variety of models")
-    plt.xlabel("Timesteps")
-    plt.ylabel('Mean Square Error')
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    for key in MSEs:
-        mse = MSEs[key]
-        plt.semilogy(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
-    plt.legend()
-    if save_loc:
-        plt.savefig(save_loc + "/mse_log.pdf")
-    if show:
-        plt.show()
-    else:
-        plt.close()
-
-
-def test_models(traj, models):
-    """
-    Tests each of the models in the dictionary "models" on the same trajectory.
-    Not to be confused with the function below, which tests a single model
-
-    Parameters:
-    ------------
-    traj: the trajectory to test on
-    models: a dictionary of models to test
-
-    Returns:
-    outcomes: a dictionary of MSEs and predictions. As an example of how to
-              get info from this distionary, to get the MSE data from a trajectory
-              -based model you'd do
-                    outcomes['mse']['t']
-    """
-    log.info("Beginning testing of predictions")
-
-    MSEs = {key: [] for key in models}
-
-    states = traj.states
-    actions = traj.actions
-    initial = states[0, :]
-
-    predictions = {key: [states[0, :]] for key in models}
-    currents = {key: states[0, :] for key in models}
-    for i in range(1, states.shape[0]):
-        groundtruth = states[i]
-        for key in models:
-            model = models[key]
-
-            if 't' in key:
-                prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-            else:
-                prediction = model.predict(np.concatenate((current, actions[i - 1, :])))
-            if 'p' in key:
-                prediction = prediction[:, :prediction.shape[1] // 2]
-
-            predictions[key].append(prediction.squeeze())
-            MSEs[key].append(np.square(groundtruth - prediction).mean())
-            currents[key] = prediction.squeeze()
-            # print(currents[key].shape)
-
-    MSEs = {key: np.array(MSEs[key]) for key in MSEs}
-    predictions = {key: np.array(predictions[key]) for key in MSEs}
-
-    outcomes = {'mse': MSEs, 'predictions': predictions}
-    return outcomes
-
-
-def test_model(traj, model):
-    """
-    Tests a single model on the trajectory given
-
-    Parameters:
-    -----------
-    traj: a trajectory to test on
-    model: a model object to evaluate
-
-    Returns:
-    --------
-    outcomes: a dictionary of MSEs and predictions:
-                {'mse': MSEs, 'predictions': predictions}
-    """
-    log.info("Beginning testing of predictions")
-
-    states = traj.states
-    actions = traj.actions
-    initial = states[0, :]
-    key = model.str
-
-    MSEs = []
-    predictions = [states[0, :]]
-    current = states[0, :]
-    for i in range(1, states.shape[0]):
-        groundtruth = states[i]
-
-        if 't' in key:
-            prediction = model.predict(np.hstack((initial, i, traj.P, traj.D, traj.target)))
-        else:
-            prediction = model.predict(np.concatenate((current, actions[i - 1, :])))
-        if 'p' in key:
-            prediction = prediction[:, :prediction.shape[1] // 2]
-
-        predictions.append(prediction.squeeze())
-        MSEs.append(np.square(groundtruth - prediction).mean())
-        current = prediction.squeeze()
-
-    outcomes = {'mse': MSEs, 'predictions': predictions}
-    return outcomes
-
-
 def test_traj_ensemble(ensemble, test_data):
     """
+    TODO: this probably doesn't belong in this file
     Tests each model in the ensemble on one test trajectory and plots the output
     """
     traj = test_data
@@ -605,26 +308,26 @@ def log_hyperparams(cfg):  # , configs, model_types):
     log.info('  learning rate: %f' % cfg.model.optimizer.lr)
 
 
-def make_evaluator(train_data, test_data, type):
-    def evaluator(model):
-        dic = {type: model}
-        train_s = 0
-        num_train = len(train_data)
-        len_train = len(train_data[0].states)
-        denom_train = num_train * len_train
-        for traj in train_data:
-            outcomes = test_models(traj, dic)
-            train_s += np.sum(outcomes['mse'][type]) / denom_train
-        test_s = 0
-        num_test = len(test_data)
-        len_test = len(test_data[0].states)
-        denom_test = num_test * len_test
-        for traj in test_data:
-            outcomes = test_models(traj, dic)
-            test_s += np.sum(outcomes['mse'][type]) / denom_test
-        return (train_s, test_s)
-
-    return evaluator
+# def make_evaluator(train_data, test_data, type):
+#     def evaluator(model):
+#         dic = {type: model}
+#         train_s = 0
+#         num_train = len(train_data)
+#         len_train = len(train_data[0].states)
+#         denom_train = num_train * len_train
+#         for traj in train_data:
+#             outcomes = test_models(traj, dic)
+#             train_s += np.sum(outcomes['mse'][type]) / denom_train
+#         test_s = 0
+#         num_test = len(test_data)
+#         len_test = len(test_data[0].states)
+#         denom_test = num_test * len_test
+#         for traj in test_data:
+#             outcomes = test_models(traj, dic)
+#             test_s += np.sum(outcomes['mse'][type]) / denom_test
+#         return (train_s, test_s)
+#
+#     return evaluator
 
 
 ###########################################
@@ -633,8 +336,6 @@ def make_evaluator(train_data, test_data, type):
 
 @hydra.main(config_path='conf/config.yaml')
 def contpred(cfg):
-    model_types = unpack_config_models(cfg)
-
     log_hyperparams(cfg)  # configs, model_types)
 
     graph_file = 'graphs'
@@ -643,21 +344,25 @@ def contpred(cfg):
     # Collect data
     if cfg.collect_data:
         log.info(f"Collecting new trials")
-        traj_dataset, one_step_dataset, exper_data = collect_and_dataset(cfg)
+        # traj_dataset, one_step_dataset, exper_data = collect_and_dataset(cfg)
+
+        exper_data = collect_data(cfg)
+        test_data = collect_data(cfg)
 
         if cfg.save_data:
             log.info("Saving new default data")
-            torch.save(exper_data,
+            torch.save((exper_data, test_data),
                        hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
             log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
+    # Load data
     else:
         log.info(f"Loading default data")
-        raise ValueError("Current Saved data old format")
+        # raise ValueError("Current Saved data old format")
         #Todo re-save data
-        exper_data = torch.load(
+        (exper_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
-        traj_dataset = create_dataset_traj(exper_data, threshold=1.0)
-        one_step_dataset = create_dataset_step(exper_data)  # train_data[0].states)
+        # traj_dataset = create_dataset_traj(exper_data, threshold=0.0)
+        # one_step_dataset = create_dataset_step(exper_data)  # train_data[0].states)
 
     prob = cfg.model.prob
     traj = cfg.model.traj
@@ -667,35 +372,46 @@ def contpred(cfg):
     log.info(f"Training model P:{[prob]}, T:{traj}, E:{ens}")
     # model_file = 'model_%s.pth.tar' % model_type
 
-    dataset = traj_dataset if traj else one_step_dataset
+    # dataset = traj_dataset if traj else one_step_dataset
 
-    # TODO INTEGRATE
     if cfg.train_models:
-        model = Model(cfg.model)
-        model.train(cfg, dataset)
-        loss_log = model.loss_log
+        if traj:
+            dataset = create_dataset_traj(exper_data, threshold=0.95)
+        else:
+            dataset = create_dataset_step(exper_data)
 
-        plot_loss(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
-        plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
+        # model = Model(cfg.model)
+        # model.train(cfg, dataset)
+        # loss_log = model.loss_log
+        model = DynamicsModel(cfg)
+        train_logs, test_logs = model.train(dataset, cfg)
+
+        # plot_loss(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
+        # plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
+
         if cfg.save_models:
+            # TODO: this gives a bunch of warnings, fix
             log.info("Saving new default models")
             torch.save(model,
                        hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + cfg.model_dir)
+        torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
 
     else:
-        model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'step' + cfg.model_dir)
-        model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + 'traj' + cfg.model_dir)
+        pass
+        # TODO: Not sure what we would put in here if the point of this function is to sweep and train models
+        # model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'step' + cfg.model_dir)
+        # model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'traj' + cfg.model_dir)
 
     # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
-    raise ValueError("Test data needs to be regenerated")
-    for i in range(len(test_data)):
-        test = test_data[i]
-        file = "%s/test%d" % (graph_file, i + 1)
-        os.mkdir(file)
-
-        outcomes = test_model(test, model)
-        plot_states(test.states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
-        plot_mse(outcomes['mse'], save_loc=file, show=False)
+    # raise ValueError("Test data needs to be regenerated")
+    # for i in range(len(test_data)):
+    #     test = test_data[i]
+    #     file = "%s/test%d" % (graph_file, i + 1)
+    #     os.mkdir(file)
+    #
+    #     outcomes = test_model(test, model)
+    #     plot_states(test.states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
+    #     plot_mse(outcomes['mse'], save_loc=file, show=False)
 
     # train_data_sample =
 

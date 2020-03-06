@@ -201,7 +201,10 @@ class Model(object):
         if self.traj:
             return self.model.predict(x)
         else:
-            raise NotImplementedError("Need to formulate as change in state")
+            # TODO: redo this to be generalizable outside of reacher (ie not hardcoded)
+            # TODO: better sampling for probabilistic
+            d = self.model.predict(x)
+            return x[:, :21] + d[:, :21]
 
 
 def load_model(file):
@@ -307,7 +310,7 @@ def train_network(dataset, model, cfg, parameters=DotMap()):
 
             optimizer.zero_grad()
             outputs = model.forward(inputs.float())
-            loss = p.criterion(outputs, targets)
+            loss = p.criterion(outputs, targets.float())
             # print(loss)
 
             e = loss.item()
@@ -324,7 +327,7 @@ def train_network(dataset, model, cfg, parameters=DotMap()):
         test_error = torch.zeros(1)
         for i, (inputs, targets) in enumerate(testLoader):
             outputs = model.forward(inputs.float())
-            loss = p.criterion(outputs, targets)
+            loss = p.criterion(outputs, targets.float())
 
             test_error += loss.item() / (len(testLoader) * p.opt.batch_size)
         test_error = test_error

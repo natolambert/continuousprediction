@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from collections import OrderedDict
-from .mbrl_resources import ProbLoss
+from mbrl_resources import ProbLoss
 
 
 class Net(nn.Module):
@@ -16,7 +16,7 @@ class Net(nn.Module):
     General Neural Network
     """
 
-    def __init__(self, n_in, n_out, cfg, loss_fn, tf=F.relu):
+    def __init__(self, n_in, n_out, cfg, loss_fn, tf=nn.ReLU()):
         """
         :param structure: layer sizes
         :param tf: nonlinearity function
@@ -27,11 +27,15 @@ class Net(nn.Module):
         self._onGPU = False
         self.loss_fn = loss_fn
 
+        self.n_in = n_in
+        self.n_out = n_out
+        self.hidden_w = cfg.model.training.hid_width
+
         # create object nicely
         layers = []
         layers.append(('dynm_input_lin', nn.Linear(self.n_in, self.hidden_w)))
         layers.append(('dynm_input_act', self.activation))
-        for d in range(cfg.model.depth):
+        for d in range(cfg.model.training.hid_depth):
             layers.append(('dynm_lin_' + str(d), nn.Linear(self.hidden_w, self.hidden_w)))
             layers.append(('dynm_act_' + str(d), self.activation))
 
@@ -39,7 +43,10 @@ class Net(nn.Module):
         self.features = nn.Sequential(OrderedDict([*layers]))
 
     def forward(self, x):
-        x = self.features(x)
+        # TODO: to make it run I had the model call .float() on inputs, but this might affect performance
+        if type(x) == np.ndarray:
+            x = torch.from_numpy(x)
+        x = self.features(x.float())
         return x
 
     def optimize(self, dataset, cfg):
@@ -51,11 +58,13 @@ class Net(nn.Module):
         split = cfg.model.optimizer.split
         epochs = cfg.model.optimizer.epochs
         # Optimizer
-        optimizer = torch.optim.Adam(super(DynamicsModel, self).parameters(), lr=lr)
+        # optimizer = torch.optim.Adam(super(DynamicsModel, self).parameters(), lr=lr)
+        optimizer = torch.optim.Adam(self.features.parameters(), lr=lr)
         # optimizer = torch.optim.SGD(super(GeneralNN, self).parameters(), lr=lr)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.7)
 
         # Puts it in PyTorch dataset form and then converts to DataLoader
+        dataset = list(zip(dataset[0], dataset[1]))
         trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=bs, shuffle=True)
         testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=bs, shuffle=True)
 
@@ -68,7 +77,7 @@ class Net(nn.Module):
             for i, (inputs, targets) in enumerate(trainLoader):
                 optimizer.zero_grad()
                 outputs = self.forward(inputs)
-                loss = self.loss_fn(outputs, targets)
+                loss = self.loss_fn(outputs.float(), targets.float())
                 train_error += loss.item() / (len(trainLoader) * bs)
 
                 loss.backward()
@@ -77,7 +86,7 @@ class Net(nn.Module):
             test_error = torch.zeros(1)
             for i, (inputs, targets) in enumerate(testLoader):
                 outputs = self.forward(inputs)
-                loss = self.loss_fn(outputs, targets)
+                loss = self.loss_fn(outputs.float(), targets.float())
                 test_error += loss.item() / (len(testLoader) * bs)
 
             train_errors.append(train_error)
@@ -111,16 +120,19 @@ class DynamicsModel(object):
         else:
             self.loss_fn = nn.MSELoss()
 
-        self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in self.E]
+        self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
 
     def predict(self, x):
-        prediction = torch.zeros(self.n_out)
+        if type(x) == np.ndarray:
+            x = torch.from_numpy(x)
+        prediction = torch.zeros((x.shape[0], self.n_out))
         for n in self.nets:
             prediction += n.forward(x) / len(self.nets)
         if self.traj:
             return prediction
         else:
-            return x + prediction
+            # TODO: fix hardcoding
+            return x[:,:21] + prediction
 
     def train(self, dataset, cfg):
         acctest_l = []
@@ -145,6 +157,8 @@ class DynamicsModel(object):
             train_e, test_e = self.nets[0].optimize(dataset, cfg)
             acctrain_l.append(train_e)
             acctest_l.append(test_e)
+
+        self.acctrain, self.acctest = acctrain_l, acctest_l
 
         return acctrain_l, acctest_l
 
