@@ -29,7 +29,6 @@ import logging
 log = logging.getLogger(__name__)
 
 from policy import PID
-from mbrl_resources import *
 from plot import plot_reacher
 
 from dynamics_model import DynamicsModel
@@ -391,7 +390,6 @@ def contpred(cfg):
         # plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
 
         if cfg.save_models:
-            # TODO: this gives a bunch of warnings, fix
             log.info("Saving new default models")
             torch.save(model,
                        hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + cfg.model_dir)
@@ -403,47 +401,6 @@ def contpred(cfg):
         # model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'step' + cfg.model_dir)
         # model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'traj' + cfg.model_dir)
 
-    # mse_t, mse_no_t, predictions_t, predictions_no_t = test_model_single(test_data[0], model, model_no_t)
-    # raise ValueError("Test data needs to be regenerated")
-    # for i in range(len(test_data)):
-    #     test = test_data[i]
-    #     file = "%s/test%d" % (graph_file, i + 1)
-    #     os.mkdir(file)
-    #
-    #     outcomes = test_model(test, model)
-    #     plot_states(test.states, outcomes['predictions'], idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
-    #     plot_mse(outcomes['mse'], save_loc=file, show=False)
-
-    # train_data_sample =
-
-    # Blocking this since it doesn't quite work
-    if False:
-        # Evaluate learned model
-        def augment_state(state, horizon=990):
-            """
-            Augment state by including time
-            :param state:
-            :param horizon:
-            :return:
-            """
-            out = []
-            for i in range(horizon):
-                out.append(np.hstack((state, i)))
-            return np.array(out)
-
-        idx_trajectory = 0
-        idx_state = 2
-        state = test_data[idx_trajectory].states[idx_state]
-        remaining_horizon = test_data[idx_trajectory].states.shape[0] - idx_state - 1
-        groundtruth = test_data[idx_trajectory].states[idx_state:]
-        pred_out = np.concatenate((state[None, :], model.predict(augment_state(state, horizon=remaining_horizon))))
-        idx_plot = range(7)
-        for i in idx_plot:
-            plt.figure()
-            h1 = plt.plot(pred_out[:, i], label='Prediction')
-            h2 = plt.plot(groundtruth[:, i], c='r', label='Groundtruth')
-            plt.legend()
-            plt.show()
 
 
 def test_sample_efficiency(cfg):

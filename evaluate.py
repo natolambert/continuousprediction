@@ -12,7 +12,7 @@ import numpy as np
 
 from plot import *
 
-from mbrl_resources import Model
+# from mbrl_resources import Model
 
 log = logging.getLogger(__name__)
 
@@ -128,6 +128,7 @@ def evaluate(cfg):
         models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + model_type + cfg.model_dir)
 
     # Plot losses
+    # TODO: this
     # log.info("Plotting loss")
     # for model_type in models:
     #     model = models[model_type]

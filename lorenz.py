@@ -13,6 +13,7 @@ import logging
 # adapeted from https://scipython.com/blog/the-lorenz-attractor/
 log = logging.getLogger(__name__)
 
+# TODO (big): update this file to use the new setup that we've come up with
 
 def sim_lorenz(X, t, sigma, beta, rho):
     """The Lorenz equations."""
