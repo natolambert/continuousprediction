@@ -12,7 +12,7 @@ import numpy as np
 
 from plot import *
 
-from mbrl_resources import Model
+# from mbrl_resources import Model
 
 log = logging.getLogger(__name__)
 
@@ -85,6 +85,51 @@ def test_models(test_data, models):
     return outcomes
 
 
+def test_traj_ensemble(ensemble, test_data):
+    """
+    TODO: decide if this is useful or remove
+    Tests each model in the ensemble on one test trajectory and plots the output
+    """
+    traj = test_data
+    states = traj.states
+    actions = traj.actions
+    initial = states[0, :]
+
+    model_predictions = [[] for _ in range(ensemble.n)]
+    ensemble_predictions = []
+    for i in range(1, states.shape[0]):
+        x = np.hstack((initial, i, traj.P, traj.D, traj.target))
+        ens_pred = ensemble.predict(x)
+        ensemble_predictions.append(ens_pred.squeeze())
+        for j in range(len(ensemble.models)):
+            model = ensemble.models[j]
+            model_pred = model.predict(x)
+            model_predictions[j].append(model_pred.squeeze())
+
+    ensemble_predictions = np.array(ensemble_predictions)
+    model_predictions = [np.array(x) for x in model_predictions]
+    # print(len(model_predictions))
+
+    for i in range(7):
+        fig, ax = plt.subplots()
+        gt = states[:, i]
+        plt.title("Predictions on one dimension")
+        plt.xlabel("Timestep")
+        plt.ylabel("State Value")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        plt.plot(gt, c='k', label='Groundtruth')
+        plt.plot(ensemble_predictions[:, i])
+        for pred in model_predictions:
+            # print(pred.shape)
+            plt.plot(pred[:, i], c='b')
+
+        plt.legend()
+
+        plt.show()
+
+
 def unpack_config_models(cfg):
     """
     Reads the config to decide which models to use
@@ -128,17 +173,19 @@ def evaluate(cfg):
         models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + model_type + cfg.model_dir)
 
     # Plot losses
-    # log.info("Plotting loss")
-    # for model_type in models:
-    #     model = models[model_type]
-    #     if type(model) == Model:
-    #         loss_log = model.loss_log
-    #         plot_loss(loss_log, save_loc=graph_file, show=False, s=model_type)
-    #         plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=model_type)
-    #     else:
-    #         loss_log = model.acctrain
-    #         test_log = model.acctest
-    #         plot_loss(loss_log, save_loc=graph_file, show=False, s=model_type)
+    # TODO: this
+    log.info("Plotting loss")
+    os.mkdir("%s/loss" % graph_file)
+    for model_type in models:
+        model = models[model_type]
+        loss_log = model.acctrain
+        test_log = model.acctest
+        f = "%s/loss/%s" % (graph_file, model_type)
+        os.mkdir(f)
+        plot_loss(loss_log, model_type, save_loc=("%s/train_loss.pdf" % f), show=False,
+                  title=("Training Set Loss for %s" % model_type))
+        plot_loss(test_log, model_type, save_loc=("%s/test_loss.pdf" % f), show=False,
+                  title=("Test Set Loss for %s" % model_type))
 
 
     # Evaluate models
