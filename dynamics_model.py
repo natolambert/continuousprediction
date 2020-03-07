@@ -146,6 +146,7 @@ class DynamicsModel(object):
         """
         Use the model to predict values with x as input
         TODO: Fix hardcoding in this method
+        TODO: particle sampling approach for probabilistic model
         """
         if type(x) == np.ndarray:
             x = torch.from_numpy(x)

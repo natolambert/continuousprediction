@@ -242,9 +242,68 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             plt.close()
 
 
-def plot_loss(logs, save_loc=None, show=True, s=None):
+def plot_loss(logs, s, save_loc=None, show=True, title=None):
+    """
+    Plots the loss against the epoch number, designed to work with Nathan's DynamicsModel
+    TODO: only integers on x-axis
+
+    Parameters:
+        logs: a list of lists of loss values, one list for each net in the model
+        s: the string describing the model, ie 'd' or 'tpe'
+    """
+    plt.figure()
+    title = title or ("Training loss for %s" % label_dict[s])
+    plt.title(title)
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    if len(logs) == 1:
+        plt.plot(logs[0], marker=marker_dict[s], color=color_dict[s])
+    else:
+        for (i, logg) in enumerate(logs):
+            plt.plot(logg, marker=marker_dict[s], label=('Model %d' % (i+1)))
+    if save_loc:
+        plt.savefig(save_loc)
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):
+    """
+    Plots MSE graphs for the sequences given given
+
+    Parameters:
+    ------------
+    MSEs: a dictionary mapping model type key to an array of MSEs
+    """
+    fig, ax = plt.subplots()
+    title = title or "%s MSE for a variety of models" % ('Log ' if log_scale else '')
+    plt.title(title)
+    plt.xlabel("Timesteps")
+    plt.ylabel('Mean Square Error')
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    for key in MSEs:
+        mse = MSEs[key]
+        if log_scale:
+            plt.semilogy(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+        else:
+            plt.plot(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+    plt.legend()
+    if save_loc:
+        plt.savefig(save_loc)
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_loss_old(logs, save_loc=None, show=True, s=None):
     """
     Plots the training loss of all models
+
+    Old version, supports setups we don't use anymore
     """
     if type(logs) == dict:
         for key in logs:
@@ -292,9 +351,11 @@ def plot_loss(logs, save_loc=None, show=True, s=None):
             plt.close()
 
 
-def plot_loss_epoch(logs, save_loc=None, show=True, s=None):
+def plot_loss_epoch_old(logs, save_loc=None, show=True, s=None):
     """
     Plots the loss by epoch for each model in logs
+
+    Old version, less organized, supports setups that we don't use anymore
     """
     if type(logs) == dict:
         for key in logs:
@@ -340,51 +401,6 @@ def plot_loss_epoch(logs, save_loc=None, show=True, s=None):
             plt.show()
         else:
             plt.close()
-
-
-def plot_mse(MSEs, save_loc=None, show=True):
-    """
-    Plots MSE graphs for the sequences given given
-
-    Parameters:
-    ------------
-    MSEs: a dictionary mapping model type key to an array of MSEs
-    """
-    # Non-log version
-    fig, ax = plt.subplots()
-    plt.title("MSE for a variety of models")
-    plt.xlabel("Timesteps")
-    plt.ylabel('Mean Square Error')
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    for key in MSEs:
-        mse = MSEs[key]
-        plt.plot(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
-    plt.legend()
-    if save_loc:
-        plt.savefig(save_loc + "/mse.pdf")
-    if show:
-        plt.show()
-    else:
-        plt.close()
-
-    # Log version
-    fig, ax = plt.subplots()
-    plt.title("Log MSE for a variety of models")
-    plt.xlabel("Timesteps")
-    plt.ylabel('Mean Square Error')
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    for key in MSEs:
-        mse = MSEs[key]
-        plt.semilogy(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
-    plt.legend()
-    if save_loc:
-        plt.savefig(save_loc + "/mse_log.pdf")
-    if show:
-        plt.show()
-    else:
-        plt.close()
 
 
 @hydra.main(config_path='config-plot.yaml')

@@ -245,49 +245,6 @@ def collect_and_dataset(cfg):
 #           Plotting / Output             #
 ###########################################
 
-def test_traj_ensemble(ensemble, test_data):
-    """
-    TODO: this probably doesn't belong in this file
-    Tests each model in the ensemble on one test trajectory and plots the output
-    """
-    traj = test_data
-    states = traj.states
-    actions = traj.actions
-    initial = states[0, :]
-
-    model_predictions = [[] for _ in range(ensemble.n)]
-    ensemble_predictions = []
-    for i in range(1, states.shape[0]):
-        x = np.hstack((initial, i, traj.P, traj.D, traj.target))
-        ens_pred = ensemble.predict(x)
-        ensemble_predictions.append(ens_pred.squeeze())
-        for j in range(len(ensemble.models)):
-            model = ensemble.models[j]
-            model_pred = model.predict(x)
-            model_predictions[j].append(model_pred.squeeze())
-
-    ensemble_predictions = np.array(ensemble_predictions)
-    model_predictions = [np.array(x) for x in model_predictions]
-    # print(len(model_predictions))
-
-    for i in range(7):
-        fig, ax = plt.subplots()
-        gt = states[:, i]
-        plt.title("Predictions on one dimension")
-        plt.xlabel("Timestep")
-        plt.ylabel("State Value")
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-
-        plt.plot(gt, c='k', label='Groundtruth')
-        plt.plot(ensemble_predictions[:, i])
-        for pred in model_predictions:
-            # print(pred.shape)
-            plt.plot(pred[:, i], c='b')
-
-        plt.legend()
-
-        plt.show()
 
 
 def log_hyperparams(cfg):  # , configs, model_types):
