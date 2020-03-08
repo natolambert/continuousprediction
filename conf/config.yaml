@@ -1,11 +1,11 @@
 defaults:
-  - models: p
+  - models: d
   - envs: reacher
 
-collect_data: true
+collect_data: false
 train_models: true
 save_data: false
-save_models: false
+save_models: true
 data_dir: l500_t50_v5.dat
 model_dir: l500_t50_v5.dat
 plot: false
@@ -23,6 +23,10 @@ hydra:
         item_sep: ','
         exclude_keys: ['random_seed']
 
+plotting:
+  models: []
+  states: true
+  mse: true
 
 experiment:
   traj_len: 500
