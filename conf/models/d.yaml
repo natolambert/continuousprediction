@@ -17,9 +17,9 @@ model:
     state:
       class: sklearn.preprocessing.StandardScaler
       #Choose between standard scaler and min max scaler
-      """class: sklearn.preprocessing.MinMaxScaler
-            params:
-              feature_range: [-1.,1.]"""
+      #class: sklearn.preprocessing.MinMaxScaler
+        #params:
+          #feature_range: [-1.,1.]"""
     action:
       class: sklearn.preprocessing.StandardScaler
     output:
