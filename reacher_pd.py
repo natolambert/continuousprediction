@@ -327,7 +327,7 @@ def contpred(cfg):
     ens = cfg.model.ensemble
 
     # for model_type in model_types:
-    log.info(f"Training model P:{[prob]}, T:{traj}, E:{ens}")
+    log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
     # model_file = 'model_%s.pth.tar' % model_type
 
     # dataset = traj_dataset if traj else one_step_dataset

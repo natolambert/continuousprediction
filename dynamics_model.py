@@ -59,7 +59,7 @@ class Net(nn.Module):
             inputParams = input[:, cfg.env.state_size+1:]
             normStates = self.stateScaler.transform(inputStates)
             normIndex = self.indexScaler.transform(inputIndex)
-            normParams = self.paramScaler.transform(inputP)
+            normParams = self.paramScaler.transform(inputParams)
             return np.hstack((normStates, normIndex, normParams))
         else:
             inputStates = input[:, :cfg.env.state_size]
