@@ -42,28 +42,22 @@ class Net(nn.Module):
         x = self.features(x)
         return x
 
-    def testPreprocess(self, input):
-        if(input.shape[1] == 26):
-            inputStates = input[:, :21]
-            inputActions = input[:, 21:]
+    def testPreprocess(self, input, cfg):
+        if(cfg.model.traj):
+            inputStates = input[:, :cfg.env.state_size]
+            inputIndex = input[:, cfg.env.state_size]
+            inputParams = input[:, cfg.env.state_size+1:]
+            normStates = self.stateScaler.transform(inputStates)
+            normIndex = self.indexScaler.transform(inputIndex)
+            normParams = self.paramScaler.transform(inputP)
+            return np.hstack((normStates, normIndex, normParams))
+        else:
+            inputStates = input[:, :cfg.env.state_size]
+            inputActions = input[:, cfg.env.state_size:]
             normStates = self.stateScaler.transform(inputStates)
             normActions = self.actionScaler.transform(inputActions)
             return np.hstack((normStates, normActions))
-        elif(input.shape[1] == 37):
-            inputStates = input[:, :21]
-            inputIndex = input[:, 21]
-            inputP = input[:, 22:27]
-            inputD = input[:, 27:32]
-            inputTargets = input[:, 32:]
-            normStates = self.stateScaler.transform(inputStates)
-            normIndex = self.indexScaler.transform(inputIndex)
-            normP = self.PScaler.transform(inputP)
-            normD = self.DScaler.transform(inputD)
-            normTargets = self.targetScaler.transform(inputTargets)
-            return np.hstack((normStates, normIndex, normP, normD, normTargets))
-        else:
-            print("Incorrect dataset length, no normalization performed")
-            return input
+
     def testPostprocess(self, output):
         return self.outputScaler.inverse_transform(output)
 
@@ -76,13 +70,34 @@ class Net(nn.Module):
         # 26 -> one-step, 37 -> trajectory
         input = dataset[0]
         output = dataset[1]
-        if(input.shape[1] == 26):
+        if(cfg.model.traj):
+            self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
+            self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
+            self.paramScaler = hydra.utils.instantiate(cfg.model.preprocess.param)
+            self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
+
+            inputStates = input[:, :cfg.env.state_size]
+            inputIndex = input[:, cfg.env.state_size]
+            inputParams = input[:, cfg.env.state_size+1:]
+
+            self.stateScaler.fit(inputStates)
+            self.indexScaler.fit(inputIndex)
+            self.paramScaler.fit(inputParams)
+            self.outputScaler.fit(output)
+
+            normStates = self.stateScaler.transform(inputStates)
+            normIndex = self.indexScaler.transform(inputIndex)
+            normParams = self.paramScaler.transform(inputParams)
+            normOutput = self.outputScaler.transform(output)
+            normInput = np.hstack((normStates, normIndex, normParams))
+            return list(zip(normInput, normOutput))
+        else:
             self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
             self.actionScaler = hydra.utils.instantiate(cfg.model.preprocess.action)
             self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
 
-            inputStates = input[:, :21]
-            inputActions = input[:, 21:]
+            inputStates = input[:, :cfg.env.state_size]
+            inputActions = input[:, cfg.env.state_size:]
 
             stateScaler.fit(inputStates)
             actionScaler.fit(inputActions)
@@ -93,38 +108,6 @@ class Net(nn.Module):
             normOutput = self.outputScaler.transform(output)
             normInput = np.hstack((normStates, normActions))
             return list(zip(normInput, normOutput))
-        elif(input.shape[1] == 37):
-            self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
-            self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
-            self.PScaler = hydra.utils.instantiate(cfg.model.preprocess.P)
-            self.DScaler = hydra.utils.instantiate(cfg.model.preprocess.D)
-            self.targetScaler = hydra.utils.instantiate(cfg.model.preprocess.target)
-            self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
-
-            inputStates = input[:, :21]
-            inputIndex = input[:, 21]
-            inputP = input[:, 22:27]
-            inputD = input[:, 27:32]
-            inputTargets = input[:, 32:]
-
-            stateScaler.fit(inputStates)
-            indexScaler.fit(inputIndex)
-            PScaler.fit(inputP)
-            DScaler.fit(inputD)
-            targetScaler.fit(inputTargets)
-            outputScaler.fit(output)
-
-            normStates = self.stateScaler.transform(inputStates)
-            normIndex = self.indexScaler.transform(inputIndex)
-            normP = self.PScaler.transform(inputP)
-            normD = self.DScaler.transform(inputD)
-            normTargets = self.targetScaler.transform(inputTargets)
-            normOutput = self.outputScaler.transform(output)
-            normInput = np.hstack((normStates, normIndex, normP, normD, normTargets))
-            return list(zip(normInput, normOutput))
-        else:
-            print("Incorrect dataset length, no normalization performed")
-            return list(zip(input, output))
 
     def optimize(self, dataset, cfg):
         from torch.utils.data import DataLoader
@@ -178,6 +161,7 @@ class DynamicsModel(object):
         self.ens = cfg.model.ensemble
         self.traj = cfg.model.traj
         self.prob = cfg.model.prob
+        self.cfg = cfg
 
         # Setup for data structure
         if self.ens:
@@ -203,7 +187,7 @@ class DynamicsModel(object):
     def predict(self, x):
         prediction = torch.zeros(self.n_out)
         for n in self.nets:
-            scaledInput = n.testPreprocess(x)
+            scaledInput = n.testPreprocess(x, self.cfg)
             prediction += n.testPostprocess(n.forward(x)) / len(self.nets)
         if self.traj:
             return prediction
