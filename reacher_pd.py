@@ -20,7 +20,7 @@ import torch
 # import torch.nn as nn
 # import torch.nn.functional as F
 # import torch.backends.cudnn as cudnn
-# import gym
+import gym
 from envs import *
 
 import hydra
@@ -75,6 +75,7 @@ def create_dataset_traj(data, control_params=True, threshold=0):
     # data_in, data_out = shuffle(data_in, data_out)
     data_in = np.array(data_in)
     data_out = np.array(data_out)
+
     return data_in, data_out
 
 
@@ -326,7 +327,7 @@ def contpred(cfg):
     ens = cfg.model.ensemble
 
     # for model_type in model_types:
-    log.info(f"Training model P:{[prob]}, T:{traj}, E:{ens}")
+    log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
     # model_file = 'model_%s.pth.tar' % model_type
 
     # dataset = traj_dataset if traj else one_step_dataset
