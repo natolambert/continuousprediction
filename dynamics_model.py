@@ -72,7 +72,7 @@ class Net(nn.Module):
             return np.hstack((normStates, normActions))
 
     def testPostprocess(self, output):
-        return self.outputScaler.inverse_transform(output)
+        return torch.from_numpy(self.outputScaler.inverse_transform(output.detach().numpy()))
 
     def preprocess(self, dataset, cfg):
 
@@ -228,7 +228,10 @@ class DynamicsModel(object):
         prediction = torch.zeros((x.shape[0], self.n_out))
         for n in self.nets:
             scaledInput = n.testPreprocess(x, self.cfg)
-            prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
+            if self.prob:
+                prediction += n.forward(scaledInput)/len(self.nets)
+            else:
+                prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
         if self.traj:
             return prediction[:,:self.cfg.env.state_size]
         else:
