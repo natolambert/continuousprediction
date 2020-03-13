@@ -57,6 +57,9 @@ class Net(nn.Module):
             inputStates = input[:, :cfg.env.state_size]
             inputIndex = input[:, cfg.env.state_size]
             inputParams = input[:, cfg.env.state_size+1:]
+
+            inputIndex = inputIndex.reshape(-1, 1)
+
             normStates = self.stateScaler.transform(inputStates)
             normIndex = self.indexScaler.transform(inputIndex)
             normParams = self.paramScaler.transform(inputParams)
@@ -89,6 +92,9 @@ class Net(nn.Module):
             inputStates = input[:, :cfg.env.state_size]
             inputIndex = input[:, cfg.env.state_size]
             inputParams = input[:, cfg.env.state_size+1:]
+
+            # reshape index for one feature length
+            inputIndex = inputIndex.reshape(-1, 1)
 
             self.stateScaler.fit(inputStates)
             self.indexScaler.fit(inputIndex)
