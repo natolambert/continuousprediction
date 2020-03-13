@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from collections import OrderedDict
+import hydra
 
 
 class Net(nn.Module):
@@ -51,10 +52,76 @@ class Net(nn.Module):
         x = self.features(x.float())
         return x
 
+    def testPreprocess(self, input, cfg):
+        if(cfg.model.traj):
+            inputStates = input[:, :cfg.env.state_size]
+            inputIndex = input[:, cfg.env.state_size]
+            inputParams = input[:, cfg.env.state_size+1:]
+            normStates = self.stateScaler.transform(inputStates)
+            normIndex = self.indexScaler.transform(inputIndex)
+            normParams = self.paramScaler.transform(inputParams)
+            return np.hstack((normStates, normIndex, normParams))
+        else:
+            inputStates = input[:, :cfg.env.state_size]
+            inputActions = input[:, cfg.env.state_size:]
+            normStates = self.stateScaler.transform(inputStates)
+            normActions = self.actionScaler.transform(inputActions)
+            return np.hstack((normStates, normActions))
+
+    def testPostprocess(self, output):
+        return self.outputScaler.inverse_transform(output)
+
+    def preprocess(self, dataset, cfg):
+
+        # Select scaling, minmax vs standard (fits to a gaussian with unit variance and 0 mean)
+        # TODO: Selection should be in config
+        # StandardScaler, MinMaxScaler
+        # TODO: Instead of hardcoding, include in config, trajectory vs. one-step, length of different inputs, etc.
+        # 26 -> one-step, 37 -> trajectory
+        input = dataset[0]
+        output = dataset[1]
+        if(cfg.model.traj):
+            self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
+            self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
+            self.paramScaler = hydra.utils.instantiate(cfg.model.preprocess.param)
+            self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
+
+            inputStates = input[:, :cfg.env.state_size]
+            inputIndex = input[:, cfg.env.state_size]
+            inputParams = input[:, cfg.env.state_size+1:]
+
+            self.stateScaler.fit(inputStates)
+            self.indexScaler.fit(inputIndex)
+            self.paramScaler.fit(inputParams)
+            self.outputScaler.fit(output)
+
+            normStates = self.stateScaler.transform(inputStates)
+            normIndex = self.indexScaler.transform(inputIndex)
+            normParams = self.paramScaler.transform(inputParams)
+            normOutput = self.outputScaler.transform(output)
+            normInput = np.hstack((normStates, normIndex, normParams))
+            return list(zip(normInput, normOutput))
+        else:
+            self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
+            self.actionScaler = hydra.utils.instantiate(cfg.model.preprocess.action)
+            self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
+
+            inputStates = input[:, :cfg.env.state_size]
+            inputActions = input[:, cfg.env.state_size:]
+
+            self.stateScaler.fit(inputStates)
+            self.actionScaler.fit(inputActions)
+            self.outputScaler.fit(output)
+
+            normStates = self.stateScaler.transform(inputStates)
+            normActions = self.actionScaler.transform(inputActions)
+            normOutput = self.outputScaler.transform(output)
+            normInput = np.hstack((normStates, normActions))
+            return list(zip(normInput, normOutput))
+
     def optimize(self, dataset, cfg):
         """
         Uses dataset to train this net according to the parameters in cfg
-
         Returns:
             train_errors: a list of average errors for each epoch on the training data
             test_errors: a list of average errors for each epoch on the test data
@@ -72,8 +139,10 @@ class Net(nn.Module):
         optimizer = torch.optim.Adam(self.features.parameters(), lr=lr)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.7)
 
+        # data preprocessing for normalization
+        dataset = self.preprocess(dataset, cfg)
+
         # Puts it in PyTorch dataset form and then converts to DataLoader
-        dataset = list(zip(dataset[0], dataset[1]))
         trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=bs, shuffle=True)
         testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=bs, shuffle=True)
 
@@ -112,7 +181,6 @@ class Net(nn.Module):
 class DynamicsModel(object):
     """
     Wrapper class for a general dynamics model.
-
     The model is an ensemble of neural nets. For cases where the model should not be an ensemble it is just
     an ensemble of 1 net.
     """
@@ -120,6 +188,7 @@ class DynamicsModel(object):
         self.ens = cfg.model.ensemble
         self.traj = cfg.model.traj
         self.prob = cfg.model.prob
+        self.cfg = cfg
 
         # Setup for data structure
         if self.ens:
@@ -152,11 +221,12 @@ class DynamicsModel(object):
             x = torch.from_numpy(x)
         prediction = torch.zeros((x.shape[0], self.n_out))
         for n in self.nets:
-            prediction += n.forward(x) / len(self.nets)
+            scaledInput = n.testPreprocess(x, self.cfg)
+            prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
         if self.traj:
-            return prediction[:,:21]
+            return prediction[:,:self.cfg.env.state_size]
         else:
-            return x[:,:21] + prediction[:,:21]
+            return x[:,:self.cfg.env.state_size] + prediction[:,:self.cfg.env.state_size]
 
     def train(self, dataset, cfg):
         acctest_l = []
