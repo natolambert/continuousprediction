@@ -13,6 +13,7 @@ model:
     name: Adam
     split: .8
     lr: .0001
+    max_size: 0
   preprocess:
     state:
       class: sklearn.preprocessing.StandardScaler

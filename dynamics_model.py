@@ -53,10 +53,10 @@ class Net(nn.Module):
         return x
 
     def testPreprocess(self, input, cfg):
-        if(cfg.model.traj):
+        if (cfg.model.traj):
             inputStates = input[:, :cfg.env.state_size]
             inputIndex = input[:, cfg.env.state_size]
-            inputParams = input[:, cfg.env.state_size+1:]
+            inputParams = input[:, cfg.env.state_size + 1:]
 
             inputIndex = inputIndex.reshape(-1, 1)
 
@@ -83,7 +83,7 @@ class Net(nn.Module):
         # 26 -> one-step, 37 -> trajectory
         input = dataset[0]
         output = dataset[1]
-        if(cfg.model.traj):
+        if (cfg.model.traj):
             self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
             self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
             self.paramScaler = hydra.utils.instantiate(cfg.model.preprocess.param)
@@ -91,7 +91,7 @@ class Net(nn.Module):
 
             inputStates = input[:, :cfg.env.state_size]
             inputIndex = input[:, cfg.env.state_size]
-            inputParams = input[:, cfg.env.state_size+1:]
+            inputParams = input[:, cfg.env.state_size + 1:]
 
             # reshape index for one feature length
             inputIndex = inputIndex.reshape(-1, 1)
@@ -148,6 +148,10 @@ class Net(nn.Module):
         # data preprocessing for normalization
         dataset = self.preprocess(dataset, cfg)
 
+        if cfg.model.optimizer.max_size > 0:
+            import random
+            dataset = random.sample(dataset, cfg.model.optimizer.max_size)
+
         # Puts it in PyTorch dataset form and then converts to DataLoader
         trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=bs, shuffle=True)
         testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=bs, shuffle=True)
@@ -156,7 +160,7 @@ class Net(nn.Module):
         train_errors = []
         test_errors = []
         for epoch in range(epochs):
-            print("    Epoch %d" % (epoch+1))
+            print("    Epoch %d" % (epoch + 1))
 
             train_error = 0
             test_error = 0
@@ -190,6 +194,7 @@ class DynamicsModel(object):
     The model is an ensemble of neural nets. For cases where the model should not be an ensemble it is just
     an ensemble of 1 net.
     """
+
     def __init__(self, cfg):
         self.ens = cfg.model.ensemble
         self.traj = cfg.model.traj
@@ -229,13 +234,13 @@ class DynamicsModel(object):
         for n in self.nets:
             scaledInput = n.testPreprocess(x, self.cfg)
             if self.prob:
-                prediction += n.forward(scaledInput)/len(self.nets)
+                prediction += n.forward(scaledInput) / len(self.nets)
             else:
                 prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
         if self.traj:
-            return prediction[:,:self.cfg.env.state_size]
+            return prediction[:, :self.cfg.env.state_size]
         else:
-            return x[:,:self.cfg.env.state_size] + prediction[:,:self.cfg.env.state_size]
+            return x[:, :self.cfg.env.state_size] + prediction[:, :self.cfg.env.state_size]
 
     def train(self, dataset, cfg):
         acctest_l = []
@@ -250,7 +255,7 @@ class DynamicsModel(object):
 
             # iterate through the validation sets
             for (i, n), (train_idx, test_idx) in zip(enumerate(self.nets), kf.split(dataset[0])):
-                print("  Model %d" % (i+1))
+                print("  Model %d" % (i + 1))
                 # only train on training data to ensure diversity
                 sub_data = (dataset[0][train_idx], dataset[1][train_idx])
                 train_e, test_e = n.optimize(sub_data, cfg)
@@ -264,6 +269,7 @@ class DynamicsModel(object):
         self.acctrain, self.acctest = acctrain_l, acctest_l
 
         return acctrain_l, acctest_l
+
 
 class ProbLoss(nn.Module):
     """

@@ -12,7 +12,8 @@ model:
     batch: 32
     name: Adam
     split: .8
-    lr: .01
+    lr: .00005
+    max_size: 0
   preprocess:
     state:
       class: sklearn.preprocessing.StandardScaler

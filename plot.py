@@ -309,26 +309,26 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
         fig = add_line(fig, test_logs, type="Test", ind=-1)
 
     fig.update_layout(font=dict(
-                            family="Times New Roman, Times, serif",
-                            size=24,
-                            color="black"
-                        ),
-        title='Training Plot',
-                      xaxis_title='Epoch',
-                      yaxis_title='Loss',
-                      plot_bgcolor='white',
-                      width=1000,
-                      height=1000,
-                      margin=dict(l=10, r=0, t=0, b=10),
-                      xaxis=dict(
-                          showline=True,
-                          showgrid=False,
-                          showticklabels=True, ),
-                      yaxis=dict(
-                          showline=True,
-                          showgrid=False,
-                          showticklabels=True, ),
-                      )
+            family="Times New Roman, Times, serif",
+            size=24,
+            color="black"
+        ),
+        title='Training Plot ' + cfg.model.str,
+        xaxis_title='Epoch',
+        yaxis_title='Loss',
+        plot_bgcolor='white',
+        width=1000,
+        height=1000,
+        margin=dict(l=10, r=0, b=10),
+        xaxis=dict(
+            showline=True,
+            showgrid=False,
+            showticklabels=True, ),
+        yaxis=dict(
+            showline=True,
+            showgrid=False,
+            showticklabels=True, ),
+    )
     if show: fig.show()
     fig.write_image(save_loc + ".png")
 
@@ -387,110 +387,6 @@ def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):
         plt.show()
     else:
         plt.close()
-
-
-def plot_loss_old(logs, save_loc=None, show=True, s=None):
-    """
-    Plots the training loss of all models
-
-    Old version, supports setups we don't use anymore
-    """
-    if type(logs) == dict:
-        for key in logs:
-            plt.figure()
-            log = logs[key]
-            plt.plot(np.array(log.training_error[10:]), c=color_dict[key], label=label_dict[key])
-            plt.title("Training Loss for %s" % label_dict[key])
-            plt.xlabel("Batch")
-            plt.ylabel("Loss")
-            if save_loc:
-                plt.savefig("%s/loss_%s.pdf" % (save_loc, key))
-            if show:
-                plt.show()
-            else:
-                plt.close()
-    elif type(logs) == DotMap:
-        plt.figure()
-        if s not in label_dict:
-            raise ValueError("s must be a model type when plotting one model")
-        plt.plot(np.array(logs.training_error[10:]), c=color_dict[s], label=label_dict[s])
-        plt.title("Training Loss for %s" % label_dict[s])
-        plt.xlabel("Batch")
-        plt.ylabel("Loss")
-        if save_loc:
-            plt.savefig("%s/loss_%s.pdf" % (save_loc, s))
-        if show:
-            plt.show()
-        else:
-            plt.close()
-    elif type(logs) == list:
-        plt.figure()
-        if s not in label_dict:
-            raise ValueError("s must be a model type when plotting one model")
-        for i in range(len(logs)):
-            log = logs[i]
-            plt.plot(np.array(log.training_error[10:]), label="Net %d" % i)
-        plt.title("Training Loss for %s Ensemble" % label_dict[s])
-        plt.xlabel("Batch")
-        plt.ylabel("Loss")
-        if save_loc:
-            plt.savefig("%s/loss_%s.pdf" % (save_loc, s))
-        if show:
-            plt.show()
-        else:
-            plt.close()
-
-
-def plot_loss_epoch_old(logs, save_loc=None, show=True, s=None):
-    """
-    Plots the loss by epoch for each model in logs
-
-    Old version, less organized, supports setups that we don't use anymore
-    """
-    if type(logs) == dict:
-        for key in logs:
-            plt.figure()
-            log = logs[key]
-            plt.bar(np.arange(len(log.training_error_epoch)), np.array(log.training_error_epoch), color=color_dict[key])
-            plt.title("Epoch Training Loss for %s" % label_dict[key])
-            plt.xlabel("Epoch")
-            plt.ylabel("Total Loss")
-            if save_loc:
-                plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, key))
-            if show:
-                plt.show()
-            else:
-                plt.close()
-    elif type(logs) == DotMap:
-        plt.figure()
-        if s not in label_dict:
-            raise ValueError("s must be a model type when plotting one model")
-        plt.bar(np.arange(len(logs.training_error_epoch)), np.array(logs.training_error_epoch), color=color_dict[s])
-        plt.title("Epoch Training Loss for %s" % label_dict[s])
-        plt.xlabel("Epoch")
-        plt.ylabel("Total Loss")
-        if save_loc:
-            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, s))
-        if show:
-            plt.show()
-        else:
-            plt.close()
-    elif type(logs) == list:
-        plt.figure()
-        if s not in label_dict:
-            raise ValueError("s must be a model type when plotting one model")
-        for i in range(len(logs)):
-            log = logs[i]
-            plt.plot(np.array(log.training_error[10:]), label="Net %d" % i)
-        plt.title("Epoch Training Loss for %s Ensemble" % label_dict[s])
-        plt.xlabel("Epoch")
-        plt.ylabel("Total Loss")
-        if save_loc:
-            plt.savefig("%s/loss_epoch_%s.pdf" % (save_loc, s))
-        if show:
-            plt.show()
-        else:
-            plt.close()
 
 
 @hydra.main(config_path='config-plot.yaml')
