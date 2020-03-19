@@ -29,7 +29,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from policy import PID
-from plot import plot_reacher
+from plot import plot_reacher, plot_loss
 
 from dynamics_model import DynamicsModel
 
@@ -344,7 +344,7 @@ def contpred(cfg):
         model = DynamicsModel(cfg)
         train_logs, test_logs = model.train(dataset, cfg)
 
-        # plot_loss(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
+        plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name+cfg.model.str, show=True)
         # plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
 
         if cfg.save_models:

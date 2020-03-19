@@ -63,20 +63,19 @@ def find_latest_checkpoint(cfg):
 
 
 def plot_reacher(states, actions):
-
     ar = np.stack(states)
     l = np.shape(ar)[0]
     xs = np.arange(l)
 
-    X = ar[:,-3]
-    Y = ar[:,-2]
-    Z = ar[:,-1]
+    X = ar[:, -3]
+    Y = ar[:, -2]
+    Z = ar[:, -1]
 
     actions = np.stack(actions)
 
     fig = plotly.subplots.make_subplots(rows=2, cols=1,
                                         subplot_titles=("Position", "Action - Torques"),
-                                        vertical_spacing=.15) #go.Figure()
+                                        vertical_spacing=.15)  # go.Figure()
     fig.add_trace(go.Scatter(x=xs, y=X, name='X',
                              line=dict(color='firebrick', width=4)), row=1, col=1)
     fig.add_trace(go.Scatter(x=xs, y=Y, name='Y',
@@ -84,15 +83,15 @@ def plot_reacher(states, actions):
     fig.add_trace(go.Scatter(x=xs, y=Z, name='Z',
                              line=dict(color='green', width=4)), row=1, col=1)
 
-    fig.add_trace(go.Scatter(x=xs, y=actions[:,0], name='M1',
+    fig.add_trace(go.Scatter(x=xs, y=actions[:, 0], name='M1',
                              line=dict(color='firebrick', width=4)), row=2, col=1)
-    fig.add_trace(go.Scatter(x=xs, y=actions[:,1], name='M2',
+    fig.add_trace(go.Scatter(x=xs, y=actions[:, 1], name='M2',
                              line=dict(color='royalblue', width=4)), row=2, col=1)
-    fig.add_trace(go.Scatter(x=xs, y=actions[:,2], name='M3',
+    fig.add_trace(go.Scatter(x=xs, y=actions[:, 2], name='M3',
                              line=dict(color='green', width=4)), row=2, col=1)
-    fig.add_trace(go.Scatter(x=xs, y=actions[:,3], name='M4',
+    fig.add_trace(go.Scatter(x=xs, y=actions[:, 3], name='M4',
                              line=dict(color='orange', width=4)), row=2, col=1)
-    fig.add_trace(go.Scatter(x=xs, y=actions[:,4], name='M5',
+    fig.add_trace(go.Scatter(x=xs, y=actions[:, 4], name='M5',
                              line=dict(color='black', width=4)), row=2, col=1)
 
     fig.update_layout(title='Position of Reacher Task',
@@ -102,11 +101,11 @@ def plot_reacher(states, actions):
                       xaxis=dict(
                           showline=True,
                           showgrid=False,
-                          showticklabels=True,),
+                          showticklabels=True, ),
                       yaxis=dict(
                           showline=True,
                           showgrid=False,
-                          showticklabels=True,),
+                          showticklabels=True, ),
                       )
     fig.show()
 
@@ -242,7 +241,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             plt.close()
 
 
-def plot_loss(logs, s, save_loc=None, show=True, title=None):
+def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None):
     """
     Plots the loss against the epoch number, designed to work with Nathan's DynamicsModel
     TODO: only integers on x-axis
@@ -251,22 +250,113 @@ def plot_loss(logs, s, save_loc=None, show=True, title=None):
         logs: a list of lists of loss values, one list for each net in the model
         s: the string describing the model, ie 'd' or 'tpe'
     """
-    plt.figure()
-    title = title or ("Training loss for %s" % label_dict[s])
-    plt.title(title)
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    if len(logs) == 1:
-        plt.plot(logs[0], marker=marker_dict[s], color=color_dict[s])
+    fig = plotly.subplots.make_subplots(rows=1, cols=1,
+                                        # subplot_titles=("Position", "Action - Torques"),
+                                        vertical_spacing=.15)  # go.Figure()
+    colors = [
+        '#1f77b4',  # muted blue
+        '#ff7f0e',  # safety orange
+        '#2ca02c',  # cooked asparagus green
+        '#d62728',  # brick red
+        '#9467bd',  # muted purple
+        '#8c564b',  # chestnut brown
+        '#e377c2',  # raspberry yogurt pink
+        '#7f7f7f',  # middle gray
+        '#bcbd22',  # curry yellow-green
+        '#17becf'  # blue-teal
+    ]
+
+    markers = [
+        "cross-open-dot",
+        "circle-open-dot",
+        "x-open-dot",
+        "triangle-up-open-dot",
+        "y-down-open",
+        "diamond-open-dot",
+        "hourglass-open",
+        "hash-open-dot",
+        "star-open-dot",
+        "square-open-dot",
+    ]
+
+    def add_line(fig, log, type, ind=-1):
+        if ind == -1:
+            name = type
+        else:
+            name = type + str(ind)
+        if type == 'Test':
+            fig.add_trace(go.Scatter(x=np.arange(len(log)).tolist(), y=log,
+                                     name=name, legendgroup=type,
+                                     line=dict(color=colors[ind], width=4),
+                                     marker=dict(color=colors[ind], symbol=markers[ind], size=16)),
+                          row=1, col=1)
+        else:
+            fig.add_trace(go.Scatter(x=np.arange(len(log)).tolist(), y=log,
+                                     name=name, legendgroup=type,
+                                     line=dict(color=colors[ind], width=4, dash='dash'),
+                                     marker=dict(color=colors[ind], symbol=markers[ind], size=16)),
+                          row=1, col=1)
+        return fig
+
+    if len(np.shape(train_logs)) > 1:
+        # ENSEMBLE
+        for i, (train, test) in enumerate(zip(train_logs, test_logs)):
+            fig = add_line(fig, train, type="Train", ind=i)
+            fig = add_line(fig, test, type="Test", ind=i)
     else:
-        for (i, logg) in enumerate(logs):
-            plt.plot(logg, marker=marker_dict[s], label=('Model %d' % (i+1)))
-    if save_loc:
-        plt.savefig(save_loc)
-    if show:
-        plt.show()
-    else:
-        plt.close()
+        # BASE
+        fig = add_line(fig, train_logs, type="Train", ind=-1)
+        fig = add_line(fig, test_logs, type="Test", ind=-1)
+
+    fig.update_layout(font=dict(
+                            family="Times New Roman, Times, serif",
+                            size=24,
+                            color="black"
+                        ),
+        title='Training Plot',
+                      xaxis_title='Epoch',
+                      yaxis_title='Loss',
+                      plot_bgcolor='white',
+                      width=1000,
+                      height=1000,
+                      margin=dict(l=10, r=0, t=0, b=10),
+                      xaxis=dict(
+                          showline=True,
+                          showgrid=False,
+                          showticklabels=True, ),
+                      yaxis=dict(
+                          showline=True,
+                          showgrid=False,
+                          showticklabels=True, ),
+                      )
+    if show: fig.show()
+    fig.write_image(save_loc + ".png")
+
+    # CODE FOR ADDING MARKERS EVERY FEW IN PLOTLY
+    # DO NOT DELETE
+    """
+    def add_marker(err_traces, color=[], symbol=None, skip=None):
+       mark_every = 100
+       size = 85
+       l = len(err_traces[0]['x'])
+       if skip is not None:
+           size_list = [0] * skip + [size] + [0] * (mark_every - 1 - skip)
+       else:
+           size_list = [size] + [0] * (mark_every - 1)
+       repeat = int(l / mark_every)
+       size_list = size_list * repeat
+       line = err_traces[0]
+       line['mode'] = 'lines+markers'
+       line['marker'] = dict(
+           color=line['line']['color'],
+           size=size_list,
+           symbol="x" if symbol is None else symbol,
+           line=dict(width=4,
+                     color='rgba(1,1,1,1)')
+       )
+       err_traces[0] = line
+   return err_traces
+   """
 
 
 def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):
@@ -406,8 +496,6 @@ def plot_loss_epoch_old(logs, save_loc=None, show=True, s=None):
 @hydra.main(config_path='config-plot.yaml')
 def plot(cfg):
     pass
-
-
 
     # data = Data([new_trace1])
     #

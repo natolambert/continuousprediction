@@ -179,7 +179,7 @@ class Net(nn.Module):
                 test_error += loss.item() / (len(testLoader) * bs)
 
             train_errors.append(train_error)
-            test_errors.append(test_error)
+            test_errors.append(test_error.item())
 
         return train_errors, test_errors
 
