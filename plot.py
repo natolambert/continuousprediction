@@ -183,35 +183,8 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
     if idx_plot is None:
         idx_plot = list(range(dx))
 
-    for i in idx_plot:
-        fig, ax = plt.subplots()
-        gt = ground_truth[:, i]
-        plt.title("Predictions on one dimension")
-        plt.xlabel("Timestep")
-        plt.ylabel("State Value")
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-
-        plt.plot(gt, c='k', label='Groundtruth')
-        for key in predictions:
-            # print(key)
-            pred = predictions[key][:, i]
-            # TODO: find a better way to do what the following line does
-            chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-            plt.plot(chopped, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
-
-        plt.legend()
-
-        if save_loc:
-            plt.savefig(save_loc + "/state%d.pdf" % i)
-        if show:
-            plt.show()
-        else:
-            plt.close()
-
     if plot_avg:
         fig, ax = plt.subplots()
-        gt = ground_truth[:, i]
         plt.title("Predictions Averaged")
         plt.xlabel("Timestep")
         plt.ylabel("Average State Value")
@@ -234,11 +207,39 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
         # plt.ylim(-.5, 1.5)
         plt.legend()
         if save_loc:
-            plt.savefig(save_loc + "/avg_states.pdf")
+            plt.savefig(save_loc + "-avg_states.pdf")
         if show:
             plt.show()
         else:
             plt.close()
+    else:
+        for i in idx_plot:
+            fig, ax = plt.subplots()
+            gt = ground_truth[:, i]
+            plt.title("Predictions on one dimension")
+            plt.xlabel("Timestep")
+            plt.ylabel("State Value")
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+
+            plt.plot(gt, c='k', label='Groundtruth')
+            for key in predictions:
+                # print(key)
+                pred = predictions[key][:, i]
+                # TODO: find a better way to do what the following line does
+                chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
+                plt.plot(chopped, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+
+            plt.legend()
+
+            if save_loc:
+                plt.savefig(save_loc + "-state%d.pdf" % i)
+            if show:
+                plt.show()
+            else:
+                plt.close()
+
+
 
 
 def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None):

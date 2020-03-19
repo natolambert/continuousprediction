@@ -63,23 +63,21 @@ def test_models(test_data, models):
         groundtruth = states[:, i]
         for key in models:
             model = models[key]
-
             if 't' in key:
-                prediction = model.predict(np.hstack((initials, i*np.ones((N, 1)), P_param, D_param, target)))
+                prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
                 prediction = np.array(prediction.detach())
             else:
-                prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
+                prediction = model.predict(np.hstack((currents[key].reshape((1,-1)), actions[:, i - 1, :])))
                 prediction = np.array(prediction.detach())
-            # if 'p' in key:
-            #     prediction = prediction[:, :D // 2]
 
-            predictions[key].append(prediction.squeeze())
-            MSEs[key].append(np.square(groundtruth - prediction).mean(axis=1))
+            predictions[key].append(prediction)
+            MSEs[key].append(np.square(groundtruth - prediction.squeeze()).mean(axis=1))
             currents[key] = prediction.squeeze()
             # print(currents[key].shape)
 
     MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
-    predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in MSEs}
+    # predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions} # vectorized verion
+    predictions = {key: np.stack(predictions[key]).squeeze() for key in predictions}
 
     outcomes = {'mse': MSEs, 'predictions': predictions}
     return outcomes
@@ -155,62 +153,45 @@ def unpack_config_models(cfg):
     return model_types
 
 
-@hydra.main(config_path='conf/config.yaml')
+@hydra.main(config_path='conf/eval.yaml')
 def evaluate(cfg):
     # print("here")
-    graph_file = 'graphs'
+    graph_file = 'Plots'
     os.mkdir(graph_file)
 
     # Load test data
     log.info(f"Loading default data")
-    (_, test_data) = torch.load(
+    (train_data, test_data) = torch.load(
         hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
 
     # Load models
     model_types = cfg.plotting.models
     models = {}
     for model_type in model_types:
-        models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + model_type + cfg.model_dir)
-
-    # Plot losses
-    # TODO: this
-    log.info("Plotting loss")
-    os.mkdir("%s/loss" % graph_file)
-    for model_type in models:
-        model = models[model_type]
-        loss_log = model.acctrain
-        test_log = model.acctest
-        f = "%s/loss/%s" % (graph_file, model_type)
-        os.mkdir(f)
-        plot_loss(loss_log, model_type, save_loc=("%s/train_loss.pdf" % f), show=False,
-                  title=("Training Set Loss for %s" % model_type))
-        plot_loss(test_log, model_type, save_loc=("%s/test_loss.pdf" % f), show=False,
-                  title=("Test Set Loss for %s" % model_type))
-
-
-    # Evaluate models
-    outcomes = test_models(test_data, models)
-
-    # Plot shit
-    MSEs, predictions = outcomes['mse'], outcomes['predictions']
-    MSE_avg = {key: np.average(MSEs[key], axis=0) for key in MSEs}
+        models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + model_type + ".dat")
 
     log.info("Plotting states")
-    for i in range(len(test_data)):
-        gt = test_data[i].states
-        mse = {key: MSEs[key][i] for key in MSEs}
-        pred = {key: predictions[key][i] for key in predictions}
+    for i in range(cfg.plotting.num_eval):
+        # Evaluate models
+        idx = np.random.randint(0, len(train_data))
+        outcomes = test_models([train_data[idx]], models)
 
-        file = "%s/test%d" % (graph_file, i + 1)
-        os.mkdir(file)
+        # Plot shit
+        # TODO account for numerical errors with predictions
+        MSEs, predictions = outcomes['mse'], outcomes['predictions']
+        MSE_avg = {key: np.average(MSEs[key], axis=0) for key in MSEs}
 
-        plot_states(gt, pred, idx_plot=[0, 1, 2, 3, 4, 5, 6], save_loc=file, show=False)
-        plot_mse(mse, save_loc=file, show=False)
+        gt = train_data[idx].states
+        mse = {key: MSEs[key].squeeze() for key in MSEs}
+        pred = {key: predictions[key] for key in predictions}
 
-    # plot_mse(MSE_avg, save_loc=file+"/mse_avg")
+        # file = "%s/test%d" % (graph_file, i + 1)
+        # os.mkdir(file)
 
+        # plot_states(gt, pred, save_loc="Predictions; traj-" + str(idx), idx_plot=[0,1,2,3], show=False)
+        plot_mse(mse, save_loc="Error; traj-" + str(idx), show=False)
 
-
+    plot_mse(MSE_avg, save_loc=file + "/mse_avg")
 
 
 if __name__ == '__main__':
