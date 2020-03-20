@@ -20,7 +20,7 @@ hydra:
         exclude_keys: ['random_seed']
 
 plotting:
-  models: [d, de, p, pe, t, te, tp, tpe]
+  models: [d, de, p, pe, t, te, tp,tpe]
   num_eval: 5
   states: true
   mse: true

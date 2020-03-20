@@ -30,6 +30,15 @@ color_dict = {'t': 'r',
               'de': '#3660b5',
               'pe': '#52b536',
               'tpe': '#b57f11'}
+color_dict_plotly = {'t': 'rgb(200,0,0)',
+              'd': 'rgb(0,0,128)',
+              'p': 'rgb(0,128,0)',
+              'tp': 'rgb(200,200,0)',
+              'te': 'rgb(180,20,20)',
+              'de': 'rgb(20,20,128)',
+              'pe': 'rgb(20,128,20)',
+              'tpe': 'rgb(180,180,25)'}
+
 marker_dict = {'t': 's',
                'd': 'o',
                'p': 'D',
@@ -38,6 +47,15 @@ marker_dict = {'t': 's',
                'de': 'o',
                'pe': 'D',
                'tpe': 'p', }
+
+marker_dict_plotly = {'t': 'cross-open-dot',
+                   'd': 'circle-open-dot',
+                   'p': 'x-open-dot',
+                   'tp': 'triangle-up-open-dot',
+                   'te': 'y-down-open',
+                   'de': 'diamond-open-dot',
+                   'pe': 'hourglass-open',
+                   'tpe': 'hash-open-dot', }
 
 
 def find_latest_checkpoint(cfg):
@@ -143,7 +161,7 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
     # yavg = np.median(y, 0)
 
     err_traces = [
-        dict(x=xs[0], y=ymed.tolist(), mode='lines', name=name, type='line', legendgroup=f"group-{name}",
+        dict(x=xs[0], y=ymed.tolist(), mode='lines', name=name, type='scatter', legendgroup=f"group-{name}",
              line=dict(color=color, width=4))]
 
     intensity = .3
@@ -158,12 +176,12 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
         low = out[1][2 * i + 1, :]
 
         err_traces.append(dict(
-            x=xs[0] + xs[0][::-1], type='line',
+            x=xs[0] + xs[0][::-1], type='scatter',
             y=(high).tolist() + (low).tolist()[::-1],
             fill='toself',
             fillcolor=(color[:-1] + str(f", {intensity})")).replace('rgb', 'rgba')
             if color is not None else None,
-            line=dict(color='transparent'),
+            line=dict(color='rgba(0,0,0,0.0)'),
             legendgroup=f"group-{name}",
             showlegend=False,
             name=name + str(f"_std{p}") if name is not None else None,
@@ -203,7 +221,8 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             for i in idx_plot:
                 p = np.hstack((p, pred[:, i:i + 1]))
             p_avg = np.average(p[:, 1:], axis=1)
-            plt.plot(p_avg, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key], markevery=50)
+            plt.plot(p_avg, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
+                     markevery=50)
         # plt.ylim(-.5, 1.5)
         plt.legend()
         if save_loc:
@@ -228,7 +247,8 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
                 pred = predictions[key][:, i]
                 # TODO: find a better way to do what the following line does
                 chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-                plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key], markevery=50)
+                plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
+                         markevery=50)
 
             plt.legend()
 
@@ -238,8 +258,6 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
                 plt.show()
             else:
                 plt.close()
-
-
 
 
 def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None):
@@ -310,10 +328,10 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
         fig = add_line(fig, test_logs, type="Test", ind=-1)
 
     fig.update_layout(font=dict(
-            family="Times New Roman, Times, serif",
-            size=24,
-            color="black"
-        ),
+        family="Times New Roman, Times, serif",
+        size=24,
+        color="black"
+    ),
         title='Training Plot ' + cfg.model.str,
         xaxis_title='Epoch',
         yaxis_title='Loss',
@@ -335,29 +353,69 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
 
     # CODE FOR ADDING MARKERS EVERY FEW IN PLOTLY
     # DO NOT DELETE
-    """
-    def add_marker(err_traces, color=[], symbol=None, skip=None):
-       mark_every = 100
-       size = 85
-       l = len(err_traces[0]['x'])
-       if skip is not None:
-           size_list = [0] * skip + [size] + [0] * (mark_every - 1 - skip)
-       else:
-           size_list = [size] + [0] * (mark_every - 1)
-       repeat = int(l / mark_every)
-       size_list = size_list * repeat
-       line = err_traces[0]
-       line['mode'] = 'lines+markers'
-       line['marker'] = dict(
-           color=line['line']['color'],
-           size=size_list,
-           symbol="x" if symbol is None else symbol,
-           line=dict(width=4,
-                     color='rgba(1,1,1,1)')
-       )
-       err_traces[0] = line
-   return err_traces
-   """
+
+
+def add_marker(err_traces, color=[], symbol=None, skip=None):
+    mark_every = 100
+    size = 30
+    l = len(err_traces[0]['x'])
+    if skip is not None:
+        size_list = [0] * skip + [size] + [0] * (mark_every - 1 - skip)
+    else:
+        size_list = [size] + [0] * (mark_every - 1)
+    repeat = int(l / mark_every)
+    size_list = size_list * repeat
+    line = err_traces[0]
+    line['mode'] = 'lines+markers'
+    line['marker'] = dict(
+        color=line['line']['color'],
+        size=size_list,
+        symbol="x" if symbol is None else symbol,
+        line=dict(width=4,
+                  color='rgba(1,1,1,1)')
+    )
+    err_traces[0] = line
+    return err_traces
+
+
+def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None):
+    arrays = []
+    keys = [k for k in mse_batch[0].keys()]
+    for k in keys:
+        temp = []
+        for data in mse_batch:
+            temp.append(data[k])
+        arrays.append(np.stack(temp))
+
+    traces_plot = []
+    for ar, k in zip(arrays, keys):
+        tr, xs, ys = generate_errorbar_traces(ar, xs=None, percentiles='66+95', color=color_dict_plotly[k], name=label_dict[k])
+        w_marker = []
+        # for t in tr:
+        m = add_marker(tr, color=color_dict_plotly[k], symbol=marker_dict_plotly[k], skip=25)
+        # w_marker.append(m)
+        [traces_plot.append(t) for t in m]
+
+    layout = dict(title=f"Average Error over Run",
+                  xaxis={'title': 'Prediction Step'},
+                  yaxis={'title': 'Mean Error', 'range':[np.log10(0.01), np.log10(10000)]},
+                  yaxis_type="log",
+                  font=dict(family='Times New Roman', size=30, color='#7f7f7f'),
+                  height=1000,
+                  width=1500,
+                  plot_bgcolor='white',
+                  legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
+                          'font': dict(family='Times New Roman', size=22, color='#7f7f7f')}
+                  )
+
+    fig = {
+        'data': traces_plot,
+        'layout': layout
+    }
+
+    import plotly.io as pio
+    go.Figure(fig).show() #.write_image("test.pdf")
+    return traces_plot
 
 
 def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):

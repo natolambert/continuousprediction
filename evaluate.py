@@ -171,6 +171,7 @@ def evaluate(cfg):
         models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + model_type + ".dat")
 
     log.info("Plotting states")
+    mse_evald = []
     for i in range(cfg.plotting.num_eval):
         # Evaluate models
         # idx = np.random.randint(0, len(train_data))
@@ -186,15 +187,17 @@ def evaluate(cfg):
 
         gt = test_data[idx].states
         mse = {key: MSEs[key].squeeze() for key in MSEs}
-        mse = {key: mse[key][mse[key] < 10 ** 5] for key in mse}
+        mse_sub = {key: mse[key][mse[key] < 10 ** 5] for key in mse}
         pred = {key: predictions[key] for key in predictions}
 
         # file = "%s/test%d" % (graph_file, i + 1)
         # os.mkdir(file)
 
         # plot_states(gt, pred, save_loc="Predictions; traj-" + str(idx), idx_plot=[0,1,2,3], show=False)
-        plot_mse(mse, save_loc="Error; traj-" + str(idx), show=False)
+        # plot_mse(mse_sub, save_loc="Error; traj-" + str(idx), show=False)
+        mse_evald.append(mse)
 
+    plot_mse_err(mse_evald, save_loc="Err Bar MSE of Predictions", show=True)
     plot_mse(MSE_avg, save_loc=file + "/mse_avg")
 
 
