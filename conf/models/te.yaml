@@ -13,19 +13,21 @@ model:
     name: Adam
     split: .8
     lr: .00002
-    max_size: 20000
+    max_size: 50000
   preprocess:
     state:
       class: sklearn.preprocessing.StandardScaler
-      #Choose between standard scaler and min max scaler
-      #class: sklearn.preprocessing.MinMaxScaler
-        #params:
-          #feature_range: [-1.,1.]
+        #Choose between standard scaler and min max scaler
+        #class: sklearn.preprocessing.MinMaxScaler
+      #params:
+      #feature_range: [-1.,1.]
     index:
       class: sklearn.preprocessing.MinMaxScaler
       params:
-        feature_range: [0.,1.]
+        feature_range: [-1.,1.]
     param:
-      class: sklearn.preprocessing.StandardScaler
+      class: sklearn.preprocessing.MinMaxScaler
+        params:
+          feature_range: [-1.,1.]
     output:
       class: sklearn.preprocessing.StandardScaler

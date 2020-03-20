@@ -1,7 +1,7 @@
 collect_data: false
 train_models: true
 save_data: false
-save_models: true
+save_models: false
 data_dir: l500_t50_v5.dat
 model_dir: l500_t50_v5.dat
 plot: false
@@ -20,7 +20,7 @@ hydra:
         exclude_keys: ['random_seed']
 
 plotting:
-  models: [d,t]
+  models: [d, de, p, pe, t, te, tp, tpe]
   num_eval: 5
   states: true
   mse: true
