@@ -30,6 +30,7 @@ class Net(nn.Module):
         self.n_in = n_in
         self.n_out = n_out
         self.hidden_w = cfg.model.training.hid_width
+        self.cfg = cfg
 
         # create object nicely
         layers = []
@@ -230,17 +231,18 @@ class DynamicsModel(object):
         """
         if type(x) == np.ndarray:
             x = torch.from_numpy(x)
-        prediction = torch.zeros((x.shape[0], self.n_out))
+        prediction = torch.zeros((x.shape[0], self.cfg.env.state_size))
         for n in self.nets:
             scaledInput = n.testPreprocess(x, self.cfg)
             if self.prob:
-                prediction += n.forward(scaledInput) / len(self.nets)
+                prediction += n.testPostprocess(n.forward(scaledInput)[:, :self.cfg.env.state_size]) / len(self.nets)
             else:
                 prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
         if self.traj:
             return prediction[:, :self.cfg.env.state_size]
         else:
-            return x[:, :self.cfg.env.state_size] + prediction[:, :self.cfg.env.state_size]
+            # This hardcode is the state size changing. X also includes the action / index
+            return x[:, :self.cfg.env.state_size] + prediction
 
     def train(self, dataset, cfg):
         acctest_l = []
@@ -304,7 +306,8 @@ class ProbLoss(nn.Module):
         var = torch.exp(logvar)
 
         diff = mean - targets
-        mid = diff / var
+        mid = torch.div(diff, var)
         lg = torch.sum(torch.log(var))
         out = torch.trace(torch.mm(diff, mid.t())) + lg
+        # same as torch.sum(((mean - targets) ** 2) / var) + lg
         return out

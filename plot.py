@@ -29,7 +29,7 @@ color_dict = {'t': 'r',
               'te': '#b53636',
               'de': '#3660b5',
               'pe': '#52b536',
-              'tpe': '#b5af36'}
+              'tpe': '#b57f11'}
 marker_dict = {'t': 's',
                'd': 'o',
                'p': 'D',
@@ -203,7 +203,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             for i in idx_plot:
                 p = np.hstack((p, pred[:, i:i + 1]))
             p_avg = np.average(p[:, 1:], axis=1)
-            plt.plot(p_avg, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+            plt.plot(p_avg, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key], markevery=50)
         # plt.ylim(-.5, 1.5)
         plt.legend()
         if save_loc:
@@ -228,7 +228,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
                 pred = predictions[key][:, i]
                 # TODO: find a better way to do what the following line does
                 chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-                plt.plot(chopped, c=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+                plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key], markevery=50)
 
             plt.legend()
 

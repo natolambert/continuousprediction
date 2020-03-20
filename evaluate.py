@@ -67,7 +67,7 @@ def test_models(test_data, models):
                 prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
                 prediction = np.array(prediction.detach())
             else:
-                prediction = model.predict(np.hstack((currents[key].reshape((1,-1)), actions[:, i - 1, :])))
+                prediction = model.predict(np.hstack((currents[key].reshape((1, -1)), actions[:, i - 1, :])))
                 prediction = np.array(prediction.detach())
 
             predictions[key].append(prediction)
@@ -173,16 +173,20 @@ def evaluate(cfg):
     log.info("Plotting states")
     for i in range(cfg.plotting.num_eval):
         # Evaluate models
-        idx = np.random.randint(0, len(train_data))
-        outcomes = test_models([train_data[idx]], models)
+        # idx = np.random.randint(0, len(train_data))
+        # outcomes = test_models([train_data[idx]], models)
+
+        idx = np.random.randint(0, len(test_data))
+        outcomes = test_models([test_data[idx]], models)
 
         # Plot shit
         # TODO account for numerical errors with predictions
         MSEs, predictions = outcomes['mse'], outcomes['predictions']
         MSE_avg = {key: np.average(MSEs[key], axis=0) for key in MSEs}
 
-        gt = train_data[idx].states
+        gt = test_data[idx].states
         mse = {key: MSEs[key].squeeze() for key in MSEs}
+        mse = {key: mse[key][mse[key] < 10 ** 5] for key in mse}
         pred = {key: predictions[key] for key in predictions}
 
         # file = "%s/test%d" % (graph_file, i + 1)

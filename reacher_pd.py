@@ -292,7 +292,7 @@ def log_hyperparams(cfg):  # , configs, model_types):
 #             Main Functions              #
 ###########################################
 
-@hydra.main(config_path='conf/config.yaml')
+@hydra.main(config_path='conf/train.yaml')
 def contpred(cfg):
     log_hyperparams(cfg)  # configs, model_types)
 
