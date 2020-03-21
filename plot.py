@@ -414,8 +414,11 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
     }
 
     import plotly.io as pio
-    go.Figure(fig).show() #.write_image("test.pdf")
-    return traces_plot
+    fig =go.Figure(fig)
+    if show: fig.show()
+    fig.write_image(save_loc+".pdf")
+
+    return fig
 
 
 def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):

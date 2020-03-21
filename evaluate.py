@@ -174,11 +174,11 @@ def evaluate(cfg):
     mse_evald = []
     for i in range(cfg.plotting.num_eval):
         # Evaluate models
-        # idx = np.random.randint(0, len(train_data))
-        # outcomes = test_models([train_data[idx]], models)
+        idx = np.random.randint(0, len(train_data))
+        outcomes = test_models([train_data[idx]], models)
 
-        idx = np.random.randint(0, len(test_data))
-        outcomes = test_models([test_data[idx]], models)
+        # idx = np.random.randint(0, len(test_data))
+        # outcomes = test_models([test_data[idx]], models)
 
         # Plot shit
         # TODO account for numerical errors with predictions
