@@ -117,13 +117,18 @@ class Net(nn.Module):
             inputActions = input[:, cfg.env.state_size:]
 
             self.stateScaler.fit(inputStates)
-            self.actionScaler.fit(inputActions)
-            self.outputScaler.fit(output)
 
+            self.outputScaler.fit(output)
             normStates = self.stateScaler.transform(inputStates)
-            normActions = self.actionScaler.transform(inputActions)
             normOutput = self.outputScaler.transform(output)
-            normInput = np.hstack((normStates, normActions))
+
+            if np.shape(inputActions)[1] > 0:
+                self.actionScaler.fit(inputActions)
+                normActions = self.actionScaler.transform(inputActions)
+                normInput = np.hstack((normStates, normActions))
+            else:
+                normInput = normStates
+
             return list(zip(normInput, normOutput))
 
     def optimize(self, dataset, cfg):
