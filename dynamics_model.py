@@ -30,6 +30,7 @@ class Net(nn.Module):
         self.n_in = n_in
         self.n_out = n_out
         self.hidden_w = cfg.model.training.hid_width
+        self.cfg = cfg
 
         # create object nicely
         layers = []
@@ -53,10 +54,10 @@ class Net(nn.Module):
         return x
 
     def testPreprocess(self, input, cfg):
-        if(cfg.model.traj):
+        if (cfg.model.traj):
             inputStates = input[:, :cfg.env.state_size]
             inputIndex = input[:, cfg.env.state_size]
-            inputParams = input[:, cfg.env.state_size+1:]
+            inputParams = input[:, cfg.env.state_size + 1:]
 
             inputIndex = inputIndex.reshape(-1, 1)
 
@@ -72,7 +73,7 @@ class Net(nn.Module):
             return np.hstack((normStates, normActions))
 
     def testPostprocess(self, output):
-        return self.outputScaler.inverse_transform(output)
+        return torch.from_numpy(self.outputScaler.inverse_transform(output.detach().numpy()))
 
     def preprocess(self, dataset, cfg):
 
@@ -83,7 +84,7 @@ class Net(nn.Module):
         # 26 -> one-step, 37 -> trajectory
         input = dataset[0]
         output = dataset[1]
-        if(cfg.model.traj):
+        if (cfg.model.traj):
             self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
             self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
             self.paramScaler = hydra.utils.instantiate(cfg.model.preprocess.param)
@@ -91,7 +92,7 @@ class Net(nn.Module):
 
             inputStates = input[:, :cfg.env.state_size]
             inputIndex = input[:, cfg.env.state_size]
-            inputParams = input[:, cfg.env.state_size+1:]
+            inputParams = input[:, cfg.env.state_size + 1:]
 
             # reshape index for one feature length
             inputIndex = inputIndex.reshape(-1, 1)
@@ -116,13 +117,18 @@ class Net(nn.Module):
             inputActions = input[:, cfg.env.state_size:]
 
             self.stateScaler.fit(inputStates)
-            self.actionScaler.fit(inputActions)
-            self.outputScaler.fit(output)
 
+            self.outputScaler.fit(output)
             normStates = self.stateScaler.transform(inputStates)
-            normActions = self.actionScaler.transform(inputActions)
             normOutput = self.outputScaler.transform(output)
-            normInput = np.hstack((normStates, normActions))
+
+            if np.shape(inputActions)[1] > 0:
+                self.actionScaler.fit(inputActions)
+                normActions = self.actionScaler.transform(inputActions)
+                normInput = np.hstack((normStates, normActions))
+            else:
+                normInput = normStates
+
             return list(zip(normInput, normOutput))
 
     def optimize(self, dataset, cfg):
@@ -148,6 +154,10 @@ class Net(nn.Module):
         # data preprocessing for normalization
         dataset = self.preprocess(dataset, cfg)
 
+        if cfg.model.optimizer.max_size > 0:
+            import random
+            dataset = random.sample(dataset, cfg.model.optimizer.max_size)
+
         # Puts it in PyTorch dataset form and then converts to DataLoader
         trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=bs, shuffle=True)
         testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=bs, shuffle=True)
@@ -156,7 +166,7 @@ class Net(nn.Module):
         train_errors = []
         test_errors = []
         for epoch in range(epochs):
-            print("    Epoch %d" % (epoch+1))
+            print("    Epoch %d" % (epoch + 1))
 
             train_error = 0
             test_error = 0
@@ -179,7 +189,7 @@ class Net(nn.Module):
                 test_error += loss.item() / (len(testLoader) * bs)
 
             train_errors.append(train_error)
-            test_errors.append(test_error)
+            test_errors.append(test_error.item())
 
         return train_errors, test_errors
 
@@ -190,6 +200,7 @@ class DynamicsModel(object):
     The model is an ensemble of neural nets. For cases where the model should not be an ensemble it is just
     an ensemble of 1 net.
     """
+
     def __init__(self, cfg):
         self.ens = cfg.model.ensemble
         self.traj = cfg.model.traj
@@ -225,14 +236,18 @@ class DynamicsModel(object):
         """
         if type(x) == np.ndarray:
             x = torch.from_numpy(x)
-        prediction = torch.zeros((x.shape[0], self.n_out))
+        prediction = torch.zeros((x.shape[0], self.cfg.env.state_size))
         for n in self.nets:
             scaledInput = n.testPreprocess(x, self.cfg)
-            prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
+            if self.prob:
+                prediction += n.testPostprocess(n.forward(scaledInput)[:, :self.cfg.env.state_size]) / len(self.nets)
+            else:
+                prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
         if self.traj:
-            return prediction[:,:self.cfg.env.state_size]
+            return prediction[:, :self.cfg.env.state_size]
         else:
-            return x[:,:self.cfg.env.state_size] + prediction[:,:self.cfg.env.state_size]
+            # This hardcode is the state size changing. X also includes the action / index
+            return x[:, :self.cfg.env.state_size] + prediction
 
     def train(self, dataset, cfg):
         acctest_l = []
@@ -247,7 +262,7 @@ class DynamicsModel(object):
 
             # iterate through the validation sets
             for (i, n), (train_idx, test_idx) in zip(enumerate(self.nets), kf.split(dataset[0])):
-                print("  Model %d" % (i+1))
+                print("  Model %d" % (i + 1))
                 # only train on training data to ensure diversity
                 sub_data = (dataset[0][train_idx], dataset[1][train_idx])
                 train_e, test_e = n.optimize(sub_data, cfg)
@@ -261,6 +276,7 @@ class DynamicsModel(object):
         self.acctrain, self.acctest = acctrain_l, acctest_l
 
         return acctrain_l, acctest_l
+
 
 class ProbLoss(nn.Module):
     """
@@ -295,7 +311,8 @@ class ProbLoss(nn.Module):
         var = torch.exp(logvar)
 
         diff = mean - targets
-        mid = diff / var
+        mid = torch.div(diff, var)
         lg = torch.sum(torch.log(var))
         out = torch.trace(torch.mm(diff, mid.t())) + lg
+        # same as torch.sum(((mean - targets) ** 2) / var) + lg
         return out

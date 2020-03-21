@@ -1,25 +1,10 @@
-defaults:
-  - models: t
-  - envs: lorenz
-
-collect_data: true
+collect_data: false
 train_models: true
 save_data: false
 save_models: false
-data_dir: 10.dat
-model_dir: 10.dat
-plot: true
-
-lorenz:
-  sigma: 10
-  beta: 2.667
-  rho: 28
-  ex:
-    u0: 0
-    v0: 1
-    w0: 1.05
-  tmax: 5
-  n: 1000
+data_dir: l500_t50_v5.dat
+model_dir: l500_t50_v5.dat
+plot: false
 
 hydra:
   run:
@@ -34,8 +19,16 @@ hydra:
         item_sep: ','
         exclude_keys: ['random_seed']
 
+plotting:
+  models: [d, de, p, pe, t, te, tp,tpe]
+  num_eval: 10
+  states: true
+  mse: true
+
 experiment:
-  num_traj: 10
+  traj_len: 500
+  traj_len_test: 500
+  num_traj: 50
   num_traj_test: 5
   split: .8
   P: false
@@ -51,3 +44,8 @@ experiment:
       train_det: false
       train_prob: false
       train_prob_traj: false
+
+experiment_efficiency:
+  traj_len: 30
+  traj_len_test: 200
+  num_traj: 10

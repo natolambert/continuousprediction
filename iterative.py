@@ -33,7 +33,6 @@ from plot import plot_reacher, plot_loss
 
 from dynamics_model import DynamicsModel
 
-
 ###########################################
 #                Datasets                 #
 ###########################################
@@ -92,18 +91,11 @@ def create_dataset_step(data, delta=True):
     data_out = []
     for sequence in data:
         for i in range(sequence.states.shape[0] - 1):
-            if 'actions' in sequence.keys():
-                data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
-                if delta:
-                    data_out.append(sequence.states[i + 1] - sequence.states[i])
-                else:
-                    data_out.append(sequence.states[i + 1])
+            data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
+            if delta:
+                data_out.append(sequence.states[i + 1] - sequence.states[i])
             else:
-                data_in.append(np.array(sequence.states[i]))
-                if delta:
-                    data_out.append(sequence.states[i + 1] - sequence.states[i])
-                else:
-                    data_out.append(sequence.states[i + 1])
+                data_out.append(sequence.states[i + 1])
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
@@ -255,6 +247,7 @@ def collect_and_dataset(cfg):
 ###########################################
 
 
+
 def log_hyperparams(cfg):  # , configs, model_types):
     log.info("General Hyperparams:")
     log.info("  traj_len: %d" % cfg.experiment.traj_len)
@@ -271,6 +264,28 @@ def log_hyperparams(cfg):  # , configs, model_types):
     log.info('  batch size: %d' % cfg.model.optimizer.batch)
     log.info('  optimizer: %s' % cfg.model.optimizer.name)
     log.info('  learning rate: %f' % cfg.model.optimizer.lr)
+
+
+# def make_evaluator(train_data, test_data, type):
+#     def evaluator(model):
+#         dic = {type: model}
+#         train_s = 0
+#         num_train = len(train_data)
+#         len_train = len(train_data[0].states)
+#         denom_train = num_train * len_train
+#         for traj in train_data:
+#             outcomes = test_models(traj, dic)
+#             train_s += np.sum(outcomes['mse'][type]) / denom_train
+#         test_s = 0
+#         num_test = len(test_data)
+#         len_test = len(test_data[0].states)
+#         denom_test = num_test * len_test
+#         for traj in test_data:
+#             outcomes = test_models(traj, dic)
+#             test_s += np.sum(outcomes['mse'][type]) / denom_test
+#         return (train_s, test_s)
+#
+#     return evaluator
 
 
 ###########################################
@@ -301,7 +316,7 @@ def contpred(cfg):
     else:
         log.info(f"Loading default data")
         # raise ValueError("Current Saved data old format")
-        # Todo re-save data
+        #Todo re-save data
         (exper_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
         # traj_dataset = create_dataset_traj(exper_data, threshold=0.0)
@@ -329,13 +344,13 @@ def contpred(cfg):
         model = DynamicsModel(cfg)
         train_logs, test_logs = model.train(dataset, cfg)
 
-        plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=True)
+        plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name+'-'+cfg.model.str, show=True)
         # plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
 
         if cfg.save_models:
             log.info("Saving new default models")
             torch.save(model,
-                       hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + '.dat')
+                       hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str+'.dat')
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
 
     else:
@@ -343,6 +358,7 @@ def contpred(cfg):
         # TODO: Not sure what we would put in here if the point of this function is to sweep and train models
         # model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'step' + cfg.model_dir)
         # model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'traj' + cfg.model_dir)
+
 
 
 def test_sample_efficiency(cfg):

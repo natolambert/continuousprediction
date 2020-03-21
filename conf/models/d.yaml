@@ -8,11 +8,12 @@ model:
     hid_depth: 2
     E: 1
   optimizer:
-    epochs: 3
-    batch: 128
+    epochs: 16
+    batch: 32
     name: Adam
     split: .8
-    lr: .003
+    lr: .00005
+    max_size: 0
   preprocess:
     state:
       class: sklearn.preprocessing.StandardScaler

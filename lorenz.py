@@ -51,6 +51,11 @@ def lorenz(cfg):
             x, y, z = f.T
             l = DotMap()
             l.states = f
+            # Add parameters the way that the generation object is
+            # TODO take generic parameters rather than only PD Target
+            l.P = cfg.lorenz.beta
+            l.D = cfg.lorenz.rho
+            l.target = cfg.lorenz.sigma
             data_X = np.concatenate((data_X, f))
             data_Seq.append(l)
 
@@ -67,16 +72,23 @@ def lorenz(cfg):
         data_Seq = torch.load(hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'traj' + cfg.data_dir)
 
     # Analysis
-    from mbrl_resources import train_network, Net
-    from reacher_pd import create_dataset_t_only
+    from dynamics_model import DynamicsModel
+    from reacher_pd import create_dataset_step, create_dataset_traj
+    from plot import plot_loss
 
-    dataset_1s = [X, dX]
-    dataset_ct = create_dataset_t_only(data_Seq)
+    prob = cfg.model.prob
+    traj = cfg.model.traj
+    ens = cfg.model.ensemble
 
-    p = DotMap()
-    p.opt.n_epochs = 20
-    p.opt.batch_size = 100
-    p.learning_rate = 0.001
+    if cfg.train_models:
+        if traj:
+            dataset = create_dataset_traj(data_Seq, threshold=0.95)
+        else:
+            dataset = create_dataset_step(data_Seq)
+
+    model = DynamicsModel(cfg)
+    train_logs, test_logs = model.train(dataset, cfg)
+
 
     if cfg.train_models:
         model_1s, train_log1 = train_network(dataset_1s, Net(structure=[3, 100, 100, 3]), parameters=p)
