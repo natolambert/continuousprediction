@@ -1,19 +1,6 @@
 defaults:
-  - models: d
-
-hydra:
-  run:
-    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
-  sweep:
-    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
-    subdir: ${hydra.job.num}
-  job:
-    config:
-      override_dirname:
-        kv_sep: '='
-        item_sep: ','
-        exclude_keys: ['random_seed']
-
+  - models: t
+  - envs: lorenz
 
 collect_data: true
 train_models: true
@@ -34,8 +21,21 @@ lorenz:
   tmax: 5
   n: 1000
 
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  job:
+    config:
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: ['random_seed']
+
 experiment:
-  num_traj: 1 #0
+  num_traj: 10
   num_traj_test: 5
   split: .8
   P: false
@@ -51,51 +51,3 @@ experiment:
       train_det: false
       train_prob: false
       train_prob_traj: false
-
-nn:
-  ensemble:
-    n: 10
-  trajectory_based:
-    training:
-      hid_width: 250
-      hid_depth: 2
-      E: 5
-    optimizer:
-      epochs: 3
-      batch: 128
-      name: Adam
-      split: .8
-      lr: .01
-  trajectory_based_prob:
-    training:
-      hid_width: 250
-      hid_depth: 2
-      E: 5
-    optimizer:
-      epochs: 1
-      batch: 128
-      name: Adam
-      split: .8
-      lr: .003
-  one_step_det:
-    training:
-      hid_width: 250
-      hid_depth: 2
-      E: 5
-    optimizer:
-      epochs: 3
-      batch: 128
-      name: Adam
-      split: .8
-      lr: .003
-  one_step_prob:
-    training:
-      hid_width: 250
-      hid_depth: 2
-      E: 5
-    optimizer:
-      epochs: 10
-      batch: 128
-      name: Adam
-      split: .8
-      lr: .0001

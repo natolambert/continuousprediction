@@ -27,7 +27,7 @@ model:
         feature_range: [-1.,1.]
     param:
       class: sklearn.preprocessing.MinMaxScaler
-        params:
-          feature_range: [-1.,1.]
+      params:
+        feature_range: [-1.,1.]
     output:
       class: sklearn.preprocessing.StandardScaler
