@@ -351,8 +351,6 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
     if show: fig.show()
     fig.write_image(save_loc + ".png")
 
-    # CODE FOR ADDING MARKERS EVERY FEW IN PLOTLY
-    # DO NOT DELETE
 
 
 def add_marker(err_traces, color=[], symbol=None, skip=None):

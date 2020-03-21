@@ -95,24 +95,24 @@ def lorenz(cfg):
         torch.save(model,
                    hydra.utils.get_original_cwd() + '/models/lorenz/' + cfg.model.str + '.dat')
 
-    for i in range(cfg.num_eval):
-        for m in cfg.models_to_eval:
-            traj = np.random.randint(num_traj)
-            new_init = data_Seq[traj].states[0]
-            predictions_1 = [new_init.squeeze()]
-            predictions_2 = [new_init.squeeze()]
-            for i in range(1, n):
-                pred_t = model_ct.predict(np.hstack((predictions_1[-1], i)))
-                pred_no_t = predictions_2[-1] + model_1s.predict(predictions_2[-1])
-                predictions_1.append(pred_t.squeeze())
-                predictions_2.append(pred_no_t.squeeze())
-
-                # mse_t.append(np.square(groundtruth - pred_t).mean())
-                # mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
-                current = pred_no_t.squeeze()
-
-            p_1 = np.stack(predictions_1)
-            p_2 = np.stack(predictions_2)
+    # for i in range(cfg.num_eval):
+    #     for m in cfg.models_to_eval:
+    #         traj = np.random.randint(num_traj)
+    #         new_init = data_Seq[traj].states[0]
+    #         predictions_1 = [new_init.squeeze()]
+    #         predictions_2 = [new_init.squeeze()]
+    #         for i in range(1, n):
+    #             pred_t = model_ct.predict(np.hstack((predictions_1[-1], i)))
+    #             pred_no_t = predictions_2[-1] + model_1s.predict(predictions_2[-1])
+    #             predictions_1.append(pred_t.squeeze())
+    #             predictions_2.append(pred_no_t.squeeze())
+    #
+    #             # mse_t.append(np.square(groundtruth - pred_t).mean())
+    #             # mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
+    #             current = pred_no_t.squeeze()
+    #
+    #         p_1 = np.stack(predictions_1)
+    #         p_2 = np.stack(predictions_2)
 
 
 def plot_learning():
