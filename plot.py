@@ -31,13 +31,13 @@ color_dict = {'t': 'r',
               'pe': '#52b536',
               'tpe': '#b57f11'}
 color_dict_plotly = {'t': 'rgb(200,0,0)',
-              'd': 'rgb(0,0,128)',
-              'p': 'rgb(0,128,0)',
-              'tp': 'rgb(200,200,0)',
-              'te': 'rgb(180,20,20)',
-              'de': 'rgb(20,20,128)',
-              'pe': 'rgb(20,128,20)',
-              'tpe': 'rgb(180,180,25)'}
+                     'd': 'rgb(0,0,128)',
+                     'p': 'rgb(0,128,0)',
+                     'tp': 'rgb(200,200,0)',
+                     'te': 'rgb(180,20,20)',
+                     'de': 'rgb(20,20,128)',
+                     'pe': 'rgb(20,128,20)',
+                     'tpe': 'rgb(180,180,25)'}
 
 marker_dict = {'t': 's',
                'd': 'o',
@@ -49,13 +49,13 @@ marker_dict = {'t': 's',
                'tpe': 'p', }
 
 marker_dict_plotly = {'t': 'cross-open-dot',
-                   'd': 'circle-open-dot',
-                   'p': 'x-open-dot',
-                   'tp': 'triangle-up-open-dot',
-                   'te': 'y-down-open',
-                   'de': 'diamond-open-dot',
-                   'pe': 'hourglass-open',
-                   'tpe': 'hash-open-dot', }
+                      'd': 'circle-open-dot',
+                      'p': 'x-open-dot',
+                      'tp': 'triangle-up-open-dot',
+                      'te': 'y-down-open',
+                      'de': 'diamond-open-dot',
+                      'pe': 'hourglass-open',
+                      'tpe': 'hash-open-dot', }
 
 
 def find_latest_checkpoint(cfg):
@@ -389,7 +389,8 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     traces_plot = []
     for ar, k in zip(arrays, keys):
-        tr, xs, ys = generate_errorbar_traces(ar, xs=None, percentiles='66+95', color=color_dict_plotly[k], name=label_dict[k])
+        tr, xs, ys = generate_errorbar_traces(ar, xs=None, percentiles='66+95', color=color_dict_plotly[k],
+                                              name=label_dict[k])
         w_marker = []
         # for t in tr:
         m = add_marker(tr, color=color_dict_plotly[k], symbol=marker_dict_plotly[k], skip=25)
@@ -398,7 +399,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     layout = dict(title=f"Average Error over Run",
                   xaxis={'title': 'Prediction Step'},
-                  yaxis={'title': 'Mean Error', 'range':[np.log10(0.01), np.log10(10000)]},
+                  yaxis={'title': 'Mean Error', 'range': [np.log10(0.01), np.log10(10000)]},
                   yaxis_type="log",
                   font=dict(family='Times New Roman', size=30, color='#7f7f7f'),
                   height=1000,
@@ -414,9 +415,9 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
     }
 
     import plotly.io as pio
-    fig =go.Figure(fig)
+    fig = go.Figure(fig)
     if show: fig.show()
-    fig.write_image(save_loc+".pdf")
+    fig.write_image(save_loc + ".pdf")
 
     return fig
 
@@ -451,13 +452,84 @@ def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):
         plt.close()
 
 
+def plot_lorenz(data, cfg, predictions=None):
+    import plotly.graph_objects as go
+
+    fig = go.Figure()
+
+    for dat in data:
+        x, y, z = dat.states[:, 0], dat.states[:, 1], dat.states[:, 2]
+        fig.add_trace(go.Scatter3d(
+            x=x, y=y, z=z,
+            # color=(1, c[i], 0),
+            marker=dict(
+                size=1,
+                color=np.arange(len(x)),
+                colorscale='Viridis',
+            ),
+            line=dict(
+                color='darkblue',
+                width=2
+            ),
+        ))
+    if predictions is not None:
+        for p, key in predictions.items():
+            fig.add_trace(go.Scatter3d(x=p[:, 0], y=p[:, 1], z=p[:, 2],
+                                       name=label_dict[key], legendgroup=type,
+                                       line=dict(color=color_dict_plotly[key], width=4, dash='dash'),
+                                       marker=dict(color=color_dict_plotly[key], symbol=marker_dict_plotly[key],
+                                                   size=16))
+                          )
+
+    fig.update_layout(
+        width=2 * 1500,
+        height=2 * 800,
+        autosize=False,
+        showlegend=False,
+        font=dict(
+            family="Times New Roman, Times, serif",
+            size=18,
+            color="black"
+        ),
+        scene_camera=dict(eye=dict(x=1.5 * -.1, y=1.5 * 1.5, z=1.5 * .25)),
+        scene=dict(
+            # xaxis=dict(nticks=4, range=[-100, 100], ),
+            # yaxis=dict(nticks=4, range=[-100, 100], ),
+            # zaxis=dict(nticks=4, range=[-100, 100], ),
+            xaxis=dict(nticks=5, range=[-40, 40],
+                       backgroundcolor="rgba(0,0,0,0)",
+                       gridcolor="rgb(128, 128, 128)",
+                       showbackground=True,
+                       zerolinecolor="rgb(0, 0, 0)",
+                       ),
+            yaxis=dict(nticks=5, range=[-60, 60],
+                       backgroundcolor="rgba(0,0,0,0)",
+                       gridcolor="rgb(128, 128, 128)",
+                       showbackground=True,
+                       zerolinecolor="rgb(0, 0, 0)",
+                       ),
+            zaxis=dict(nticks=5, range=[-40, 75],
+                       backgroundcolor="rgba(0,0,0,0)",
+                       gridcolor="rgb(128, 128, 128)",
+                       showbackground=True,
+                       zerolinecolor="rgb(0, 0, 0)",
+                       ),
+            aspectratio=dict(x=1.2, y=1.2, z=0.7),
+            aspectmode='manual'
+        ),
+        margin=dict(r=10, l=10, b=10, t=10),
+        plot_bgcolor='white',
+        paper_bgcolor='rgba(0,0,0,0)',
+        # plot_bgcolor='rgba(0,0,0,0)'
+    )
+
+    fig.show()
+    fig.write_image(os.getcwd() + "/lorenz.png")
+
+
 @hydra.main(config_path='config-plot.yaml')
 def plot(cfg):
     pass
-
-    # data = Data([new_trace1])
-    #
-    # plot_url = py.plot(data, filename='append plot', fileopt='append')
 
 
 if __name__ == '__main__':

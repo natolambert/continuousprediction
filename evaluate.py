@@ -198,7 +198,6 @@ def evaluate(cfg):
         mse_evald.append(mse)
 
     plot_mse_err(mse_evald, save_loc="Err Bar MSE of Predictions", show=True)
-    plot_mse(MSE_avg, save_loc=file + "/mse_avg")
 
 
 if __name__ == '__main__':
