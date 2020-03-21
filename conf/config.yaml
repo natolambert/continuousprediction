@@ -1,8 +1,8 @@
 defaults:
-  - models: d
+  - models: tp
   - envs: reacher
 
-collect_data: true
+collect_data: false
 train_models: true
 save_data: true
 save_models: false
