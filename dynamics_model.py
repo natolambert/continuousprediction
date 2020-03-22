@@ -67,10 +67,15 @@ class Net(nn.Module):
             return np.hstack((normStates, normIndex, normParams))
         else:
             inputStates = input[:, :cfg.env.state_size]
-            inputActions = input[:, cfg.env.state_size:]
             normStates = self.stateScaler.transform(inputStates)
-            normActions = self.actionScaler.transform(inputActions)
-            return np.hstack((normStates, normActions))
+            if cfg.env.action_size > 0:
+                inputActions = input[:, cfg.env.state_size:]
+                normActions = self.actionScaler.transform(inputActions)
+                normInput = np.hstack((normStates, normActions))
+                return normInput
+            else:
+                normInput = normStates
+                return normInput
 
     def testPostprocess(self, output):
         return torch.from_numpy(self.outputScaler.inverse_transform(output.detach().numpy()))

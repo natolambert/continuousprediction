@@ -461,29 +461,46 @@ def plot_lorenz(data, cfg, predictions=None):
             x=x, y=y, z=z,
             # color=(1, c[i], 0),
             marker=dict(
-                size=1,
+                size=2,
                 color=np.arange(len(x)),
                 colorscale='Viridis',
             ),
             line=dict(
-                color='darkblue',
-                width=2
+                color='black',
+                width=4
             ),
         ))
+
+    color_scales_dict = {'t': 'Inferno',
+                     'd': 'Magma',
+                     'p': 'Plasma',
+                     'tp': 'Blackbody',
+                     'te': 'Electric',
+                     'de': 'Hot',
+                     'pe': 'Jet',
+                     'tpe': 'Plotly3'}
+
     if predictions is not None:
-        for p, key in predictions.items():
+        for key, p in predictions.items():
             fig.add_trace(go.Scatter3d(x=p[:, 0], y=p[:, 1], z=p[:, 2],
-                                       name=label_dict[key], legendgroup=type,
-                                       line=dict(color=color_dict_plotly[key], width=4, dash='dash'),
-                                       marker=dict(color=color_dict_plotly[key], symbol=marker_dict_plotly[key],
-                                                   size=16))
-                          )
+                                       name=label_dict[key], legendgroup=key,
+                                       marker=dict(
+                                           size=1,
+                                           color=np.arange(len(x)),
+                                           colorscale=color_scales_dict[key],
+                                       ),
+                                       line=dict(
+                                           color=color_dict_plotly[key],
+                                           width=1
+                                       ),
+                                       ))
+
 
     fig.update_layout(
-        width=2 * 1500,
-        height=2 * 800,
+        width=1500,
+        height=800,
         autosize=False,
-        showlegend=False,
+        showlegend=True if predictions is not None else False,
         font=dict(
             family="Times New Roman, Times, serif",
             size=18,

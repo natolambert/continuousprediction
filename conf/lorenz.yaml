@@ -3,14 +3,14 @@ defaults:
   - envs: lorenz
 
 collect_data: false
-train_models: true
+train_models: false
 save_data: false
-save_models: true
+save_models: false
 data_dir: 25.dat
 #model_dir: 10.dat
 plot: false
 models_to_eval: [t,p,de]
-num_eval: 2
+num_eval: 5
 
 lorenz:
   sigma: 10

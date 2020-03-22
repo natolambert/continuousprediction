@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from dotmap import DotMap
 import logging
-from plot import plot_lorenz, plot_mse, plot_mse_err
+from plot import plot_lorenz, plot_mse, plot_mse_err, plot_states
+from evaluate import test_models
 
 # adapeted from https://scipython.com/blog/the-lorenz-attractor/
 log = logging.getLogger(__name__)
@@ -79,44 +80,44 @@ def lorenz(cfg):
     traj = cfg.model.traj
     ens = cfg.model.ensemble
 
+    if traj:
+        dataset = create_dataset_traj(data_Seq, threshold=0.95)
+    else:
+        dataset = create_dataset_step(data_Seq)
+
     if cfg.train_models:
-        if traj:
-            dataset = create_dataset_traj(data_Seq, threshold=0.95)
-        else:
-            dataset = create_dataset_step(data_Seq)
+        model = DynamicsModel(cfg)
+        train_logs, test_logs = model.train(dataset, cfg)
+        plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=True)
+        if cfg.save_models:
+            log.info("Saving new default models")
+            torch.save(model,
+                       hydra.utils.get_original_cwd() + '/models/lorenz/' + cfg.model.str + '.dat')
 
-    model = DynamicsModel(cfg)
-    train_logs, test_logs = model.train(dataset, cfg)
+    models = {}
+    for model_type in cfg.models_to_eval:
+        models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + model_type + ".dat")
 
-    plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=True)
+    mse_evald = []
+    for i in range(cfg.num_eval):
+        traj_idx = np.random.randint(num_traj)
+        traj = data_Seq[traj_idx]
+        outcomes = test_models([traj], models)
 
-    if cfg.save_models:
-        log.info("Saving new default models")
-        torch.save(model,
-                   hydra.utils.get_original_cwd() + '/models/lorenz/' + cfg.model.str + '.dat')
+        MSEs, predictions = outcomes['mse'], outcomes['predictions']
+        MSE_avg = {key: np.average(MSEs[key], axis=0) for key in MSEs}
 
-    # for i in range(cfg.num_eval):
-    #     for m in cfg.models_to_eval:
-    #         traj = np.random.randint(num_traj)
-    #         new_init = data_Seq[traj].states[0]
-    #         predictions_1 = [new_init.squeeze()]
-    #         predictions_2 = [new_init.squeeze()]
-    #         for i in range(1, n):
-    #             pred_t = model_ct.predict(np.hstack((predictions_1[-1], i)))
-    #             pred_no_t = predictions_2[-1] + model_1s.predict(predictions_2[-1])
-    #             predictions_1.append(pred_t.squeeze())
-    #             predictions_2.append(pred_no_t.squeeze())
-    #
-    #             # mse_t.append(np.square(groundtruth - pred_t).mean())
-    #             # mse_no_t.append(np.square(groundtruth - pred_no_t).mean())
-    #             current = pred_no_t.squeeze()
-    #
-    #         p_1 = np.stack(predictions_1)
-    #         p_2 = np.stack(predictions_2)
+        mse = {key: MSEs[key].squeeze() for key in MSEs}
+        mse_sub = {key: mse[key][mse[key] < 10 ** 5] for key in mse}
+        pred = {key: predictions[key] for key in predictions}
+        mse_evald.append(mse)
+        #
+        # plot_states(traj.states, pred, save_loc="Predictions; traj-" + str(traj_idx), idx_plot=[0,1,2], show=False)
+        # plot_mse(mse_sub, save_loc="Error; traj-" + str(traj_idx), show=False)
+        plot_lorenz([traj], cfg, predictions=pred)
 
 
-def plot_learning():
-    raise NotImplementedError("TODO")
+    plot_mse_err(mse_evald, save_loc="Err Bar MSE of Predictions", show=True)
 
 
 if __name__ == '__main__':
