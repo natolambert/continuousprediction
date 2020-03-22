@@ -64,10 +64,14 @@ def test_models(test_data, models):
         for key in models:
             model = models[key]
             if 't' in key:
-                prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
+                prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param.reshape(-1, 1),
+                                                      D_param.reshape(-1, 1), target.reshape(-1, 1))))
                 prediction = np.array(prediction.detach())
             else:
-                prediction = model.predict(np.hstack((currents[key].reshape((1, -1)), actions[:, i - 1, :])))
+                if len(np.shape(actions)) == 1:
+                    prediction = model.predict((currents[key].reshape((1, -1))))
+                else:
+                    prediction = model.predict(np.hstack((currents[key].reshape((1, -1)), actions[:, i - 1, :])))
                 prediction = np.array(prediction.detach())
 
             predictions[key].append(prediction)
@@ -190,15 +194,12 @@ def evaluate(cfg):
         mse_sub = {key: mse[key][mse[key] < 10 ** 5] for key in mse}
         pred = {key: predictions[key] for key in predictions}
 
-        # file = "%s/test%d" % (graph_file, i + 1)
-        # os.mkdir(file)
 
         # plot_states(gt, pred, save_loc="Predictions; traj-" + str(idx), idx_plot=[0,1,2,3], show=False)
         # plot_mse(mse_sub, save_loc="Error; traj-" + str(idx), show=False)
         mse_evald.append(mse)
 
     plot_mse_err(mse_evald, save_loc="Err Bar MSE of Predictions", show=True)
-    plot_mse(MSE_avg, save_loc=file + "/mse_avg")
 
 
 if __name__ == '__main__':

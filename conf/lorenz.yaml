@@ -2,13 +2,15 @@ defaults:
   - models: t
   - envs: lorenz
 
-collect_data: true
-train_models: true
+collect_data: false
+train_models: false
 save_data: false
 save_models: false
-data_dir: 10.dat
-model_dir: 10.dat
-plot: true
+data_dir: 25.dat
+#model_dir: 10.dat
+plot: false
+models_to_eval: [t,p,de]
+num_eval: 5
 
 lorenz:
   sigma: 10
@@ -20,6 +22,8 @@ lorenz:
     w0: 1.05
   tmax: 5
   n: 1000
+  num_traj: 25
+
 
 hydra:
   run:
@@ -34,20 +38,3 @@ hydra:
         item_sep: ','
         exclude_keys: ['random_seed']
 
-experiment:
-  num_traj: 10
-  num_traj_test: 5
-  split: .8
-  P: false
-  D: false
-  models:
-    single:
-      train_traj: true
-      train_det: true
-      train_prob: true
-      train_prob_traj: true
-    ensemble:
-      train_traj: false
-      train_det: false
-      train_prob: false
-      train_prob_traj: false
