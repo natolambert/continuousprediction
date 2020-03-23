@@ -231,33 +231,33 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             plt.show()
         else:
             plt.close()
-    else:
-        for i in idx_plot:
-            fig, ax = plt.subplots()
-            gt = ground_truth[:, i]
-            plt.title("Predictions on one dimension")
-            plt.xlabel("Timestep")
-            plt.ylabel("State Value")
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
 
-            plt.plot(gt, c='k', label='Groundtruth')
-            for key in predictions:
-                # print(key)
-                pred = predictions[key][:, i]
-                # TODO: find a better way to do what the following line does
-                chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-                plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
-                         markevery=50)
+    for i in idx_plot:
+        fig, ax = plt.subplots()
+        gt = ground_truth[:, i]
+        plt.title("Predictions on one dimension")
+        plt.xlabel("Timestep")
+        plt.ylabel("State Value")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
 
-            plt.legend()
+        plt.plot(gt, c='k', label='Groundtruth')
+        for key in predictions:
+            # print(key)
+            pred = predictions[key][:, i]
+            # chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
+            chopped = [(x if abs(x) < 3 else float("nan")) for x in pred]
+            plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
+                     markevery=50)
 
-            if save_loc:
-                plt.savefig(save_loc + "-state%d.pdf" % i)
-            if show:
-                plt.show()
-            else:
-                plt.close()
+        plt.legend()
+
+        if save_loc:
+            plt.savefig(save_loc + "-state%d.pdf" % i)
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
 
 def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None):
