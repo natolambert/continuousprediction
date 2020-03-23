@@ -210,6 +210,7 @@ class DynamicsModel(object):
         self.ens = cfg.model.ensemble
         self.traj = cfg.model.traj
         self.prob = cfg.model.prob
+        self.delta = cfg.model.delta
         self.cfg = cfg
 
         # Setup for data structure
@@ -248,7 +249,7 @@ class DynamicsModel(object):
                 prediction += n.testPostprocess(n.forward(scaledInput)[:, :self.cfg.env.state_size]) / len(self.nets)
             else:
                 prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
-        if self.traj:
+        if not self.delta:
             return prediction[:, :self.cfg.env.state_size]
         else:
             # This hardcode is the state size changing. X also includes the action / index

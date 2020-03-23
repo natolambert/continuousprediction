@@ -19,7 +19,8 @@ log = logging.getLogger(__name__)
 
 def test_models(test_data, models):
     """
-    Tests each of the models in the dictionary "models" on each of the trajectories in test_data
+    Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
+    Note: this function uses Numpy arrays to handle multiple tests at once efficiently
 
     Parameters:
     ------------
@@ -27,10 +28,13 @@ def test_models(test_data, models):
     models: a dictionary of models to test, M models
 
     Returns:
-    outcomes: a dictionary of MSEs and predictions. As an example of how to
-              get info from this distionary, to get the MSE data from a trajectory
-              -based model you'd do
-                    outcomes['mse']['t']
+    outcomes: a dictionary of MSEs and predictions.
+              MSEs['x'] is a 2D array where the (i,j)th is the MSE for
+                the prediction at time j with the ith test trajectory
+                corresponding to model 'x'
+              predictions['x'] is a 3D array where the (i,j)th element
+                is an array with the predicted state at time j for the ith
+                test trajectory corresponding to model 'x'
     """
 
     log.info("Beginning testing of predictions")
@@ -40,6 +44,7 @@ def test_models(test_data, models):
     states, actions, initials = [], [], []
     P, D, target = [], [], []
 
+    # Compile the various trajectories into arrays
     for traj in test_data:
         states.append(traj.states)
         actions.append(traj.actions)
@@ -48,6 +53,7 @@ def test_models(test_data, models):
         D.append(traj.D)
         target.append(traj.target)
 
+    # Convert to numpy arrays
     states = np.array(states)
     actions = np.array(actions)
     initials = np.array(initials)
@@ -57,21 +63,27 @@ def test_models(test_data, models):
 
     N, T, D = states.shape
 
+    # Iterate through each type of model for evaluation
     predictions = {key: [states[:, 0, :]] for key in models}
     currents = {key: states[:, 0, :] for key in models}
     for i in range(1, T):
         groundtruth = states[:, i]
         for key in models:
             model = models[key]
+            # Make predictions on all trajectories at once
+            #
+            # Commented some lines out because they seemed to break the code
             if 't' in key:
-                prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param.reshape(-1, 1),
-                                                      D_param.reshape(-1, 1), target.reshape(-1, 1))))
+                # prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param.reshape(-1, 1),
+                #                                       D_param.reshape(-1, 1), target.reshape(-1, 1))))
+                prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
                 prediction = np.array(prediction.detach())
             else:
-                if len(np.shape(actions)) == 1:
-                    prediction = model.predict((currents[key].reshape((1, -1))))
-                else:
-                    prediction = model.predict(np.hstack((currents[key].reshape((1, -1)), actions[:, i - 1, :])))
+                # if len(np.shape(actions)) == 1:
+                #     prediction = model.predict((currents[key].reshape((1, -1))))
+                # else:
+                #     prediction = model.predict(np.hstack((currents[key].reshape((1, -1)), actions[:, i - 1, :])))
+                prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
                 prediction = np.array(prediction.detach())
 
             predictions[key].append(prediction)
@@ -80,8 +92,10 @@ def test_models(test_data, models):
             # print(currents[key].shape)
 
     MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
-    # predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions} # vectorized verion
-    predictions = {key: np.stack(predictions[key]).squeeze() for key in predictions}
+    if N > 1:
+        predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in predictions} # vectorized verion
+    else:
+        predictions = {key: np.stack(predictions[key]).squeeze() for key in predictions}
 
     outcomes = {'mse': MSEs, 'predictions': predictions}
     return outcomes
@@ -176,30 +190,57 @@ def evaluate(cfg):
 
     log.info("Plotting states")
     mse_evald = []
-    for i in range(cfg.plotting.num_eval):
-        # Evaluate models
-        idx = np.random.randint(0, len(train_data))
-        outcomes = test_models([train_data[idx]], models)
 
-        # idx = np.random.randint(0, len(test_data))
-        # outcomes = test_models([test_data[idx]], models)
+    # Select a random subset of testing data
+    idx = np.random.randint(0, len(test_data), cfg.plotting.num_eval)
+    dat = [test_data[i] for i in idx]
 
-        # Plot shit
-        # TODO account for numerical errors with predictions
-        MSEs, predictions = outcomes['mse'], outcomes['predictions']
-        MSE_avg = {key: np.average(MSEs[key], axis=0) for key in MSEs}
+    # Find MSEs and predictions from all test trajectories at once
+    outcomes = test_models(dat, models)
 
-        gt = test_data[idx].states
-        mse = {key: MSEs[key].squeeze() for key in MSEs}
-        mse_sub = {key: mse[key][mse[key] < 10 ** 5] for key in mse}
-        pred = {key: predictions[key] for key in predictions}
+    # Plot
+    MSEs, predictions = outcomes['mse'], outcomes['predictions']
 
+    log.info("Plotting states")
+    for i, id in list(enumerate(idx)):
+        gt = test_data[id].states
+        mse = {key: MSEs[key][i].squeeze() for key in MSEs}
+        # mse_sub = {key: mse[mse[key] < 10 ** 5] for key in mse}
+        mse_sub = {key: [(x if x < 10 ** 5 else float("nan")) for x in mse[key]] for key in mse}
+        pred = {key: predictions[key][i] for key in predictions}
 
-        # plot_states(gt, pred, save_loc="Predictions; traj-" + str(idx), idx_plot=[0,1,2,3], show=False)
-        # plot_mse(mse_sub, save_loc="Error; traj-" + str(idx), show=False)
+        file = "%s/test%d" % (graph_file, i + 1)
+        os.mkdir(file)
+
+        plot_states(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/predictions", show=False)
+        plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
+
         mse_evald.append(mse)
 
-    plot_mse_err(mse_evald, save_loc="Err Bar MSE of Predictions", show=True)
+    # for i in range(cfg.plotting.num_eval):
+    #     # Evaluate models
+    #     idx = np.random.randint(0, len(train_data))
+    #     outcomes = test_models([test_data[idx]], models)
+    #
+    #     # idx = np.random.randint(0, len(test_data))
+    #     # outcomes = test_models([test_data[idx]], models)
+    #
+    #     # Plot shit
+    #     # TODO account for numerical errors with predictions
+    #     MSEs, predictions = outcomes['mse'], outcomes['predictions']
+    #     MSE_avg = {key: np.average(MSEs[key], axis=0) for key in MSEs}
+    #
+    #     gt = test_data[idx].states
+    #     mse = {key: MSEs[key].squeeze() for key in MSEs}
+    #     mse_sub = {key: mse[key][mse[key] < 10 ** 5] for key in mse}
+    #     pred = {key: predictions[key] for key in predictions}
+    #
+    #
+    #     # plot_states(gt, pred, save_loc="Predictions; traj-" + str(idx), idx_plot=[0,1,2,3], show=False)
+    #     # plot_mse(mse_sub, save_loc="Error; traj-" + str(idx), show=False)
+    #     mse_evald.append(mse)
+    #
+    plot_mse_err(mse_evald, save_loc="Err Bar MSE of Predictions", show=False)
 
 
 if __name__ == '__main__':

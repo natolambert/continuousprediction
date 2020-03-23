@@ -3,6 +3,7 @@ model:
   prob: true
   ensemble: false
   traj: false
+  delta: true
   training:
     hid_width: 250
     hid_depth: 2
