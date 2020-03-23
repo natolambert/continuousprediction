@@ -214,7 +214,7 @@ def evaluate(cfg):
         if cfg.plotting.mse:
             plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
         if cfg.plotting.sorted:
-            pass
+            plot_sorted(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
 
         mse_evald.append(mse)
 

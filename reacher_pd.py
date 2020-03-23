@@ -38,7 +38,7 @@ from dynamics_model import DynamicsModel
 #                Datasets                 #
 ###########################################
 
-def create_dataset_traj(data, control_params=True, threshold=0):
+def create_dataset_traj(data, control_params=True, threshold=0, delta=False):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -69,11 +69,11 @@ def create_dataset_traj(data, control_params=True, threshold=0):
                 else:
                     data_in.append(np.hstack((states[i], j - i)))
                 # data_in.append(np.hstack((states[i], j-i, target)))
-                data_out.append(states[j])
+                if delta:
+                    data_out.append(states[j]-states[i])
+                else:
+                    data_out.append(states[j])
 
-    # TODO we maybe don't need this, the data processor should handle it
-    # print("shuffling")
-    # data_in, data_out = shuffle(data_in, data_out)
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 

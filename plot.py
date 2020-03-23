@@ -358,7 +358,6 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
     fig.write_image(save_loc + ".png")
 
 
-
 def add_marker(err_traces, color=[], symbol=None, skip=None):
     mark_every = 100
     size = 30
@@ -546,6 +545,50 @@ def plot_lorenz(data, cfg, predictions=None):
 
     fig.show()
     fig.write_image(os.getcwd() + "/lorenz.png")
+
+
+def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=True):
+    num = ground_truth.shape[0]
+    dx = ground_truth.shape[1]
+    if idx_plot is None:
+        idx_plot = list(range(dx))
+
+    # Extracting deltas
+    ground_truth_d = ground_truth[:,1:] - ground_truth[:,:1]
+    predictions_d = {key: predictions[key][:,1:] - predictions[key][:,:1] for key in predictions}
+
+    for idx in idx_plot:
+        # Sorting
+        gt = ground_truth_d[:,idx].ravel()
+        pred = [{key: predictions_d[key][i,idx] for key in predictions_d} for i in range(num-1)]
+        zipped = list(zip(gt, pred))
+        zipped.sort()
+        arr = np.array(zipped)
+        gts, preds = np.split(arr, 2, axis=1)
+        preds = {key: [pred[i][key] for i in range(num-1)] for key in predictions_d}
+
+        # Plotting
+        fig, ax = plt.subplots()
+        plt.title("Sorted Predictions - Dimension %d" % idx)
+        plt.xlabel("Timestep")
+        plt.ylabel("Delta Predictions")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        plt.plot(gts, c='k', label='Groundtruth')
+        for key in preds:
+            plt.plot(preds[key], label=label_dict[key], c=color_dict[key])
+
+        plt.ylim(np.min(gt)-0.5, np.max(gt)+0.5)
+        plt.legend()
+
+        if save_loc:
+            plt.savefig(save_loc + "-state%d.pdf" % idx)
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
 
 
 @hydra.main(config_path='config-plot.yaml')

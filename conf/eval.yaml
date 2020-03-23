@@ -24,6 +24,7 @@ plotting:
   num_eval: 10
   states: true
   mse: true
+  sorted: true
 
 experiment:
   traj_len: 500
