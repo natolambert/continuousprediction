@@ -102,9 +102,8 @@ def lorenz(cfg):
     for i in range(cfg.num_eval):
         traj_idx = np.random.randint(num_traj)
         traj = data_Seq[traj_idx]
-        outcomes = test_models([traj], models)
+        MSEs, predictions = test_models([traj], models)
 
-        MSEs, predictions = outcomes['mse'], outcomes['predictions']
         MSE_avg = {key: np.average(MSEs[key], axis=0) for key in MSEs}
 
         mse = {key: MSEs[key].squeeze() for key in MSEs}

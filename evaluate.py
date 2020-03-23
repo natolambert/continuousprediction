@@ -28,13 +28,12 @@ def test_models(test_data, models):
     models: a dictionary of models to test, M models
 
     Returns:
-    outcomes: a dictionary of MSEs and predictions.
-              MSEs['x'] is a 2D array where the (i,j)th is the MSE for
-                the prediction at time j with the ith test trajectory
-                corresponding to model 'x'
-              predictions['x'] is a 3D array where the (i,j)th element
-                is an array with the predicted state at time j for the ith
-                test trajectory corresponding to model 'x'
+     MSEs:           MSEs['x'] is a 2D array where the (i,j)th is the MSE for
+                        the prediction at time j with the ith test trajectory
+                        corresponding to model 'x'
+     predictions:   predictions['x'] is a 3D array where the (i,j)th element
+                        is an array with the predicted state at time j for the ith
+                        test trajectory corresponding to model 'x'
     """
 
     log.info("Beginning testing of predictions")
@@ -97,8 +96,8 @@ def test_models(test_data, models):
     else:
         predictions = {key: np.stack(predictions[key]).squeeze() for key in predictions}
 
-    outcomes = {'mse': MSEs, 'predictions': predictions}
-    return outcomes
+    # outcomes = {'mse': MSEs, 'predictions': predictions}
+    return MSEs, predictions
 
 
 def test_traj_ensemble(ensemble, test_data):
@@ -196,11 +195,9 @@ def evaluate(cfg):
     dat = [test_data[i] for i in idx]
 
     # Find MSEs and predictions from all test trajectories at once
-    outcomes = test_models(dat, models)
+    MSEs, predictions = test_models(dat, models)
 
     # Plot
-    MSEs, predictions = outcomes['mse'], outcomes['predictions']
-
     log.info("Plotting states")
     for i, id in list(enumerate(idx)):
         gt = test_data[id].states
@@ -212,8 +209,12 @@ def evaluate(cfg):
         file = "%s/test%d" % (graph_file, i + 1)
         os.mkdir(file)
 
-        plot_states(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/predictions", show=False)
-        plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
+        if cfg.plotting.states:
+            plot_states(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/predictions", show=False)
+        if cfg.plotting.mse:
+            plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
+        if cfg.plotting.sorted:
+            pass
 
         mse_evald.append(mse)
 
