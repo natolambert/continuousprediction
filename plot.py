@@ -21,7 +21,8 @@ label_dict = {'t': 'Trajectory Based Deterministic',
               'te': 'Trajectory Based Deterministic Ensemble',
               'de': 'One Step Deterministic Ensemble',
               'pe': 'One Step Probabilistic Ensemble',
-              'tpe': 'Trajectory Based Probabilistic Ensemble'}
+              'tpe': 'Trajectory Based Probabilistic Ensemble',
+              'c': 'Custom'}
 color_dict = {'t': 'r',
               'd': 'b',
               'p': 'g',
@@ -29,7 +30,8 @@ color_dict = {'t': 'r',
               'te': '#b53636',
               'de': '#3660b5',
               'pe': '#52b536',
-              'tpe': '#b57f11'}
+              'tpe': '#b57f11',
+              'c': '#8d67a6'}
 color_dict_plotly = {'t': 'rgb(200,0,0)',
                      'd': 'rgb(0,0,128)',
                      'p': 'rgb(0,128,0)',
@@ -37,7 +39,8 @@ color_dict_plotly = {'t': 'rgb(200,0,0)',
                      'te': 'rgb(180,20,20)',
                      'de': 'rgb(20,20,128)',
                      'pe': 'rgb(20,128,20)',
-                     'tpe': 'rgb(180,180,25)'}
+                     'tpe': 'rgb(180,180,25)',
+                     'c': 'rgb(141,103,166)'}
 
 marker_dict = {'t': 's',
                'd': 'o',
@@ -46,7 +49,8 @@ marker_dict = {'t': 's',
                'te': 's',
                'de': 'o',
                'pe': 'D',
-               'tpe': 'p', }
+               'tpe': 'p',
+               'c': '*'}
 
 marker_dict_plotly = {'t': 'cross-open-dot',
                       'd': 'circle-open-dot',
@@ -55,7 +59,8 @@ marker_dict_plotly = {'t': 'cross-open-dot',
                       'te': 'y-down-open',
                       'de': 'diamond-open-dot',
                       'pe': 'hourglass-open',
-                      'tpe': 'hash-open-dot', }
+                      'tpe': 'hash-open-dot',
+                      'c': 'star'}
 
 
 def find_latest_checkpoint(cfg):
@@ -221,7 +226,8 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             for i in idx_plot:
                 p = np.hstack((p, pred[:, i:i + 1]))
             p_avg = np.average(p[:, 1:], axis=1)
-            plt.plot(p_avg, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
+            chopped = [(x if abs(x) < 3 else float("nan")) for x in p_avg]
+            plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
                      markevery=50)
         # plt.ylim(-.5, 1.5)
         plt.legend()

@@ -310,6 +310,7 @@ def contpred(cfg):
     prob = cfg.model.prob
     traj = cfg.model.traj
     ens = cfg.model.ensemble
+    delta = cfg.model.delta
 
     # for model_type in model_types:
     log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
@@ -321,7 +322,7 @@ def contpred(cfg):
         if traj:
             dataset = create_dataset_traj(exper_data, threshold=0.95)
         else:
-            dataset = create_dataset_step(exper_data)
+            dataset = create_dataset_step(exper_data, delta=delta)
 
         # model = Model(cfg.model)
         # model.train(cfg, dataset)
@@ -329,7 +330,7 @@ def contpred(cfg):
         model = DynamicsModel(cfg)
         train_logs, test_logs = model.train(dataset, cfg)
 
-        plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=True)
+        plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
         # plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
 
         if cfg.save_models:
