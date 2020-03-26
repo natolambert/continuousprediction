@@ -554,8 +554,8 @@ def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=Tr
         idx_plot = list(range(dx))
 
     # Extracting deltas
-    ground_truth_d = ground_truth[:,1:] - ground_truth[:,:1]
-    predictions_d = {key: predictions[key][:,1:] - predictions[key][:,:1] for key in predictions}
+    ground_truth_d = ground_truth[1:,:] - ground_truth[:-1,:]
+    predictions_d = {key: predictions[key][1:,:] - predictions[key][:-1,:] for key in predictions}
 
     for idx in idx_plot:
         # Sorting
@@ -570,7 +570,6 @@ def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=Tr
         # Plotting
         fig, ax = plt.subplots()
         plt.title("Sorted Predictions - Dimension %d" % idx)
-        plt.xlabel("Timestep")
         plt.ylabel("Delta Predictions")
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
@@ -579,7 +578,7 @@ def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=Tr
         for key in preds:
             plt.plot(preds[key], label=label_dict[key], c=color_dict[key])
 
-        plt.ylim(np.min(gt)-0.5, np.max(gt)+0.5)
+        plt.ylim(np.min(gt)-0.1, np.max(gt)+0.1)
         plt.legend()
 
         if save_loc:
@@ -588,6 +587,33 @@ def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=Tr
             plt.show()
         else:
             plt.close()
+
+    # Debug: plot unsorted
+    for idx in idx_plot:
+        gt = ground_truth_d[:,idx].ravel()
+        pred = {key: predictions_d[key][:,idx].ravel() for key in predictions_d}
+
+        fig, ax = plt.subplots()
+        plt.title("Unsorted Predictions - Dimension %d" % idx)
+        plt.ylabel("Delta Predictions")
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+
+        plt.plot(gt, c='k', label='Groundtruth')
+        for key in pred:
+            plt.plot(pred[key], label=label_dict[key], c=color_dict[key])
+
+        plt.ylim(np.min(gt) - 0.5, np.max(gt) + 0.5)
+        plt.legend()
+
+        if save_loc:
+            plt.savefig(save_loc + "-unsorted-state%d.pdf" % idx)
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+
 
 
 
