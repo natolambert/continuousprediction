@@ -227,69 +227,60 @@ def evaluate(cfg):
         hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
 
     # Load models
+    log.info("Loading models")
     model_types = cfg.plotting.models
     models = {}
     for model_type in model_types:
         models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + model_type + ".dat")
 
-    log.info("Plotting states")
-    mse_evald = []
-
-    # Select a random subset of testing data
-    idx = np.random.randint(0, len(test_data), cfg.plotting.num_eval)
-    dat = [test_data[i] for i in idx]
-
-    # Find MSEs and predictions from all test trajectories at once
-    MSEs, predictions = test_models(dat, models)
-    if cfg.plotting.sorted:
-        deltas = find_deltas(test_data, models)
-
     # Plot
-    log.info("Plotting states")
-    for i, id in list(enumerate(idx)):
-        gt = test_data[id].states
-        mse = {key: MSEs[key][i].squeeze() for key in MSEs}
-        # mse_sub = {key: mse[mse[key] < 10 ** 5] for key in mse}
-        mse_sub = {key: [(x if x < 10 ** 5 else float("nan")) for x in mse[key]] for key in mse}
-        pred = {key: predictions[key][i] for key in predictions}
+    def plot_helper(data, num, graph_file):
+        """
+        Helper to allow plotting for both train and test data without significant code duplication
+        """
 
-        file = "%s/test%d" % (graph_file, i + 1)
-        os.mkdir(file)
+        # Select a random subset of training data
+        idx = np.random.randint(0, len(data), num)
+        dat = [data[i] for i in idx]
 
-        if cfg.plotting.states:
-            plot_states(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/predictions", show=False)
-        if cfg.plotting.mse:
-            plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
+        MSEs, predictions = test_models(dat, models)
         if cfg.plotting.sorted:
-            ds = {key: deltas[key][i] for key in deltas}
-            plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
+            deltas = find_deltas(dat, models)
 
-        mse_evald.append(mse)
+        mse_evald = []
+        for i, id in list(enumerate(idx)):
+            gt = data[id].states
+            mse = {key: MSEs[key][i].squeeze() for key in MSEs}
+            mse_sub = {key: [(x if x < 10 ** 5 else float("nan")) for x in mse[key]] for key in mse}
+            pred = {key: predictions[key][i] for key in predictions}
 
-    # for i in range(cfg.plotting.num_eval):
-    #     # Evaluate models
-    #     idx = np.random.randint(0, len(train_data))
-    #     outcomes = test_models([test_data[idx]], models)
-    #
-    #     # idx = np.random.randint(0, len(test_data))
-    #     # outcomes = test_models([test_data[idx]], models)
-    #
-    #     # Plot shit
-    #     # TODO account for numerical errors with predictions
-    #     MSEs, predictions = outcomes['mse'], outcomes['predictions']
-    #     MSE_avg = {key: np.average(MSEs[key], axis=0) for key in MSEs}
-    #
-    #     gt = test_data[idx].states
-    #     mse = {key: MSEs[key].squeeze() for key in MSEs}
-    #     mse_sub = {key: mse[key][mse[key] < 10 ** 5] for key in mse}
-    #     pred = {key: predictions[key] for key in predictions}
-    #
-    #
-    #     # plot_states(gt, pred, save_loc="Predictions; traj-" + str(idx), idx_plot=[0,1,2,3], show=False)
-    #     # plot_mse(mse_sub, save_loc="Error; traj-" + str(idx), show=False)
-    #     mse_evald.append(mse)
-    #
-    plot_mse_err(mse_evald, save_loc="Err Bar MSE of Predictions", show=False)
+            file = "%s/test%d" % (graph_file, i + 1)
+            os.mkdir(file)
+
+            if cfg.plotting.states:
+                plot_states(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/predictions", show=False)
+            if cfg.plotting.mse:
+                plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
+            if cfg.plotting.sorted:
+                ds = {key: deltas[key][i] for key in deltas}
+                plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
+
+            mse_evald.append(mse)
+        plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file), show=False)
+
+    if cfg.plotting.num_eval_train:
+        log.info("Plotting train data")
+
+        file = graph_file + "/train_data"
+
+        plot_helper(train_data, cfg.plotting.num_eval_train, file)
+
+    if cfg.plotting.num_eval_test:
+        log.info("Plotting test data")
+
+        file = graph_file + '/test_data'
+
+        plot_helper(test_data, cfg.plotting.num_eval_test, file)
 
 
 if __name__ == '__main__':
