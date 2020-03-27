@@ -170,6 +170,51 @@ def unpack_config_models(cfg):
     return model_types
 
 
+def find_deltas(test_data, models):
+    """
+    For sorted delta plots. Tests each model in 'models' on each test trajectory in 'test_data',
+    finding the predicted deltas. The difference between this method and the standard test_models
+    is that with this one, each prediction starts from a ground truth value
+
+    Parameters:
+        test_data: the N test trajectories to test on
+        models: the M models to evaluate
+
+    Returns:
+        tbd
+
+    """
+    states, actions = [], []
+    P, D, target = [], [], []
+
+    # Compile the various trajectories into arrays
+    for traj in test_data:
+        states.append(traj.states)
+        actions.append(traj.actions)
+
+    # Convert to numpy arrays
+    states = np.array(states)
+    actions = np.array(actions)
+
+    N, T, D = states.shape
+
+    # Iterate through each type of model for evaluation
+    deltas = {}
+    for key in models:
+        model = models[key]
+        if 't' in key:
+            # This doesn't make sense for t models so not gonna bother with this
+            continue
+        else:
+            input = np.dstack((states, actions)).reshape(N*T, -1)
+            prediction = model.predict(input)
+            prediction = np.array(prediction.detach()).reshape(N, T, D)
+            delta = prediction-states
+            deltas[key] = delta
+
+    return deltas
+
+
 @hydra.main(config_path='conf/eval.yaml')
 def evaluate(cfg):
     # print("here")
@@ -196,6 +241,8 @@ def evaluate(cfg):
 
     # Find MSEs and predictions from all test trajectories at once
     MSEs, predictions = test_models(dat, models)
+    if cfg.plotting.sorted:
+        deltas = find_deltas(test_data, models)
 
     # Plot
     log.info("Plotting states")
@@ -214,7 +261,8 @@ def evaluate(cfg):
         if cfg.plotting.mse:
             plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
         if cfg.plotting.sorted:
-            plot_sorted(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
+            ds = {key: deltas[key][i] for key in deltas}
+            plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
 
         mse_evald.append(mse)
 

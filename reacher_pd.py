@@ -278,11 +278,8 @@ def log_hyperparams(cfg):  # , configs, model_types):
 ###########################################
 
 @hydra.main(config_path='conf/train.yaml')
-def contpred(cfg):
+def contpredp(cfg):
     log_hyperparams(cfg)  # configs, model_types)
-
-    graph_file = 'graphs'
-    os.mkdir(graph_file)
 
     # Collect data
     if cfg.collect_data:

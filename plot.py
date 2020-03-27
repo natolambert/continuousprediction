@@ -547,7 +547,7 @@ def plot_lorenz(data, cfg, predictions=None):
     fig.write_image(os.getcwd() + "/lorenz.png")
 
 
-def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=True):
+def plot_sorted(ground_truth, deltas, idx_plot=None, save_loc=None, show=True):
     num = ground_truth.shape[0]
     dx = ground_truth.shape[1]
     if idx_plot is None:
@@ -555,17 +555,20 @@ def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=Tr
 
     # Extracting deltas
     ground_truth_d = ground_truth[1:,:] - ground_truth[:-1,:]
-    predictions_d = {key: predictions[key][1:,:] - predictions[key][:-1,:] for key in predictions}
+    deltas = {key: deltas[key][:-1,:] for key in deltas}
 
     for idx in idx_plot:
         # Sorting
         gt = ground_truth_d[:,idx].ravel()
-        pred = [{key: predictions_d[key][i,idx] for key in predictions_d} for i in range(num-1)]
-        zipped = list(zip(gt, pred))
+        delt = [{key: deltas[key][i,idx] for key in deltas} for i in range(num-1)]
+        zipped = list(zip(gt, delt))
         zipped.sort()
         arr = np.array(zipped)
-        gts, preds = np.split(arr, 2, axis=1)
-        preds = {key: [pred[i][key] for i in range(num-1)] for key in predictions_d}
+        gts = []
+        delts = {key: [] for key in deltas}
+        for gt_i, delts_i in zipped:
+            gts.append(gt_i)
+            _ = {key: delts[key].append(delts_i[key]) for key in delts}
 
         # Plotting
         fig, ax = plt.subplots()
@@ -575,10 +578,12 @@ def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=Tr
         ax.spines['top'].set_visible(False)
 
         plt.plot(gts, c='k', label='Groundtruth')
-        for key in preds:
-            plt.plot(preds[key], label=label_dict[key], c=color_dict[key])
+        for key in delts:
+            # plt.plot(preds[key], label=label_dict[key], c=color_dict[key])
+            plt.scatter(np.arange(len(delts[key])), delts[key], c=color_dict[key],
+                        label=label_dict[key], marker=marker_dict[key], s=3)
 
-        plt.ylim(np.min(gt)-0.1, np.max(gt)+0.1)
+        plt.ylim(min(np.min(gt)*.8, np.min(gt)*1.2), max(np.max(gt)*.8, np.max(gt)*1.2))
         plt.legend()
 
         if save_loc:
@@ -591,7 +596,7 @@ def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=Tr
     # Debug: plot unsorted
     for idx in idx_plot:
         gt = ground_truth_d[:,idx].ravel()
-        pred = {key: predictions_d[key][:,idx].ravel() for key in predictions_d}
+        pred = {key: deltas[key][:,idx].ravel() for key in deltas}
 
         fig, ax = plt.subplots()
         plt.title("Unsorted Predictions - Dimension %d" % idx)
@@ -603,7 +608,7 @@ def plot_sorted(ground_truth, predictions, idx_plot=None, save_loc=None, show=Tr
         for key in pred:
             plt.plot(pred[key], label=label_dict[key], c=color_dict[key])
 
-        plt.ylim(np.min(gt) - 0.5, np.max(gt) + 0.5)
+        plt.ylim(min(np.min(gt)*.8, np.min(gt)*1.2), max(np.max(gt)*.8, np.max(gt)*1.2))
         plt.legend()
 
         if save_loc:
