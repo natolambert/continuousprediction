@@ -38,7 +38,7 @@ from dynamics_model import DynamicsModel
 #                Datasets                 #
 ###########################################
 
-def create_dataset_traj(data, control_params=True, threshold=0, delta=False):
+def create_dataset_traj(data, control_params=True, threshold=0, delta=False, t_range=0):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -51,6 +51,8 @@ def create_dataset_traj(data, control_params=True, threshold=0, delta=False):
     data_in, data_out = [], []
     for sequence in data:
         states = sequence.states
+        if t_range:
+            states = states[:t_range]
         P = sequence.P
         D = sequence.D
         target = sequence.target
@@ -80,7 +82,7 @@ def create_dataset_traj(data, control_params=True, threshold=0, delta=False):
     return data_in, data_out
 
 
-def create_dataset_step(data, delta=True):
+def create_dataset_step(data, delta=True, t_range=0):
     """
     Creates a dataset for learning how one state progresses to the next
 
@@ -91,19 +93,25 @@ def create_dataset_step(data, delta=True):
     data_in = []
     data_out = []
     for sequence in data:
-        for i in range(sequence.states.shape[0] - 1):
+        states = sequence.states
+        if t_range:
+            states = states[:t_range]
+        for i in range(states.shape[0] - 1):
             if 'actions' in sequence.keys():
-                data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
+                actions = sequence.actions
+                if t_range:
+                    actions = actions[:t_range]
+                data_in.append(np.hstack((states[i], actions[i])))
                 if delta:
-                    data_out.append(sequence.states[i + 1] - sequence.states[i])
+                    data_out.append(states[i + 1] - states[i])
                 else:
-                    data_out.append(sequence.states[i + 1])
+                    data_out.append(states[i + 1])
             else:
-                data_in.append(np.array(sequence.states[i]))
+                data_in.append(np.array(states[i]))
                 if delta:
-                    data_out.append(sequence.states[i + 1] - sequence.states[i])
+                    data_out.append(states[i + 1] - states[i])
                 else:
-                    data_out.append(sequence.states[i + 1])
+                    data_out.append(states[i + 1])
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
@@ -293,7 +301,6 @@ def contpred(cfg):
         (exper_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
 
-
     if train:
         prob = cfg.model.prob
         traj = cfg.model.traj
@@ -304,10 +311,15 @@ def contpred(cfg):
 
         log_hyperparams(cfg)
 
-        if traj:
-            dataset = create_dataset_traj(exper_data, threshold=0.95)
+        if cfg.training.num_traj:
+            train_data = exper_data[:cfg.training.num_traj]
         else:
-            dataset = create_dataset_step(exper_data, delta=delta)
+            train_data = exper_data
+
+        if traj:
+            dataset = create_dataset_traj(train_data, threshold=0.95)
+        else:
+            dataset = create_dataset_step(train_data, delta=delta)
 
         model = DynamicsModel(cfg)
         train_logs, test_logs = model.train(dataset, cfg)

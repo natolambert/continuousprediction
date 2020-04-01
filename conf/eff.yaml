@@ -22,14 +22,16 @@ hydra:
         exclude_keys: ['random_seed']
 
 training:
-  num_traj: 1
+  num_traj: 20
+  t_range: 500
 
 plotting:
   num_traj: [1,2, 5, 10, 20, 50, 100]
   models: [d, t]
-  t_range: 1000
-  num_eval_train: 10
-  num_eval_test: 0
+  t_range: 500
+  eval_t_range: 100
+  num_eval_train: 0
+  num_eval_test: 10
   plot_all_eval: false
   plot_avg_eval: true
   plot_states: false

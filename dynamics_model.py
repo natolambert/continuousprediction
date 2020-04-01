@@ -159,7 +159,7 @@ class Net(nn.Module):
         # data preprocessing for normalization
         dataset = self.preprocess(dataset, cfg)
 
-        if cfg.model.optimizer.max_size > 0:
+        if 0 < cfg.model.optimizer.max_size < len(dataset):
             import random
             dataset = random.sample(dataset, cfg.model.optimizer.max_size)
 
