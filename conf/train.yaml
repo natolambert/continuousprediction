@@ -2,12 +2,10 @@ defaults:
   - models: t
   - envs: reacher
 
-collect_data: false
-train_models: true
-save_data: false
-save_models: true
+mode: train # train or collect
 data_dir: l500_t50_v5.dat
 model_dir: l500_t50_v5.dat
+exper_dir: false # set to a name to save models within a subfolder in the models directory
 plot: false
 
 hydra:
@@ -36,17 +34,6 @@ experiment:
   split: .8
   P: false
   D: false
-  models:
-    single:
-      train_traj: true
-      train_det: true
-      train_prob: true
-      train_prob_traj: true
-    ensemble:
-      train_traj: false
-      train_det: false
-      train_prob: false
-      train_prob_traj: false
 
 experiment_efficiency:
   traj_len: 30
