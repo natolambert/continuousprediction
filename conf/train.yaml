@@ -20,22 +20,3 @@ hydra:
         kv_sep: '='
         item_sep: ','
         exclude_keys: ['random_seed']
-
-plotting:
-  models: []
-  states: true
-  mse: true
-
-experiment:
-  traj_len: 500
-  traj_len_test: 500
-  num_traj: 50
-  num_traj_test: 5
-  split: .8
-  P: false
-  D: false
-
-experiment_efficiency:
-  traj_len: 30
-  traj_len_test: 200
-  num_traj: 10

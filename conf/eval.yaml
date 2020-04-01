@@ -24,27 +24,3 @@ plotting:
   mse: true
   sorted: true
 
-experiment:
-  traj_len: 500
-  traj_len_test: 500
-  num_traj: 50
-  num_traj_test: 5
-  split: .8
-  P: false
-  D: false
-  models:
-    single:
-      train_traj: true
-      train_det: true
-      train_prob: true
-      train_prob_traj: true
-    ensemble:
-      train_traj: false
-      train_det: false
-      train_prob: false
-      train_prob_traj: false
-
-experiment_efficiency:
-  traj_len: 30
-  traj_len_test: 200
-  num_traj: 10

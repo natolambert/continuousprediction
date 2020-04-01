@@ -255,16 +255,8 @@ def collect_and_dataset(cfg):
 ###########################################
 
 
-def log_hyperparams(cfg):  # , configs, model_types):
-    log.info("General Hyperparams:")
-    log.info("  traj_len: %d" % cfg.experiment.traj_len)
-    log.info('  traj_len_test: %d' % cfg.experiment.traj_len_test)
-    log.info('  num_traj: %d' % cfg.experiment.num_traj)
-    log.info('  num_traj_test: %d' % cfg.experiment.num_traj_test)
-
-    # for type in model_types:
-    #     conf = configs[type]
-    # log.info(type)
+def log_hyperparams(cfg):
+    log.info(cfg.model.str + ":")
     log.info("  hid_width: %d" % cfg.model.training.hid_width)
     log.info('  hid_depth: %d' % cfg.model.training.hid_depth)
     log.info('  epochs: %d' % cfg.model.optimizer.epochs)
@@ -279,7 +271,6 @@ def log_hyperparams(cfg):  # , configs, model_types):
 
 @hydra.main(config_path='conf/train.yaml')
 def contpred(cfg):
-    log_hyperparams(cfg) 
 
     train = cfg.mode == 'train'
 
@@ -302,14 +293,17 @@ def contpred(cfg):
         (exper_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
 
-    prob = cfg.model.prob
-    traj = cfg.model.traj
-    ens = cfg.model.ensemble
-    delta = cfg.model.delta
-
-    log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
 
     if train:
+        prob = cfg.model.prob
+        traj = cfg.model.traj
+        ens = cfg.model.ensemble
+        delta = cfg.model.delta
+
+        log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
+
+        log_hyperparams(cfg)
+
         if traj:
             dataset = create_dataset_traj(exper_data, threshold=0.95)
         else:
@@ -332,12 +326,6 @@ def contpred(cfg):
         f = f + cfg.model.str + '.dat'
         torch.save(model, f)
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
-
-    else:
-        pass
-        # TODO: Not sure what we would put in here if the point of this function is to sweep and train models
-        # model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'step' + cfg.model_dir)
-        # model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'traj' + cfg.model_dir)
 
 
 

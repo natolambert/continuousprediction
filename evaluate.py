@@ -12,8 +12,6 @@ import numpy as np
 
 from plot import *
 
-# from mbrl_resources import Model
-
 log = logging.getLogger(__name__)
 
 
@@ -143,31 +141,6 @@ def test_traj_ensemble(ensemble, test_data):
         plt.legend()
 
         plt.show()
-
-
-def unpack_config_models(cfg):
-    """
-    Reads the config to decide which models to use
-    """
-    model_types = []
-    if cfg.experiment.models.single.train_traj:
-        model_types.append('t')
-    if cfg.experiment.models.single.train_det:
-        model_types.append('d')
-    if cfg.experiment.models.single.train_prob:
-        model_types.append('p')
-    if cfg.experiment.models.single.train_prob_traj:
-        model_types.append('tp')
-    if cfg.experiment.models.ensemble.train_traj:
-        model_types.append('te')
-    if cfg.experiment.models.ensemble.train_det:
-        model_types.append('de')
-    if cfg.experiment.models.ensemble.train_prob:
-        model_types.append('pe')
-    if cfg.experiment.models.ensemble.train_prob_traj:
-        model_types.append('tpe')
-
-    return model_types
 
 
 def find_deltas(test_data, models):
