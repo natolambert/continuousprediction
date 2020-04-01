@@ -318,7 +318,7 @@ def contpred(cfg):
         f =  hydra.utils.get_original_cwd() + '/models/reacher/'
         if cfg.exper_dir:
             f = f + cfg.exper_dir + '/'
-            if not os.path.isfile(f):
+            if not os.path.exists(f):
                 os.mkdir(f)
         f = f + cfg.model.str + '.dat'
         torch.save(model, f)

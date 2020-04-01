@@ -67,10 +67,11 @@ def test_models(test_data, models):
         groundtruth = states[:, i]
         for key in models:
             model = models[key]
+            traj = 't' in key or type(key)==tuple and 't' in key[0]
             # Make predictions on all trajectories at once
             #
             # Commented some lines out because they seemed to break the code
-            if 't' in key:
+            if traj:
                 # prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param.reshape(-1, 1),
                 #                                       D_param.reshape(-1, 1), target.reshape(-1, 1))))
                 prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
@@ -188,6 +189,33 @@ def find_deltas(test_data, models):
     return deltas
 
 
+def num_eval(gt, predictions, setting='dot', T_range=10000):
+    """
+    Evaluates the predictions in a way that creates one number
+
+    Parameters:
+        gt: NxTxD array of ground truth values
+        predictions: a dictionary of NxTxD arrays of predictions from models
+        setting: currently 'dot', 'mse'
+            'dot': average over dimensions of dot product between ground truth and trajectories
+            'mse': average over dimensions of MSE
+
+    Returns:
+        outputs: a dictionary of arrays of length N of evaluation
+    """
+    gt = gt[:, :T_range, :]
+    predictions = {key: predictions[key][:, :T_range, :] for key in predictions}
+
+    if setting == 'dot':
+        N, T, D = gt.shape
+        gt_norm = gt / np.linalg.norm(gt, axis=1).reshape((N, 1, D))
+        predictions_norm = {key: predictions[key] / np.linalg.norm(predictions[key], axis=1).reshape((N, 1, D)) for key in predictions}
+        return {key: np.sum(predictions_norm[key] * gt_norm, axis=(1, 2)) / D for key in predictions_norm}
+    if setting == 'mse':
+        return {key: np.mean((predictions[key]-gt)**2, axis=(1,2)) for key in predictions}
+    raise ValueError("Invalid setting: " + setting)
+
+
 @hydra.main(config_path='conf/eval.yaml')
 def evaluate(cfg):
     # print("here")
@@ -243,6 +271,7 @@ def evaluate(cfg):
                 plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
 
             mse_evald.append(mse)
+
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file), show=False)
 
     if cfg.plotting.num_eval_train:

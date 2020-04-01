@@ -619,6 +619,30 @@ def plot_sorted(ground_truth, deltas, idx_plot=None, save_loc=None, show=True):
             plt.close()
 
 
+def plot_efficiency(data, num_traj, ylabel=None, log_scale=False, save_loc=None, show=True):
+    """
+    Plots plots for sample efficiency tests
+
+    data: dictionary of arrays of eval values
+    """
+    fig, ax = plt.subplots()
+    plt.title("Sample efficiency evalutaions")
+    plt.xlabel('Number of trajectories')
+    if ylabel:
+        plt.ylabel(ylabel)
+    if log_scale:
+        plt.yscale('log')
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    for key in data:
+        plt.plot(num_traj, data[key], color=color_dict[key], label=label_dict[key], marker=marker_dict[key])
+    plt.legend()
+    if save_loc:
+        plt.savefig(save_loc)
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
 
 
