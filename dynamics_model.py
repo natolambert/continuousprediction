@@ -211,6 +211,8 @@ class DynamicsModel(object):
         self.traj = cfg.model.traj
         self.prob = cfg.model.prob
         self.delta = cfg.model.delta
+        self.train_target = cfg.train_target
+        self.control_params = cfg.control_params
         self.cfg = cfg
 
         # Setup for data structure
@@ -220,7 +222,13 @@ class DynamicsModel(object):
             self.E = 1
 
         if self.traj:
-            self.n_in = cfg.env.state_size + (cfg.env.param_size) + 1
+            if self.control_params:
+                if self.train_target:
+                    self.n_in = cfg.env.state_size + (cfg.env.param_size) + 1
+                else:
+                    self.n_in = cfg.env.state_size + (cfg.env.param_size - cfg.env.target_size) + 1
+            else:
+                self.n_in = cfg.env.state_size + 1
         else:
             self.n_in = cfg.env.state_size + cfg.env.action_size
 

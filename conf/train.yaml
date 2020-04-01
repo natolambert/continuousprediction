@@ -9,6 +9,10 @@ save_models: true
 data_dir: l500_t50_v5.dat
 model_dir: l500_t50_v5.dat
 plot: false
+#determines whether target is part of input data
+train_target: false
+#determines whether P, D, and target is part of input data
+control_params: true
 
 hydra:
   run:

@@ -3,6 +3,7 @@ env:
   state_size: 21
   action_size: 5
   param_size: 15
+  target_size: 5
 
 num_trials: 20
 trial_timesteps: 500

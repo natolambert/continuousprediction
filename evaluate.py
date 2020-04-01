@@ -75,7 +75,14 @@ def test_models(test_data, models):
             if 't' in key:
                 # prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param.reshape(-1, 1),
                 #                                       D_param.reshape(-1, 1), target.reshape(-1, 1))))
-                prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
+                prediction = 0
+                if model.control_params:
+                    if model.train_target:
+                        prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
+                    else:
+                        prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param)))
+                else:
+                    prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)))))
                 prediction = np.array(prediction.detach())
             else:
                 # if len(np.shape(actions)) == 1:
