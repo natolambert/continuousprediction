@@ -286,16 +286,14 @@ def contpredp(cfg):
     # Collect data
     if not train:
         log.info(f"Collecting new trials")
-        # traj_dataset, one_step_dataset, exper_data = collect_and_dataset(cfg)
 
         exper_data = collect_data(cfg)
         test_data = collect_data(cfg)
 
-        if cfg.save_data:
-            log.info("Saving new default data")
-            torch.save((exper_data, test_data),
-                       hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
-            log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
+        log.info("Saving new default data")
+        torch.save((exper_data, test_data),
+                   hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+        log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
     # Load data
     else:
         log.info(f"Loading default data")
@@ -332,13 +330,12 @@ def contpredp(cfg):
         plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
         # plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
 
-        if cfg.save_models:
-            log.info("Saving new default models")
-            f =  hydra.utils.get_original_cwd() + '/models/reacher/'
-            if cfg.exper_dir:
-                f = f + cfg.exper_dir + '/'
-            f = f + cfg.model.str + '.dat'
-            torch.save(model, f)
+        log.info("Saving new default models")
+        f =  hydra.utils.get_original_cwd() + '/models/reacher/'
+        if cfg.exper_dir:
+            f = f + cfg.exper_dir + '/'
+        f = f + cfg.model.str + '.dat'
+        torch.save(model, f)
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
 
     else:
@@ -347,33 +344,6 @@ def contpredp(cfg):
         # model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'step' + cfg.model_dir)
         # model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'traj' + cfg.model_dir)
 
-
-###########################################
-#               Helpers                   #
-###########################################
-def unpack_config_models(cfg):
-    """
-    Reads the config to decide which models to use
-    """
-    model_types = []
-    if cfg.experiment.models.single.train_traj:
-        model_types.append('t')
-    if cfg.experiment.models.single.train_det:
-        model_types.append('d')
-    if cfg.experiment.models.single.train_prob:
-        model_types.append('p')
-    if cfg.experiment.models.single.train_prob_traj:
-        model_types.append('tp')
-    if cfg.experiment.models.ensemble.train_traj:
-        model_types.append('te')
-    if cfg.experiment.models.ensemble.train_det:
-        model_types.append('de')
-    if cfg.experiment.models.ensemble.train_prob:
-        model_types.append('pe')
-    if cfg.experiment.models.ensemble.train_prob_traj:
-        model_types.append('tpe')
-
-    return model_types
 
 
 if __name__ == '__main__':
