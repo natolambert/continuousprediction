@@ -23,7 +23,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
-from plot import plot_loss, plot_efficiency
+from plot import plot_loss, plot_efficiency, plot_mse
 from dynamics_model import DynamicsModel
 from reacher_pd import log_hyperparams, create_dataset_traj, create_dataset_step
 from evaluate import test_models, num_eval
@@ -70,12 +70,14 @@ def plot(cfg, train_data, test_data):
     os.mkdir(graph_file)
     models = {}
 
+    model_keys, ns = cfg.plotting.models, cfg.plotting.num_traj
+
     # Load models
     f = hydra.utils.get_original_cwd() + '/models/reacher'
     if cfg.exper_dir:
         f = f + cfg.exper_dir
-    for type in cfg.plotting.models:
-        for n in cfg.plotting.num_traj:
+    for type in model_keys:
+        for n in ns:
             model = torch.load("%s/efficiency/%s/%d.dat" % (f, type, n))
             models[(type, n)] = model
 
@@ -93,33 +95,57 @@ def plot(cfg, train_data, test_data):
 
         MSEs, predictions = test_models(dat, models)
         # Both of these are dictionaries of arrays. The keys are tuples (model_type, n) and the entries are the
-        # evaluation values for the different 
+        # evaluation values for the different
         eval_data_dot = num_eval(gt, predictions, setting='dot', T_range=cfg.plotting.t_range)
         eval_data_mse = num_eval(gt, predictions, setting='mse', T_range=cfg.plotting.t_range)
 
-        for i, id in list(enumerate(idx)):
-            file = "%s/test%d" % (graph_file, i + 1)
-            os.mkdir(file)
+        if cfg.plotting.plot_all_eval or cfg.plotting.plot_avg_eval:
+            eval_file = graph_file + '/eval'
+            os.mkdir(eval_file)
 
-            # Plot evaluations
-            evals_dot = {key: [eval_data_dot[(key, n)][i] for n in cfg.plotting.num_traj] for key in
-                         cfg.plotting.models}
-            evals_mse = {key: [eval_data_mse[(key, n)][i] for n in cfg.plotting.num_traj] for key in
-                         cfg.plotting.models}
-            plot_efficiency(evals_dot, cfg.plotting.num_traj, ylabel='Dot product similarity',
-                            save_loc=file+'/efficiency_dot.pdf', show=False)
-            plot_efficiency(evals_mse, cfg.plotting.num_traj, ylabel='MSE similarity',
-                            save_loc=file + '/efficiency_mse.pdf', show=False, log_scale=True)
+        if cfg.plotting.plot_all_eval:
+            for i, id in list(enumerate(idx)):
+                file = "%s/test%d" % (eval_file, i + 1)
+                os.mkdir(file)
+
+                # Plot evaluations
+                evals_dot = {key: [eval_data_dot[(key, n)][i] for n in ns] for key in model_keys}
+                evals_mse = {key: [eval_data_mse[(key, n)][i] for n in ns] for key in model_keys}
+                evals_mse_chopped = {key: [(x if x < 10 ** 5 else float("nan")) for x in evals_mse[key]] for key in evals_mse}
+                plot_efficiency(evals_dot, ns, ylabel='Dot product similarity',
+                                save_loc=file+'/efficiency_dot.pdf', show=False)
+                plot_efficiency(evals_mse_chopped, ns, ylabel='MSE similarity',
+                                save_loc=file + '/efficiency_mse.pdf', show=False, log_scale=True)
 
         # Plot averages
-        evals_dot = {key: [np.average(eval_data_dot[(key, n)]) for n in cfg.plotting.num_traj] for key in
-                     cfg.plotting.models}
-        evals_mse = {key: [np.average(eval_data_mse[(key, n)]) for n in cfg.plotting.num_traj] for key in
-                     cfg.plotting.models}
-        plot_efficiency(evals_dot, cfg.plotting.num_traj, ylabel='Dot product similarity',
-                        save_loc=graph_file + '/avg_efficiency_dot.pdf', show=False)
-        plot_efficiency(evals_mse, cfg.plotting.num_traj, ylabel='MSE similarity',
-                        save_loc=graph_file + '/avg_efficiency_mse.pdf', show=False, log_scale=True)
+        if cfg.plotting.plot_avg_eval:
+            evals_dot = {key: [np.average(eval_data_dot[(key, n)]) for n in ns] for key in model_keys}
+            evals_mse = {key: [np.average(eval_data_mse[(key, n)]) for n in ns] for key in model_keys}
+            evals_mse_chopped = {key: [(x if x < 10 ** 5 else float("nan")) for x in evals_mse[key]] for key in
+                                 evals_mse}
+            plot_efficiency(evals_dot, ns, ylabel='Dot product similarity',
+                            save_loc=eval_file + '/avg_efficiency_dot.pdf', show=False)
+            plot_efficiency(evals_mse_chopped, ns, ylabel='MSE similarity',
+                            save_loc=eval_file + '/avg_efficiency_mse.pdf', show=False, log_scale=True)
+
+        # Plot states
+        if cfg.plotting.plot_states:
+            # TODO: this
+            for i, id in list(enumerate(idx)):
+                pass
+
+
+        # Plot MSEs
+        if cfg.plotting.plot_avg_mse:
+            file = graph_file + '/mse'
+            os.mkdir(file)
+
+            MSE_avgs = {n: {key: np.mean(MSEs[(key, n)], axis=0) for key in model_keys} for n in ns}
+            for n in ns:
+                chopped = {key: [(x if x < 10 ** 5 else float("nan")) for x in MSE_avgs[n][key]] for key in MSE_avgs[n]}
+                plot_mse(chopped, save_loc=file+'/avg_mse_n%d.pdf'%n, show=False, log_scale=True)
+
+
 
 
 
