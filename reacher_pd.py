@@ -309,9 +309,6 @@ def contpred(cfg):
         else:
             dataset = create_dataset_step(exper_data, delta=delta)
 
-        # model = Model(cfg.model)
-        # model.train(cfg, dataset)
-        # loss_log = model.loss_log
         model = DynamicsModel(cfg)
         train_logs, test_logs = model.train(dataset, cfg)
 
