@@ -279,7 +279,7 @@ def log_hyperparams(cfg):  # , configs, model_types):
 
 @hydra.main(config_path='conf/train.yaml')
 def contpred(cfg):
-    log_hyperparams(cfg)  # configs, model_types)
+    log_hyperparams(cfg) 
 
     train = cfg.mode == 'train'
 
@@ -301,19 +301,13 @@ def contpred(cfg):
         # Todo re-save data
         (exper_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
-        # traj_dataset = create_dataset_traj(exper_data, threshold=0.0)
-        # one_step_dataset = create_dataset_step(exper_data)  # train_data[0].states)
 
     prob = cfg.model.prob
     traj = cfg.model.traj
     ens = cfg.model.ensemble
     delta = cfg.model.delta
 
-    # for model_type in model_types:
     log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
-    # model_file = 'model_%s.pth.tar' % model_type
-
-    # dataset = traj_dataset if traj else one_step_dataset
 
     if train:
         if traj:
@@ -328,12 +322,13 @@ def contpred(cfg):
         train_logs, test_logs = model.train(dataset, cfg)
 
         plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
-        # plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
 
         log.info("Saving new default models")
         f =  hydra.utils.get_original_cwd() + '/models/reacher/'
         if cfg.exper_dir:
             f = f + cfg.exper_dir + '/'
+            if not os.path.isfile(f):
+                os.mkdir(f)
         f = f + cfg.model.str + '.dat'
         torch.save(model, f)
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
