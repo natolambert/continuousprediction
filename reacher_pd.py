@@ -281,8 +281,10 @@ def log_hyperparams(cfg):  # , configs, model_types):
 def contpredp(cfg):
     log_hyperparams(cfg)  # configs, model_types)
 
+    train = cfg.mode == 'train'
+
     # Collect data
-    if cfg.collect_data:
+    if not train:
         log.info(f"Collecting new trials")
         # traj_dataset, one_step_dataset, exper_data = collect_and_dataset(cfg)
 
@@ -315,7 +317,7 @@ def contpredp(cfg):
 
     # dataset = traj_dataset if traj else one_step_dataset
 
-    if cfg.train_models:
+    if train:
         if traj:
             dataset = create_dataset_traj(exper_data, threshold=0.95)
         else:
@@ -332,8 +334,11 @@ def contpredp(cfg):
 
         if cfg.save_models:
             log.info("Saving new default models")
-            torch.save(model,
-                       hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + '.dat')
+            f =  hydra.utils.get_original_cwd() + '/models/reacher/'
+            if cfg.exper_dir:
+                f = f + cfg.exper_dir + '/'
+            f = f + cfg.model.str + '.dat'
+            torch.save(model, f)
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
 
     else:

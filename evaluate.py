@@ -230,8 +230,11 @@ def evaluate(cfg):
     log.info("Loading models")
     model_types = cfg.plotting.models
     models = {}
+    f = hydra.utils.get_original_cwd() + '/models/reacher/'
+    if cfg.exper_dir:
+        f = f + cfg.exper_dir + '/'
     for model_type in model_types:
-        models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + model_type + ".dat")
+        models[model_type] = torch.load(f + model_type + ".dat")
 
     # Plot
     def plot_helper(data, num, graph_file):
