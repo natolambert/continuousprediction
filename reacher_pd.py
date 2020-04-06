@@ -38,7 +38,7 @@ from dynamics_model import DynamicsModel
 #                Datasets                 #
 ###########################################
 
-def create_dataset_traj(data, control_params=True, train_target=False, threshold=0, delta=False):
+def create_dataset_traj(data, control_params=True, train_target=False, threshold=0, delta=False, t_range=0):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -51,6 +51,8 @@ def create_dataset_traj(data, control_params=True, train_target=False, threshold
     data_in, data_out = [], []
     for sequence in data:
         states = sequence.states
+        if t_range:
+            states = states[:t_range]
         P = sequence.P
         D = sequence.D
         target = sequence.target
@@ -83,7 +85,7 @@ def create_dataset_traj(data, control_params=True, train_target=False, threshold
     return data_in, data_out
 
 
-def create_dataset_step(data, delta=True):
+def create_dataset_step(data, delta=True, t_range=0):
     """
     Creates a dataset for learning how one state progresses to the next
 
@@ -94,19 +96,25 @@ def create_dataset_step(data, delta=True):
     data_in = []
     data_out = []
     for sequence in data:
-        for i in range(sequence.states.shape[0] - 1):
+        states = sequence.states
+        if t_range:
+            states = states[:t_range]
+        for i in range(states.shape[0] - 1):
             if 'actions' in sequence.keys():
-                data_in.append(np.hstack((sequence.states[i], sequence.actions[i])))
+                actions = sequence.actions
+                if t_range:
+                    actions = actions[:t_range]
+                data_in.append(np.hstack((states[i], actions[i])))
                 if delta:
-                    data_out.append(sequence.states[i + 1] - sequence.states[i])
+                    data_out.append(states[i + 1] - states[i])
                 else:
-                    data_out.append(sequence.states[i + 1])
+                    data_out.append(states[i + 1])
             else:
-                data_in.append(np.array(sequence.states[i]))
+                data_in.append(np.array(states[i]))
                 if delta:
-                    data_out.append(sequence.states[i + 1] - sequence.states[i])
+                    data_out.append(states[i + 1] - states[i])
                 else:
-                    data_out.append(sequence.states[i + 1])
+                    data_out.append(states[i + 1])
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
@@ -258,16 +266,8 @@ def collect_and_dataset(cfg):
 ###########################################
 
 
-def log_hyperparams(cfg):  # , configs, model_types):
-    log.info("General Hyperparams:")
-    log.info("  traj_len: %d" % cfg.experiment.traj_len)
-    log.info('  traj_len_test: %d' % cfg.experiment.traj_len_test)
-    log.info('  num_traj: %d' % cfg.experiment.num_traj)
-    log.info('  num_traj_test: %d' % cfg.experiment.num_traj_test)
-
-    # for type in model_types:
-    #     conf = configs[type]
-    # log.info(type)
+def log_hyperparams(cfg):
+    log.info(cfg.model.str + ":")
     log.info("  hid_width: %d" % cfg.model.training.hid_width)
     log.info('  hid_depth: %d' % cfg.model.training.hid_depth)
     log.info('  epochs: %d' % cfg.model.optimizer.epochs)
@@ -282,21 +282,20 @@ def log_hyperparams(cfg):  # , configs, model_types):
 
 @hydra.main(config_path='conf/train.yaml')
 def contpred(cfg):
-    log_hyperparams(cfg)  # configs, model_types)
+
+    train = cfg.mode == 'train'
 
     # Collect data
-    if cfg.collect_data:
+    if not train:
         log.info(f"Collecting new trials")
-        # traj_dataset, one_step_dataset, exper_data = collect_and_dataset(cfg)
 
         exper_data = collect_data(cfg)
         test_data = collect_data(cfg)
 
-        if cfg.save_data:
-            log.info("Saving new default data")
-            torch.save((exper_data, test_data),
-                       hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
-            log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
+        log.info("Saving new default data")
+        torch.save((exper_data, test_data),
+                   hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+        log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
     # Load data
     else:
         log.info(f"Loading default data")
@@ -304,74 +303,42 @@ def contpred(cfg):
         # Todo re-save data
         (exper_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
-        # traj_dataset = create_dataset_traj(exper_data, threshold=0.0)
-        # one_step_dataset = create_dataset_step(exper_data)  # train_data[0].states)
 
-    prob = cfg.model.prob
-    traj = cfg.model.traj
-    ens = cfg.model.ensemble
-    delta = cfg.model.delta
+    if train:
+        prob = cfg.model.prob
+        traj = cfg.model.traj
+        ens = cfg.model.ensemble
+        delta = cfg.model.delta
 
-    # for model_type in model_types:
-    log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
-    # model_file = 'model_%s.pth.tar' % model_type
+        log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
 
-    # dataset = traj_dataset if traj else one_step_dataset
+        log_hyperparams(cfg)
 
-    if cfg.train_models:
+        if cfg.training.num_traj:
+            train_data = exper_data[:cfg.training.num_traj]
+        else:
+            train_data = exper_data
+
         if traj:
             dataset = create_dataset_traj(exper_data, control_params=cfg.control_params, train_target=cfg.train_target, threshold=0.95)
         else:
-            dataset = create_dataset_step(exper_data, delta=delta)
+            dataset = create_dataset_step(train_data, delta=delta)
 
-        # model = Model(cfg.model)
-        # model.train(cfg, dataset)
-        # loss_log = model.loss_log
         model = DynamicsModel(cfg)
         train_logs, test_logs = model.train(dataset, cfg)
 
         plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
-        # plot_loss_epoch(loss_log, save_loc=graph_file, show=False, s=cfg.model.str)
 
-        if cfg.save_models:
-            log.info("Saving new default models")
-            torch.save(model,
-                       hydra.utils.get_original_cwd() + '/models/reacher/' + cfg.model.str + '.dat')
+        log.info("Saving new default models")
+        f =  hydra.utils.get_original_cwd() + '/models/reacher/'
+        if cfg.exper_dir:
+            f = f + cfg.exper_dir + '/'
+            if not os.path.exists(f):
+                os.mkdir(f)
+        f = f + cfg.model.str + '.dat'
+        torch.save(model, f)
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
 
-    else:
-        pass
-        # TODO: Not sure what we would put in here if the point of this function is to sweep and train models
-        # model_1s = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'step' + cfg.model_dir)
-        # model_ct = torch.load(hydra.utils.get_original_cwd() + '/models/reacher/' + 'traj' + cfg.model_dir)
-
-
-###########################################
-#               Helpers                   #
-###########################################
-def unpack_config_models(cfg):
-    """
-    Reads the config to decide which models to use
-    """
-    model_types = []
-    if cfg.experiment.models.single.train_traj:
-        model_types.append('t')
-    if cfg.experiment.models.single.train_det:
-        model_types.append('d')
-    if cfg.experiment.models.single.train_prob:
-        model_types.append('p')
-    if cfg.experiment.models.single.train_prob_traj:
-        model_types.append('tp')
-    if cfg.experiment.models.ensemble.train_traj:
-        model_types.append('te')
-    if cfg.experiment.models.ensemble.train_det:
-        model_types.append('de')
-    if cfg.experiment.models.ensemble.train_prob:
-        model_types.append('pe')
-    if cfg.experiment.models.ensemble.train_prob_traj:
-        model_types.append('tpe')
-
-    return model_types
 
 
 if __name__ == '__main__':

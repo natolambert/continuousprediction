@@ -1,16 +1,12 @@
 defaults:
-  - models: t
+  - models: d
   - envs: reacher
 
-mode: train # train or collect
+mode: train # train or plot
 data_dir: l500_t100_v1.dat
 model_dir: l500_t50_v5.dat
 exper_dir: false # set to a name to save models within a subfolder in the models directory
 plot: false
-#determines whether target is part of input data
-train_target: false
-#determines whether P, D, and target is part of input data
-control_params: true
 
 hydra:
   run:
@@ -28,3 +24,15 @@ hydra:
 training:
   num_traj: 20
   t_range: 500
+
+plotting:
+  num_traj: [1,2, 5, 10, 20, 50, 100]
+  models: [d, t]
+  t_range: 500
+  eval_t_range: 100
+  num_eval_train: 0
+  num_eval_test: 10
+  plot_all_eval: false
+  plot_avg_eval: true
+  plot_states: false
+  plot_avg_mse: true
