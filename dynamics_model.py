@@ -55,9 +55,9 @@ class Net(nn.Module):
 
     def testPreprocess(self, input, cfg):
         if (cfg.model.traj):
-            inputStates = input[:, self.state_indices]
+            inputStates = input[:, :len(self.state_indices)]
             inputIndex = input[:, len(self.state_indices)]
-            inputParams = input[:, cfg.env.state_size + 1:]
+            inputParams = input[:, len(self.state_indices) + 1:]
 
             inputIndex = inputIndex.reshape(-1, 1)
 
@@ -69,7 +69,7 @@ class Net(nn.Module):
             inputStates = input[:, cfg.model.training.state_indices]
             normStates = self.stateScaler.transform(inputStates)
             if cfg.env.action_size > 0:
-                inputActions = input[:, cfg.env.state_size:]
+                inputActions = input[:, len(self.state_indices):]
                 normActions = self.actionScaler.transform(inputActions)
                 normInput = np.hstack((normStates, normActions))
                 return normInput
@@ -95,9 +95,9 @@ class Net(nn.Module):
             self.paramScaler = hydra.utils.instantiate(cfg.model.preprocess.param)
             self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
 
-            inputStates = input[:, :cfg.env.state_size]
-            inputIndex = input[:, cfg.env.state_size]
-            inputParams = input[:, cfg.env.state_size + 1:]
+            inputStates = input[:, :len(self.state_indices)]
+            inputIndex = input[:, len(self.state_indices)]
+            inputParams = input[:, len(self.state_indices) + 1:]
 
             # reshape index for one feature length
             inputIndex = inputIndex.reshape(-1, 1)
@@ -118,8 +118,8 @@ class Net(nn.Module):
             self.actionScaler = hydra.utils.instantiate(cfg.model.preprocess.action)
             self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
 
-            inputStates = input[:, :cfg.env.state_size]
-            inputActions = input[:, cfg.env.state_size:]
+            inputStates = input[:, :len(self.state_indices)]
+            inputActions = input[:, len(self.state_indices):]
 
             self.stateScaler.fit(inputStates)
 
@@ -213,7 +213,7 @@ class DynamicsModel(object):
         self.delta = cfg.model.delta
         self.train_target = cfg.model.training.train_target
         self.control_params = cfg.model.training.control_params
-        self.state_limit = cfg.model.training.state_limit
+        self.state_indices = cfg.model.training.state_indices
         self.cfg = cfg
 
         # Setup for data structure
@@ -222,7 +222,7 @@ class DynamicsModel(object):
         else:
             self.E = 1
 
-        self.n_in = min(cfg.env.state_size, self.state_limit)
+        self.n_in = len(self.state_indices)
         if self.traj:
             self.n_in += 1
             if self.control_params:
@@ -232,7 +232,7 @@ class DynamicsModel(object):
         else:
             self.n_in += cfg.env.action_size
 
-        self.n_out = cfg.env.state_size
+        self.n_out = len(self.state_indices)
         if self.prob:
             # ordering matters here, because size is the number of predicted output states
             self.loss_fn = ProbLoss(self.n_out)
@@ -250,22 +250,28 @@ class DynamicsModel(object):
         """
         if type(x) == np.ndarray:
             x = torch.from_numpy(x)
-        prediction = torch.zeros((x.shape[0], self.cfg.env.state_size))
+        prediction = torch.zeros((x.shape[0], len(self.state_indices)))
         for n in self.nets:
             scaledInput = n.testPreprocess(x, self.cfg)
             if self.prob:
-                prediction += n.testPostprocess(n.forward(scaledInput)[:, :self.cfg.env.state_size]) / len(self.nets)
+                prediction += n.testPostprocess(n.forward(scaledInput)[:, :len(self.state_indices)]) / len(self.nets)
             else:
                 prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
         if not self.delta:
-            return prediction[:, :self.cfg.env.state_size]
+            return prediction[:, :len(self.state_indices)]
         else:
             # This hardcode is the state size changing. X also includes the action / index
-            return x[:, :self.cfg.env.state_size] + prediction
+            return x[:, :len(self.state_indices)] + prediction
 
     def train(self, dataset, cfg):
         acctest_l = []
         acctrain_l = []
+
+        # The purpose of this line is to reform the dataset to use only the state indices requested
+        dataset = (np.hstack((dataset[0][:, self.state_indices],
+                              # dataset[0][:, (self.cfg.env.state_size - len(self.state_indices)):])),
+                              dataset[0][:, self.cfg.env.state_size:])),
+                   dataset[1][:, self.state_indices])
 
         from sklearn.model_selection import KFold  # for dataset
 

@@ -1,5 +1,5 @@
 model:
-  str: t_no_pid
+  str: t_less_states_no_pid
   prob: false
   ensemble: false
   traj: true
@@ -12,7 +12,7 @@ model:
     train_target: true
     control_params: false
     # the state indices to worry about for model
-    state_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+    state_indices: [0,1,2,3,4]
   optimizer:
     epochs: 20
     batch: 32
@@ -34,8 +34,8 @@ model:
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: TD without PID parameters
-    color: '#fa8f0c'
-    color_plotly: rgb(250,143,12)
+    label: TD with less States, no PID Params
+    color: '#00dc79'
+    color_plotly: rgb(0,220,121)
     marker: s
     marker_plotly: cross-open-dot

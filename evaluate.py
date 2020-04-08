@@ -59,48 +59,33 @@ def test_models(test_data, models):
     target = np.array(target)
 
     N, T, D = states.shape
+    # eval_indices = list(set.intersection(*[models[key].state_indices for key in models]))
+    # eval_indices.sort()
 
     # Iterate through each type of model for evaluation
-    predictions = {key: [states[:, 0, :]] for key in models}
-    currents = {key: states[:, 0, :] for key in models}
+    predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
+    currents = {key: states[:, 0, models[key].state_indices] for key in models}
     for i in range(1, T):
         groundtruth = states[:, i]
         for key in models:
             model = models[key]
-            traj = 't' in key or type(key)==tuple and 't' in key[0]
+            indices = model.state_indices
+            traj = 't' in key or type(key) == tuple and 't' in key[0]
             # Make predictions on all trajectories at once
-            #
-            # Commented some lines out because they seemed to break the code
             if traj:
-                # prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param.reshape(-1, 1),
-                #                                       D_param.reshape(-1, 1), target.reshape(-1, 1))))
-                prediction = 0
-                dat = [initials, i * np.ones((N, 1))]
+                dat = [initials[:, indices], i * np.ones((N, 1))]
                 if model.control_params:
                     dat.extend([P_param, D_param])
                 if model.train_target:
                     dat.append(target)
                 prediction = np.array(model.predict(np.hstack(dat)).detach())
-                # if model.control_params:
-                #     if model.train_target:
-                #         prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
-                #     else:
-                #         prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param)))
-                # else:
-                #     prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)))))
-                # prediction = np.array(prediction.detach())
             else:
-                # if len(np.shape(actions)) == 1:
-                #     prediction = model.predict((currents[key].reshape((1, -1))))
-                # else:
-                #     prediction = model.predict(np.hstack((currents[key].reshape((1, -1)), actions[:, i - 1, :])))
                 prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
                 prediction = np.array(prediction.detach())
 
             predictions[key].append(prediction)
-            MSEs[key].append(np.square(groundtruth - prediction.squeeze()).mean(axis=1))
+            MSEs[key].append(np.square(groundtruth[:, indices] - prediction.squeeze()).mean(axis=1))
             currents[key] = prediction.squeeze()
-            # print(currents[key].shape)
 
     MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     if N > 1:
@@ -189,14 +174,15 @@ def find_deltas(test_data, models):
     deltas = {}
     for key in models:
         model = models[key]
+        indices = model.state_indices
         if 't' in key:
             # This doesn't make sense for t models so not gonna bother with this
             continue
         else:
-            input = np.dstack((states, actions)).reshape(N*T, -1)
+            input = np.dstack((states[:, :, indices], actions)).reshape(N*T, -1)
             prediction = model.predict(input)
-            prediction = np.array(prediction.detach()).reshape(N, T, D)
-            delta = prediction-states
+            prediction = np.array(prediction.detach()).reshape(N, T, len(indices))
+            delta = prediction-states[:, :, indices]
             deltas[key] = delta
 
     return deltas
