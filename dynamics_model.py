@@ -31,6 +31,7 @@ class Net(nn.Module):
         self.n_out = n_out
         self.hidden_w = cfg.model.training.hid_width
         self.cfg = cfg
+        self.state_indices = cfg.model.training.state_indices
 
         # create object nicely
         layers = []
@@ -47,7 +48,6 @@ class Net(nn.Module):
         """
         Runs a forward pass of x through this network
         """
-        # TODO: to make it run I had the model call .float() on inputs, but this might affect performance
         if type(x) == np.ndarray:
             x = torch.from_numpy(x)
         x = self.features(x.float())
@@ -55,8 +55,8 @@ class Net(nn.Module):
 
     def testPreprocess(self, input, cfg):
         if (cfg.model.traj):
-            inputStates = input[:, :cfg.env.state_size]
-            inputIndex = input[:, cfg.env.state_size]
+            inputStates = input[:, self.state_indices]
+            inputIndex = input[:, len(self.state_indices)]
             inputParams = input[:, cfg.env.state_size + 1:]
 
             inputIndex = inputIndex.reshape(-1, 1)
@@ -66,7 +66,7 @@ class Net(nn.Module):
             normParams = self.paramScaler.transform(inputParams)
             return np.hstack((normStates, normIndex, normParams))
         else:
-            inputStates = input[:, :cfg.env.state_size]
+            inputStates = input[:, cfg.model.training.state_indices]
             normStates = self.stateScaler.transform(inputStates)
             if cfg.env.action_size > 0:
                 inputActions = input[:, cfg.env.state_size:]
@@ -213,6 +213,7 @@ class DynamicsModel(object):
         self.delta = cfg.model.delta
         self.train_target = cfg.model.training.train_target
         self.control_params = cfg.model.training.control_params
+        self.state_limit = cfg.model.training.state_limit
         self.cfg = cfg
 
         # Setup for data structure
@@ -221,16 +222,15 @@ class DynamicsModel(object):
         else:
             self.E = 1
 
+        self.n_in = min(cfg.env.state_size, self.state_limit)
         if self.traj:
+            self.n_in += 1
             if self.control_params:
-                if self.train_target:
-                    self.n_in = cfg.env.state_size + (cfg.env.param_size) + 1
-                else:
-                    self.n_in = cfg.env.state_size + (cfg.env.param_size - cfg.env.target_size) + 1
-            else:
-                self.n_in = cfg.env.state_size + 1
+                self.n_in += cfg.env.param_size - cfg.env.target_size
+            if self.train_target:
+                self.n_in += cfg.env.target_size
         else:
-            self.n_in = cfg.env.state_size + cfg.env.action_size
+            self.n_in += cfg.env.action_size
 
         self.n_out = cfg.env.state_size
         if self.prob:

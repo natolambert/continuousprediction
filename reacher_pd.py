@@ -38,7 +38,7 @@ from dynamics_model import DynamicsModel
 #                Datasets                 #
 ###########################################
 
-def create_dataset_traj(data, control_params=True, train_target=False, threshold=0.0, delta=False, t_range=0):
+def create_dataset_traj(data, control_params=True, train_target=True, threshold=0.0, delta=False, t_range=0):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -66,13 +66,12 @@ def create_dataset_traj(data, control_params=True, train_target=False, threshold
                 # the datasets while still having a large variety
                 if np.random.random() < threshold:
                     continue
+                dat = [states[i], j - i]
                 if control_params:
-                    if train_target:
-                        data_in.append(np.hstack((states[i], j - i, P, D, target)))
-                    else:
-                        data_in.append(np.hstack((states[i], j-i, P, D)))
-                else:
-                    data_in.append(np.hstack((states[i], j - i)))
+                    dat.extend([P, D])
+                if train_target:
+                    dat.append(target)
+                data_in.append(np.hstack(dat))
                 # data_in.append(np.hstack((states[i], j-i, target)))
                 if delta:
                     data_out.append(states[j]-states[i])
@@ -320,7 +319,8 @@ def contpred(cfg):
             train_data = exper_data
 
         if traj:
-            dataset = create_dataset_traj(exper_data, control_params=cfg.model.training.control_params, train_target=cfg.model.training.train_target, threshold=0.95)
+            dataset = create_dataset_traj(exper_data, control_params=cfg.model.training.control_params,
+                                          train_target=cfg.model.training.train_target, threshold=0.95)
         else:
             dataset = create_dataset_step(train_data, delta=delta)
 

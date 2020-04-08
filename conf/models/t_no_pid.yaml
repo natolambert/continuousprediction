@@ -11,6 +11,8 @@ model:
     # Note: these do nothing for non trajectory based models
     train_target: true
     control_params: false
+    # the state indices to worry about for model
+    state_indices: [0,1,2,3,4]
   optimizer:
     epochs: 20
     batch: 32
@@ -33,7 +35,7 @@ model:
       class: sklearn.preprocessing.StandardScaler
   plotting:
     label: TD without PID parameters
-    color: '#ff1100'
-    color_plotly: rgb(200,0,0)
+    color: '#fa8f0c'
+    color_plotly: rgb(250,143,12)
     marker: s
     marker_plotly: cross-open-dot

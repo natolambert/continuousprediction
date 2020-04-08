@@ -75,14 +75,20 @@ def test_models(test_data, models):
                 # prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param.reshape(-1, 1),
                 #                                       D_param.reshape(-1, 1), target.reshape(-1, 1))))
                 prediction = 0
+                dat = [initials, i * np.ones((N, 1))]
                 if model.control_params:
-                    if model.train_target:
-                        prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
-                    else:
-                        prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param)))
-                else:
-                    prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)))))
-                prediction = np.array(prediction.detach())
+                    dat.extend([P_param, D_param])
+                if model.train_target:
+                    dat.append(target)
+                prediction = np.array(model.predict(np.hstack(dat)).detach())
+                # if model.control_params:
+                #     if model.train_target:
+                #         prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param, target)))
+                #     else:
+                #         prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)), P_param, D_param)))
+                # else:
+                #     prediction = model.predict(np.hstack((initials, i * np.ones((N, 1)))))
+                # prediction = np.array(prediction.detach())
             else:
                 # if len(np.shape(actions)) == 1:
                 #     prediction = model.predict((currents[key].reshape((1, -1))))

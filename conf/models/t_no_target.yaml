@@ -1,5 +1,5 @@
 model:
-  str: t
+  str: t_no_target
   prob: false
   ensemble: false
   traj: true
@@ -9,7 +9,7 @@ model:
     hid_depth: 2
     E: 1
     # Note: these do nothing for non trajectory based models
-    train_target: true
+    train_target: false
     control_params: true
     # the state indices to worry about for model
     state_indices: [0,1,2,3,4]
@@ -34,8 +34,8 @@ model:
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: Trajectory Based Deterministic
-    color: '#ff0000'
-    color_plotly: rgb(200,0,0)
+    label: TD without Target
+    color: '#fa0c9f'
+    color_plotly: rgb(250,12,159)
     marker: s
     marker_plotly: cross-open-dot
