@@ -1,5 +1,5 @@
 model:
-  str: t
+  str: t_no_pid
   prob: false
   ensemble: false
   traj: true
@@ -10,7 +10,7 @@ model:
     E: 1
     # Note: these do nothing for non trajectory based models
     train_target: true
-    control_params: true
+    control_params: false
   optimizer:
     epochs: 20
     batch: 32
@@ -32,8 +32,8 @@ model:
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: Trajectory Based Deterministic
-    color: '#ff0000'
+    label: TD without PID parameters
+    color: '#ff1100'
     color_plotly: rgb(200,0,0)
     marker: s
     marker_plotly: cross-open-dot

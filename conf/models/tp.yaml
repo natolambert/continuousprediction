@@ -8,6 +8,9 @@ model:
     hid_width: 250
     hid_depth: 2
     E: 1
+    # Note: these do nothing for non trajectory based models
+    train_target: true
+    control_params: true
   optimizer:
     epochs: 20
     batch: 32
@@ -32,3 +35,9 @@ model:
         feature_range: [-1.,1.]
     output:
       class: sklearn.preprocessing.StandardScaler
+  plotting:
+    label: Trajectory Based Probabilistic
+    color: '#dcdc00'
+    color_plotly: rgb(200,200,0)
+    marker: p
+    marker_plotly: triangle-up-open-dot

@@ -104,7 +104,7 @@ class Net(nn.Module):
 
             self.stateScaler.fit(inputStates)
             self.indexScaler.fit(inputIndex)
-            self.paramScaler.fit(inputParams)
+            self.paramScaler.fit(inputParams
             self.outputScaler.fit(output)
 
             normStates = self.stateScaler.transform(inputStates)
@@ -211,8 +211,8 @@ class DynamicsModel(object):
         self.traj = cfg.model.traj
         self.prob = cfg.model.prob
         self.delta = cfg.model.delta
-        self.train_target = cfg.train_target
-        self.control_params = cfg.control_params
+        self.train_target = cfg.model.training.train_target
+        self.control_params = cfg.model.training.control_params
         self.cfg = cfg
 
         # Setup for data structure

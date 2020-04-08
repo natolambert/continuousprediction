@@ -14,53 +14,76 @@ import logging
 
 log = logging.getLogger(__name__)
 
-label_dict = {'t': 'Trajectory Based Deterministic',
-              'd': 'One Step Deterministic',
-              'p': 'One Step Probabilistic',
-              'tp': 'Trajectory Based Probabilistic',
-              'te': 'Trajectory Based Deterministic Ensemble',
-              'de': 'One Step Deterministic Ensemble',
-              'pe': 'One Step Probabilistic Ensemble',
-              'tpe': 'Trajectory Based Probabilistic Ensemble',
-              'c': 'Custom'}
-color_dict = {'t': 'r',
-              'd': 'b',
-              'p': 'g',
-              'tp': 'y',
-              'te': '#b53636',
-              'de': '#3660b5',
-              'pe': '#52b536',
-              'tpe': '#b57f11',
-              'c': '#8d67a6'}
-color_dict_plotly = {'t': 'rgb(200,0,0)',
-                     'd': 'rgb(0,0,128)',
-                     'p': 'rgb(0,128,0)',
-                     'tp': 'rgb(200,200,0)',
-                     'te': 'rgb(180,20,20)',
-                     'de': 'rgb(20,20,128)',
-                     'pe': 'rgb(20,128,20)',
-                     'tpe': 'rgb(180,180,25)',
-                     'c': 'rgb(141,103,166)'}
+# label_dict = {'t': 'Trajectory Based Deterministic',
+#               'd': 'One Step Deterministic',
+#               'p': 'One Step Probabilistic',
+#               'tp': 'Trajectory Based Probabilistic',
+#               'te': 'Trajectory Based Deterministic Ensemble',
+#               'de': 'One Step Deterministic Ensemble',
+#               'pe': 'One Step Probabilistic Ensemble',
+#               'tpe': 'Trajectory Based Probabilistic Ensemble',
+#               'c': 'Custom'}
+# color_dict = {'t': 'r',
+#               'd': 'b',
+#               'p': 'g',
+#               'tp': 'y',
+#               'te': '#b53636',
+#               'de': '#3660b5',
+#               'pe': '#52b536',
+#               'tpe': '#b57f11',
+#               'c': '#8d67a6'}
+# color_dict_plotly = {'t': 'rgb(200,0,0)',
+#                      'd': 'rgb(0,0,128)',
+#                      'p': 'rgb(0,128,0)',
+#                      'tp': 'rgb(200,200,0)',
+#                      'te': 'rgb(180,20,20)',
+#                      'de': 'rgb(20,20,128)',
+#                      'pe': 'rgb(20,128,20)',
+#                      'tpe': 'rgb(180,180,25)',
+#                      'c': 'rgb(141,103,166)'}
+#
+# marker_dict = {'t': 's',
+#                'd': 'o',
+#                'p': 'D',
+#                'tp': 'p',
+#                'te': 's',
+#                'de': 'o',
+#                'pe': 'D',
+#                'tpe': 'p',
+#                'c': '*'}
+#
+# marker_dict_plotly = {'t': 'cross-open-dot',
+#                       'd': 'circle-open-dot',
+#                       'p': 'x-open-dot',
+#                       'tp': 'triangle-up-open-dot',
+#                       'te': 'y-down-open',
+#                       'de': 'diamond-open-dot',
+#                       'pe': 'hourglass-open',
+#                       'tpe': 'hash-open-dot',
+#                       'c': 'star'}
 
-marker_dict = {'t': 's',
-               'd': 'o',
-               'p': 'D',
-               'tp': 'p',
-               'te': 's',
-               'de': 'o',
-               'pe': 'D',
-               'tpe': 'p',
-               'c': '*'}
+setup = False
+label_dict, color_dict, color_dict_plotly, marker_dict, marker_dict_plotly = None, None, None, None, None
 
-marker_dict_plotly = {'t': 'cross-open-dot',
-                      'd': 'circle-open-dot',
-                      'p': 'x-open-dot',
-                      'tp': 'triangle-up-open-dot',
-                      'te': 'y-down-open',
-                      'de': 'diamond-open-dot',
-                      'pe': 'hourglass-open',
-                      'tpe': 'hash-open-dot',
-                      'c': 'star'}
+
+def setup_plotting(models):
+    """
+    Populates the necessary dictionaries for plotting. Must run this before using most
+    plotting functions (those that require the dictionary above.
+
+    Parameters:
+        models: a dictionary of models of the form {key (string): model (DynamicsModel)}
+    """
+
+    global label_dict, color_dict, color_dict_plotly, marker_dict, marker_dict_plotly, setup
+
+    setup = True
+
+    label_dict = {key: models[key].cfg.model.plotting.label for key in models}
+    color_dict = {key: models[key].cfg.model.plotting.color for key in models}
+    color_dict_plotly = {key: models[key].cfg.model.plotting.color_plotly for key in models}
+    marker_dict = {key: models[key].cfg.model.plotting.marker for key in models}
+    marker_dict_plotly = {key: models[key].cfg.model.plotting.marker_plotly for key in models}
 
 
 def find_latest_checkpoint(cfg):
@@ -201,6 +224,8 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
     Plots the states given in predictions against the groundtruth. Predictions
     is a dictionary mapping model types to predictions
     """
+    assert setup, "Must run setup_plotting before this function"
+
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
     if idx_plot is None:
@@ -275,6 +300,8 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
         logs: a list of lists of loss values, one list for each net in the model
         s: the string describing the model, ie 'd' or 'tpe'
     """
+    assert setup, "Must run setup_plotting before this function"
+
     fig = plotly.subplots.make_subplots(rows=1, cols=1,
                                         # subplot_titles=("Position", "Action - Torques"),
                                         vertical_spacing=.15)  # go.Figure()
@@ -382,6 +409,8 @@ def add_marker(err_traces, color=[], symbol=None, skip=None):
 
 
 def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None):
+    assert setup, "Must run setup_plotting before this function"
+
     arrays = []
     keys = [k for k in mse_batch[0].keys()]
     for k in keys:
@@ -433,6 +462,8 @@ def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):
     ------------
     MSEs: a dictionary mapping model type key to an array of MSEs
     """
+    assert setup, "Must run setup_plotting before this function"
+
     fig, ax = plt.subplots()
     title = title or "%s MSE for a variety of models" % ('Log ' if log_scale else '')
     plt.title(title)
@@ -456,6 +487,8 @@ def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):
 
 
 def plot_lorenz(data, cfg, predictions=None):
+    assert setup, "Must run setup_plotting before this function"
+
     import plotly.graph_objects as go
 
     fig = go.Figure()
@@ -548,6 +581,8 @@ def plot_lorenz(data, cfg, predictions=None):
 
 
 def plot_sorted(ground_truth, deltas, idx_plot=None, save_loc=None, show=True):
+    assert setup, "Must run setup_plotting before this function"
+
     num = ground_truth.shape[0]
     dx = ground_truth.shape[1]
     if idx_plot is None:
@@ -625,6 +660,8 @@ def plot_evaluations(data, num_traj, ylabel=None, xlabel=None, title=None, log_s
 
     data: dictionary of arrays of eval values
     """
+    assert setup, "Must run setup_plotting before this function"
+
     fig, ax = plt.subplots()
     plt.title(title or "Trajectory prediction evalutaions")
     if ylabel:
@@ -644,7 +681,6 @@ def plot_evaluations(data, num_traj, ylabel=None, xlabel=None, title=None, log_s
         plt.show()
     else:
         plt.close()
-
 
 
 @hydra.main(config_path='config-plot.yaml')

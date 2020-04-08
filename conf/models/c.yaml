@@ -8,6 +8,9 @@ model:
     hid_width: 250
     hid_depth: 2
     E: 1
+    # Note: these do nothing for non trajectory based models
+    train_target: true
+    control_params: true
   optimizer:
     epochs: 16
     batch: 32
@@ -26,3 +29,9 @@ model:
       class: sklearn.preprocessing.StandardScaler
     output:
       class: sklearn.preprocessing.StandardScaler
+  plotting:
+    label: Custom
+    color: '#8d67a6'
+    color_plotly: rgb(141,103,166)
+    marker: *
+    marker_plotly: star

@@ -29,7 +29,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from policy import PID
-from plot import plot_reacher, plot_loss
+from plot import plot_reacher, plot_loss, setup_plotting
 
 from dynamics_model import DynamicsModel
 
@@ -38,7 +38,7 @@ from dynamics_model import DynamicsModel
 #                Datasets                 #
 ###########################################
 
-def create_dataset_traj(data, control_params=True, train_target=False, threshold=0, delta=False, t_range=0):
+def create_dataset_traj(data, control_params=True, train_target=False, threshold=0.0, delta=False, t_range=0):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -320,13 +320,14 @@ def contpred(cfg):
             train_data = exper_data
 
         if traj:
-            dataset = create_dataset_traj(exper_data, control_params=cfg.control_params, train_target=cfg.train_target, threshold=0.95)
+            dataset = create_dataset_traj(exper_data, control_params=cfg.model.training.control_params, train_target=cfg.model.training.train_target, threshold=0.95)
         else:
             dataset = create_dataset_step(train_data, delta=delta)
 
         model = DynamicsModel(cfg)
         train_logs, test_logs = model.train(dataset, cfg)
 
+        setup_plotting({cfg.model.str: model})
         plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
 
         log.info("Saving new default models")

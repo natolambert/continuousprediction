@@ -250,6 +250,7 @@ def evaluate(cfg):
         Helper to allow plotting for both train and test data without significant code duplication
         """
         os.mkdir(graph_file)
+        setup_plotting(models)
 
         # Select a random subset of training data
         idx = np.random.randint(0, len(data), num)

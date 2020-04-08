@@ -9,7 +9,6 @@ exper_dir: false # set to a name to save models within a subfolder in the models
 plot: false
 #determines whether target is part of input data
 train_target: false
-#determines whether P, D, and target is part of input data
 control_params: true
 
 hydra:

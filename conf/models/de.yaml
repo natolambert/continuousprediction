@@ -8,6 +8,9 @@ model:
     hid_width: 250
     hid_depth: 2
     E: 5
+    # Note: these do nothing for non trajectory based models
+    train_target: true
+    control_params: true
   optimizer:
     epochs: 20
     batch: 32
@@ -26,3 +29,9 @@ model:
       class: sklearn.preprocessing.StandardScaler
     output:
       class: sklearn.preprocessing.StandardScaler
+  plotting:
+    label: One Step Deterministic Ensemble
+    color: '#3660b5'
+    color_plotly: rgb(20,20,128)
+    marker: o
+    marker_plotly: diamond-open-dot
