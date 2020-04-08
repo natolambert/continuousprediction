@@ -104,7 +104,7 @@ class Net(nn.Module):
 
             self.stateScaler.fit(inputStates)
             self.indexScaler.fit(inputIndex)
-            self.paramScaler.fit(inputParams
+            self.paramScaler.fit(inputParams)
             self.outputScaler.fit(output)
 
             normStates = self.stateScaler.transform(inputStates)
