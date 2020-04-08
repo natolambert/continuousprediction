@@ -1,40 +1,41 @@
 model:
-  str: d
+  str: t_no_target
   prob: false
   ensemble: false
-  traj: false
-  delta: true
+  traj: true
+  delta: false
   training:
     hid_width: 250
     hid_depth: 2
     E: 1
     # Note: these do nothing for non trajectory based models
-    train_target: true
+    train_target: false
     control_params: true
     # the state indices to worry about for model
     state_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
   optimizer:
-    epochs: 25
+    epochs: 20
     batch: 32
     name: Adam
     split: .8
-    lr: .00008
-    max_size: 0
+    lr: .00002
+    max_size: 50000
   preprocess:
     state:
       class: sklearn.preprocessing.StandardScaler
-      #Choose between standard scaler and min max scaler
-      #class: sklearn.preprocessing.MinMaxScaler
-        #params:
-          #feature_range: [-1.,1.]"""
-    action:
-      class: sklearn.preprocessing.StandardScaler
+    index:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
+    param:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: One Step Deterministic
-    color: '#0033ff'
-    color_plotly: rgb(0,0,128)
-    marker: o
-    marker_plotly: circle-open-dot
-
+    label: TD without Target
+    color: '#fa0c9f'
+    color_plotly: rgb(250,12,159)
+    marker: s
+    marker_plotly: cross-open-dot
