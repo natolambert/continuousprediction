@@ -35,5 +35,5 @@ model:
     label: One Step Deterministic Delta
     color: '#8d67a6'
     color_plotly: rgb(141,103,166)
-    marker: *
+    marker: '*'
     marker_plotly: star
