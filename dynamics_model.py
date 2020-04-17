@@ -207,6 +207,7 @@ class DynamicsModel(object):
     """
 
     def __init__(self, cfg):
+        self.str = cfg.model.str
         self.ens = cfg.model.ensemble
         self.traj = cfg.model.traj
         self.prob = cfg.model.prob

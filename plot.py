@@ -79,11 +79,11 @@ def setup_plotting(models):
 
     setup = True
 
-    label_dict = {key: models[key].cfg.model.plotting.label for key in models}
-    color_dict = {key: models[key].cfg.model.plotting.color for key in models}
-    color_dict_plotly = {key: models[key].cfg.model.plotting.color_plotly for key in models}
-    marker_dict = {key: models[key].cfg.model.plotting.marker for key in models}
-    marker_dict_plotly = {key: models[key].cfg.model.plotting.marker_plotly for key in models}
+    label_dict = {models[key].str: models[key].cfg.model.plotting.label for key in models}
+    color_dict = {models[key].str: models[key].cfg.model.plotting.color for key in models}
+    color_dict_plotly = {models[key].str: models[key].cfg.model.plotting.color_plotly for key in models}
+    marker_dict = {models[key].str: models[key].cfg.model.plotting.marker for key in models}
+    marker_dict_plotly = {models[key].str: models[key].cfg.model.plotting.marker_plotly for key in models}
 
 
 def find_latest_checkpoint(cfg):
