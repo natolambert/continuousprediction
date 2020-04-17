@@ -1,5 +1,5 @@
 model:
-  str: d_delta
+  str: d_state
   prob: false
   ensemble: false
   traj: false
@@ -32,7 +32,7 @@ model:
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: One Step Deterministic Delta
+    label: One Step Deterministic State Based
     color: '#8d67a6'
     color_plotly: rgb(141,103,166)
     marker: '*'
