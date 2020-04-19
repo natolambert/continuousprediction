@@ -9,12 +9,9 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 import numpy as np
 import matplotlib.pyplot as plt
+import itertools
 
 import torch
-# from torch.autograd import Variable
-# import torch.nn as nn
-# import torch.nn.functional as F
-# import torch.backends.cudnn as cudnn
 import gym
 from envs import *
 
@@ -23,7 +20,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
-from plot import plot_loss, plot_evaluations, plot_mse, setup_plotting
+from plot import plot_loss, plot_evaluations, plot_evaluations_3d, setup_plotting
 from dynamics_model import DynamicsModel
 from reacher_pd import log_hyperparams, create_dataset_traj, create_dataset_step
 from evaluate import test_models, num_eval
@@ -73,25 +70,32 @@ def plot(cfg, train_data, test_data):
     models = {}
 
     model_keys, ns, t_ranges = cfg.plotting.models, cfg.plotting.num_traj, cfg.plotting.t_range
-    if type(ns) != int and type(t_ranges) != int:
-        raise ValueError('t_range and num_traj cannot both be lists')
-    if type(ns) != int:
-        f_names = {n: 'n%d_t%d.dat' % (n, t_ranges) for n in ns}
-        x_values = ns
-        xlabel = '# training trajectories'
-    else:
-        f_names = {t_range: 'n%d_t%d.dat' % (ns, t_range) for t_range in t_ranges}
-        x_values = t_ranges
-        xlabel = 'training trajectory length'
+    # if type(ns) != int and type(t_ranges) != int:
+    #     raise ValueError('t_range and num_traj cannot both be lists')
+    if type(ns) == int:
+        ns = [ns]
+    if type(t_ranges) == int:
+        t_ranges = [t_ranges]
+    f_names = {}
+    for n, t in itertools.product(ns, t_ranges):
+        f_names[(n, t)] = 'n%d_t%d.dat' % (n, t)
+    # if type(ns) != int:
+    #     f_names = {n: 'n%d_t%d.dat' % (n, t_ranges) for n in ns}
+    #     x_values = ns
+    #     xlabel = '# training trajectories'
+    # else:
+    #     f_names = {t_range: 'n%d_t%d.dat' % (ns, t_range) for t_range in t_ranges}
+    #     x_values = t_ranges
+    #     xlabel = 'training trajectory length'
 
     # Load models
     f = hydra.utils.get_original_cwd() + '/models/reacher'
     if cfg.exper_dir:
         f = f + cfg.exper_dir
     for model_type in model_keys:
-        for x in x_values:
-            model = torch.load("%s/efficiency/%s/%s" % (f, model_type, f_names[x]))
-            models[(model_type, x)] = model
+        for key in f_names:
+            model = torch.load("%s/efficiency/%s/%s" % (f, model_type, f_names[key]))
+            models[(model_type, key)] = model
 
     setup_plotting(models)
 
@@ -115,6 +119,17 @@ def plot(cfg, train_data, test_data):
         eval_data_dot = num_eval(gt, predictions, setting='dot', T_range=cfg.plotting.eval_t_range)
         eval_data_mse = num_eval(gt, predictions, setting='mse', T_range=cfg.plotting.eval_t_range)
 
+        n_eval = gt.shape[0]
+        evals_dot = {key: np.zeros((n_eval, len(ns), len(t_ranges))) for key in model_keys}
+        evals_mse = {key: np.zeros((n_eval, len(ns), len(t_ranges))) for key in model_keys}
+        for (model_type, (n, t)) in eval_data_dot:
+            evals_dot[model_type][:, ns.index(n), t_ranges.index(t)] = eval_data_dot[(model_type, (n, t))]
+        for (model_type, (n, t)) in eval_data_mse:
+            dat = eval_data_mse[(model_type, (n, t))]
+            mask = dat > 1e5
+            dat[mask] = float('nan')
+            evals_mse[model_type][:, ns.index(n), t_ranges.index(t)] = dat
+
         if cfg.plotting.plot_all_eval or cfg.plotting.plot_avg_eval:
             eval_file = graph_file + '/eval'
             os.mkdir(eval_file)
@@ -124,25 +139,62 @@ def plot(cfg, train_data, test_data):
                 file = "%s/test%d" % (eval_file, i + 1)
                 os.mkdir(file)
 
+                evals_dot_slice = {key: evals_dot[key][i, :, :] for key in evals_dot}
+                evals_mse_slice = {key: evals_mse[key][i, :, :] for key in evals_mse}
+
                 # Plot evaluations
-                evals_dot = {key: [eval_data_dot[(key, x)][i] for x in x_values] for key in model_keys}
-                evals_mse = {key: [eval_data_mse[(key, x)][i] for x in x_values] for key in model_keys}
-                evals_mse_chopped = {key: [(num if num < 10 ** 5 else float("nan")) for num in evals_mse[key]] for key in evals_mse}
-                plot_evaluations(evals_dot, x_values, ylabel='Dot product similarity', xlabel=xlabel,
-                                 save_loc=file+'/efficiency_dot.pdf', show=False)
-                plot_evaluations(evals_mse_chopped, x_values, ylabel='MSE similarity', xlabel=xlabel,
-                                 save_loc=file + '/efficiency_mse.pdf', show=False, log_scale=True)
+                if len(ns) > 1 and len(t_ranges) > 1:
+                    plot_evaluations_3d(evals_dot_slice, ns, t_ranges, xlabel='# training trajectories',
+                                        ylabel='training trajectory length', zlabel='Dot product similarity',
+                                        save_loc=file+'efficiency_dot.pdf', show=False)
+                    plot_evaluations_3d(evals_mse_slice, ns, t_ranges, xlabel='# training trajectories',
+                                        ylabel='training trajectory length', zlabel='MSE similarity',
+                                        save_loc=file + 'efficiency_mse.pdf', show=False)
+                else:
+                    if len(ns) > 1:
+                        x_values = ns
+                        xlabel = '# training trajectories'
+                    else:
+                        x_values = t_ranges
+                        xlabel = 'training trajectory length'
+                    plot_evaluations(evals_dot_slice, x_values, ylabel='Dot product similarity', xlabel=xlabel,
+                                     save_loc=file+'/efficiency_dot.pdf', show=False)
+                    plot_evaluations(evals_mse_slice, x_values, ylabel='MSE similarity', xlabel=xlabel,
+                                     save_loc=file + '/efficiency_mse.pdf', show=False, log_scale=True)
 
         # Plot averages
         if cfg.plotting.plot_avg_eval:
-            evals_dot = {key: [np.average(eval_data_dot[(key, x)]) for x in x_values] for key in model_keys}
-            evals_mse = {key: [np.average(eval_data_mse[(key, x)]) for x in x_values] for key in model_keys}
-            evals_mse_chopped = {key: [(num if num < 10 ** 5 else float("nan")) for num in evals_mse[key]] for key in
-                                 evals_mse}
-            plot_evaluations(evals_dot, x_values, ylabel='Dot product similarity', xlabel=xlabel,
-                             save_loc=eval_file + '/avg_efficiency_dot.pdf', show=False)
-            plot_evaluations(evals_mse_chopped, x_values, ylabel='MSE similarity', xlabel=xlabel,
-                             save_loc=eval_file + '/avg_efficiency_mse.pdf', show=False, log_scale=True)
+            # evals_dot = {key: [np.average(eval_data_dot[(key, x)]) for x in x_values] for key in model_keys}
+            # evals_mse = {key: [np.average(eval_data_mse[(key, x)]) for x in x_values] for key in model_keys}
+            # evals_mse_chopped = {key: [(num if num < 10 ** 5 else float("nan")) for num in evals_mse[key]] for key in
+            #                      evals_mse}
+            # plot_evaluations(evals_dot, x_values, ylabel='Dot product similarity', xlabel=xlabel,
+            #                  save_loc=eval_file + '/avg_efficiency_dot.pdf', show=False)
+            # plot_evaluations(evals_mse_chopped, x_values, ylabel='MSE similarity', xlabel=xlabel,
+            #                  save_loc=eval_file + '/avg_efficiency_mse.pdf', show=False, log_scale=True)
+
+            evals_dot_avg = {key: np.average(evals_dot[key], axis=0) for key in evals_dot}
+            evals_mse_avg = {key: np.average(evals_mse[key], axis=0) for key in evals_mse}
+
+            # Plot evaluations
+            if len(ns) > 1 and len(t_ranges) > 1:
+                plot_evaluations_3d(evals_dot_avg, ns, t_ranges, xlabel='# training trajectories',
+                                    ylabel='training trajectory length', zlabel='Dot product similarity',
+                                    save_loc=eval_file + 'efficiency_dot.pdf', show=False)
+                plot_evaluations_3d(evals_mse_avg, ns, t_ranges, xlabel='# training trajectories',
+                                    ylabel='training trajectory length', zlabel='MSE similarity',
+                                    save_loc=eval_file + 'efficiency_mse.pdf', log_scale=True, show=False)
+            else:
+                if len(ns) > 1:
+                    x_values = ns
+                    xlabel = '# training trajectories'
+                else:
+                    x_values = t_ranges
+                    xlabel = 'training trajectory length'
+                plot_evaluations(evals_dot_avg, x_values, ylabel='Dot product similarity', xlabel=xlabel,
+                                 save_loc=eval_file + '/efficiency_dot.pdf', show=False)
+                plot_evaluations(evals_mse_avg, x_values, ylabel='MSE similarity', xlabel=xlabel,
+                                 save_loc=eval_file + '/efficiency_mse.pdf', show=False, log_scale=True)
 
         # Plot states
         if cfg.plotting.plot_states:
@@ -153,13 +205,14 @@ def plot(cfg, train_data, test_data):
 
         # Plot MSEs
         if cfg.plotting.plot_avg_mse:
-            file = graph_file + '/mse'
-            os.mkdir(file)
-
-            MSE_avgs = {x: {key: np.mean(MSEs[(key, x)], axis=0) for key in model_keys} for x in x_values}
-            for x in x_values:
-                chopped = {key: [(num if num < 10 ** 5 else float("nan")) for num in MSE_avgs[x][key]] for key in MSE_avgs[x]}
-                plot_mse(chopped, save_loc=file+'/avg_mse_%d.pdf'%x, show=False, log_scale=True)
+            pass
+            # file = graph_file + '/mse'
+            # os.mkdir(file)
+            #
+            # MSE_avgs = {x: {key: np.mean(MSEs[(key, x)], axis=0) for key in model_keys} for x in x_values}
+            # for x in x_values:
+            #     chopped = {key: [(num if num < 10 ** 5 else float("nan")) for num in MSE_avgs[x][key]] for key in MSE_avgs[x]}
+            #     plot_mse(chopped, save_loc=file+'/avg_mse_%d.pdf'%x, show=False, log_scale=True)
 
 
 

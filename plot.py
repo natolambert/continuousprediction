@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import plotly
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from dotmap import DotMap
 
 import logging
@@ -654,7 +655,7 @@ def plot_sorted(ground_truth, deltas, idx_plot=None, save_loc=None, show=True):
             plt.close()
 
 
-def plot_evaluations(data, num_traj, ylabel=None, xlabel=None, title=None, log_scale=False, save_loc=None, show=True):
+def plot_evaluations(data, x, ylabel=None, xlabel=None, title=None, log_scale=False, save_loc=None, show=True):
     """
     Plots plots for sample efficiency tests
 
@@ -673,8 +674,37 @@ def plot_evaluations(data, num_traj, ylabel=None, xlabel=None, title=None, log_s
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     for key in data:
-        plt.plot(num_traj, data[key], color=color_dict[key], label=label_dict[key], marker=marker_dict[key])
+        plt.plot(x, data[key], color=color_dict[key], label=label_dict[key], marker=marker_dict[key])
     plt.legend()
+    if save_loc:
+        plt.savefig(save_loc)
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_evaluations_3d(data, x, y, ylabel=None, xlabel=None, zlabel=None, title=None, log_scale=False, save_loc=None, show=True):
+    assert setup, "Must run setup_plotting before this function"
+
+    X = np.tile(x, len(y)).reshape(len(y), -1).T
+    Y = np.tile(y, len(x)).reshape(len(x), -1)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    plt.title(title or "Trajectory prediction evalutaions")
+    if ylabel:
+        yLabel = ax.set_ylabel(ylabel)
+    if xlabel:
+        xLabel = ax.set_xlabel(xlabel)
+    if zlabel:
+        zLabel = ax.set_zlabel(zlabel)
+    if log_scale:
+        data = {key: np.log(data[key]) for key in data}
+    for key in data:
+        ax.plot_wireframe(X, Y, data[key], color=color_dict[key], label=label_dict[key])
+    plt.legend(loc='middle right')
+    ax.view_init(elev=40, azim=-130)
     if save_loc:
         plt.savefig(save_loc)
     if show:
