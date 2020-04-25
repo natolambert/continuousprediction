@@ -66,6 +66,10 @@ log = logging.getLogger(__name__)
 setup = False
 label_dict, color_dict, color_dict_plotly, marker_dict, marker_dict_plotly = None, None, None, None, None
 
+###########
+# Helpers #
+###########
+
 
 def setup_plotting(models):
     """
@@ -107,6 +111,17 @@ def find_latest_checkpoint(cfg):
     last_modified_file = max(files, key=os.path.getmtime)
 
     return last_modified_file
+
+
+def get_helper(dict1, dict2, key, default):
+    dic = dict1 or dict2
+    out = dic.get(key)
+    return out or default
+
+
+############
+# Plotters #
+############
 
 
 def plot_reacher(states, actions):
@@ -455,7 +470,8 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
     return fig
 
 
-def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):
+def plot_mse(MSEs, log_scale=True, title=None, custom_colors=None, custom_labels=None,
+             custom_markers=None, save_loc=None, show=True):
     """
     Plots MSE graphs for the sequences given given
 
@@ -474,10 +490,13 @@ def plot_mse(MSEs, save_loc=None, show=True, log_scale=True, title=None):
     ax.spines['top'].set_visible(False)
     for key in MSEs:
         mse = MSEs[key]
+        color = get_helper(custom_colors, color_dict, key, None)
+        label = get_helper(custom_labels, label_dict, key, None)
+        marker = get_helper(custom_markers, marker_dict, key, 'o')
         if log_scale:
-            plt.semilogy(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+            plt.semilogy(mse, color=color, label=label, marker=marker, markevery=50)
         else:
-            plt.plot(mse, color=color_dict[key], label=label_dict[key], marker=marker_dict[key], markevery=50)
+            plt.plot(mse, color=color, label=label, marker=marker, markevery=50)
     plt.legend()
     if save_loc:
         plt.savefig(save_loc)
@@ -674,7 +693,7 @@ def plot_evaluations(data, x, ylabel=None, xlabel=None, title=None, log_scale=Fa
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     for key in data:
-        plt.plot(x, data[key], color=color_dict[key], label=label_dict[key], marker=marker_dict[key])
+        plt.plot(x, data[key].squeeze(), color=color_dict[key], label=label_dict[key], marker=marker_dict[key])
     plt.legend()
     if save_loc:
         plt.savefig(save_loc)
@@ -685,32 +704,55 @@ def plot_evaluations(data, x, ylabel=None, xlabel=None, title=None, log_scale=Fa
 
 
 def plot_evaluations_3d(data, x, y, ylabel=None, xlabel=None, zlabel=None, title=None, log_scale=False, save_loc=None, show=True):
+    """
+    Plots the data using a heatmap, which is a nice way of doing 3D plots
+
+    Parameters:
+        Data: a dictionary of 2D arrays of shale (len(y), len(x))
+        x: the labels to go on the x axis
+        y: the labels to go on the y axis
+    """
     assert setup, "Must run setup_plotting before this function"
 
-    X = np.tile(x, len(y)).reshape(len(y), -1).T
-    Y = np.tile(y, len(x)).reshape(len(x), -1)
+    # X = np.tile(x, len(y)).reshape(len(y), -1).T
+    # Y = np.tile(y, len(x)).reshape(len(x), -1)
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    plt.title(title or "Trajectory prediction evalutaions")
-    if ylabel:
-        yLabel = ax.set_ylabel(ylabel)
-    if xlabel:
-        xLabel = ax.set_xlabel(xlabel)
-    if zlabel:
-        zLabel = ax.set_zlabel(zlabel)
     if log_scale:
         data = {key: np.log(data[key]) for key in data}
+
     for key in data:
-        ax.plot_wireframe(X, Y, data[key], color=color_dict[key], label=label_dict[key])
-    plt.legend(loc='middle right')
-    ax.view_init(elev=40, azim=-130)
-    if save_loc:
-        plt.savefig(save_loc)
-    if show:
-        plt.show()
-    else:
-        plt.close()
+        fig, ax = plt.subplots()
+        # ax = fig.add_subplot(111, projection='3d')
+        plt.title(label_dict[key])
+
+        dat = data[key]
+        dat = np.nan_to_num(dat)
+        im = plt.imshow(dat, origin='lower')
+
+        if ylabel:
+            # yLabel = ax.set_ylabel(ylabel)
+            plt.ylabel(ylabel)
+        if xlabel:
+            # xLabel = ax.set_xlabel(xlabel)
+            plt.xlabel(xlabel)
+        cbar = ax.figure.colorbar(im)
+        if zlabel:
+            cbar.ax.set_ylabel(zlabel)
+        # if zlabel:
+        #     zLabel = ax.set_zlabel(zlabel)
+        # ax.view_init(elev=40, azim=-130)
+
+        ax.set_xticks(np.arange(len(x)))
+        ax.set_yticks(np.arange(len(y)))
+        ax.set_xticklabels(x)
+        ax.set_yticklabels(y)
+
+        if save_loc:
+            plt.savefig("%s_%s.pdf" % (save_loc, key))
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
 
 @hydra.main(config_path='config-plot.yaml')

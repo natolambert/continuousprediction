@@ -20,7 +20,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
-from plot import plot_loss, plot_evaluations, plot_evaluations_3d, setup_plotting
+from plot import plot_loss, plot_evaluations, plot_evaluations_3d, setup_plotting, plot_mse
 from dynamics_model import DynamicsModel
 from reacher_pd import log_hyperparams, create_dataset_traj, create_dataset_step
 from evaluate import test_models, num_eval
@@ -70,8 +70,6 @@ def plot(cfg, train_data, test_data):
     models = {}
 
     model_keys, ns, t_ranges = cfg.plotting.models, cfg.plotting.num_traj, cfg.plotting.t_range
-    # if type(ns) != int and type(t_ranges) != int:
-    #     raise ValueError('t_range and num_traj cannot both be lists')
     if type(ns) == int:
         ns = [ns]
     if type(t_ranges) == int:
@@ -79,14 +77,6 @@ def plot(cfg, train_data, test_data):
     f_names = {}
     for n, t in itertools.product(ns, t_ranges):
         f_names[(n, t)] = 'n%d_t%d.dat' % (n, t)
-    # if type(ns) != int:
-    #     f_names = {n: 'n%d_t%d.dat' % (n, t_ranges) for n in ns}
-    #     x_values = ns
-    #     xlabel = '# training trajectories'
-    # else:
-    #     f_names = {t_range: 'n%d_t%d.dat' % (ns, t_range) for t_range in t_ranges}
-    #     x_values = t_ranges
-    #     xlabel = 'training trajectory length'
 
     # Load models
     f = hydra.utils.get_original_cwd() + '/models/reacher'
@@ -116,22 +106,28 @@ def plot(cfg, train_data, test_data):
         MSEs, predictions = test_models(dat, models)
         # Both of these are dictionaries of arrays. The keys are tuples (model_type, n) and the entries are the
         # evaluation values for the different
-        eval_data_dot = num_eval(gt, predictions, setting='dot', T_range=cfg.plotting.eval_t_range)
-        eval_data_mse = num_eval(gt, predictions, setting='mse', T_range=cfg.plotting.eval_t_range)
+        eval_data_dot = num_eval(gt, predictions, models, setting='dot', T_range=cfg.plotting.eval_t_range)
+        eval_data_gauss = num_eval(gt, predictions, models, setting='gaussian', T_range=cfg.plotting.eval_t_range)
+        eval_data_mse = num_eval(gt, predictions, models, setting='mse', T_range=cfg.plotting.eval_t_range)
 
+        # Initialize dictionaries that will hold the data in 2d arrays that are better suited to plotting heatmaps,
+        # then move the data into those dictionaries
         n_eval = gt.shape[0]
         evals_dot = {key: np.zeros((n_eval, len(ns), len(t_ranges))) for key in model_keys}
+        evals_gauss = {key: np.zeros((n_eval, len(ns), len(t_ranges))) for key in model_keys}
         evals_mse = {key: np.zeros((n_eval, len(ns), len(t_ranges))) for key in model_keys}
         for (model_type, (n, t)) in eval_data_dot:
-            evals_dot[model_type][:, ns.index(n), t_ranges.index(t)] = eval_data_dot[(model_type, (n, t))]
+            evals_dot[model_type][:, ns.index(n), t_ranges.index(t)] = np.nan_to_num(eval_data_dot[(model_type, (n, t))])
+        for (model_type, (n, t)) in eval_data_gauss:
+            evals_gauss[model_type][:, ns.index(n), t_ranges.index(t)] = eval_data_gauss[(model_type, (n, t))]
         for (model_type, (n, t)) in eval_data_mse:
             dat = eval_data_mse[(model_type, (n, t))]
-            mask = dat > 1e5
-            dat[mask] = float('nan')
-            evals_mse[model_type][:, ns.index(n), t_ranges.index(t)] = dat
+            evals_mse[model_type][:, ns.index(n), t_ranges.index(t)] = np.minimum(dat, 100)
+            # The line above caps MSE at 100, which I found to be necessary to get good-looking heatmaps
+            # TODO update that ^^^ to make it work for plotting variation over one variable at a time
 
         if cfg.plotting.plot_all_eval or cfg.plotting.plot_avg_eval:
-            eval_file = graph_file + '/eval'
+            eval_file = graph_file + '/eval/'
             os.mkdir(eval_file)
 
         if cfg.plotting.plot_all_eval:
@@ -140,16 +136,20 @@ def plot(cfg, train_data, test_data):
                 os.mkdir(file)
 
                 evals_dot_slice = {key: evals_dot[key][i, :, :] for key in evals_dot}
-                evals_mse_slice = {key: evals_mse[key][i, :, :] for key in evals_mse}
+                evals_gauss_slice = {key: evals_gauss[key][i, :, :] for key in evals_gauss}
+                evals_mse_slice = {key: 1 / evals_mse[key][i, :, :] for key in evals_mse}
 
                 # Plot evaluations
                 if len(ns) > 1 and len(t_ranges) > 1:
-                    plot_evaluations_3d(evals_dot_slice, ns, t_ranges, xlabel='# training trajectories',
-                                        ylabel='training trajectory length', zlabel='Dot product similarity',
-                                        save_loc=file+'efficiency_dot.pdf', show=False)
-                    plot_evaluations_3d(evals_mse_slice, ns, t_ranges, xlabel='# training trajectories',
-                                        ylabel='training trajectory length', zlabel='MSE similarity',
-                                        save_loc=file + 'efficiency_mse.pdf', show=False)
+                    plot_evaluations_3d(evals_dot_slice, t_ranges, ns, ylabel='# training trajectories',
+                                        xlabel='training trajectory length', zlabel='Dot product similarity',
+                                        save_loc=file+'efficiency_dot', show=False)
+                    plot_evaluations_3d(evals_gauss_slice, t_ranges, ns, ylabel='# training trajectories',
+                                        xlabel='training trajectory length', zlabel='Gaussian similarity',
+                                        save_loc=file + 'efficiency_gauss', show=False)
+                    plot_evaluations_3d(evals_mse_slice, t_ranges, ns, ylabel='# training trajectories',
+                                        xlabel='training trajectory length', zlabel='MSE similarity',
+                                        save_loc=file + 'efficiency_mse', show=False)
                 else:
                     if len(ns) > 1:
                         x_values = ns
@@ -164,26 +164,22 @@ def plot(cfg, train_data, test_data):
 
         # Plot averages
         if cfg.plotting.plot_avg_eval:
-            # evals_dot = {key: [np.average(eval_data_dot[(key, x)]) for x in x_values] for key in model_keys}
-            # evals_mse = {key: [np.average(eval_data_mse[(key, x)]) for x in x_values] for key in model_keys}
-            # evals_mse_chopped = {key: [(num if num < 10 ** 5 else float("nan")) for num in evals_mse[key]] for key in
-            #                      evals_mse}
-            # plot_evaluations(evals_dot, x_values, ylabel='Dot product similarity', xlabel=xlabel,
-            #                  save_loc=eval_file + '/avg_efficiency_dot.pdf', show=False)
-            # plot_evaluations(evals_mse_chopped, x_values, ylabel='MSE similarity', xlabel=xlabel,
-            #                  save_loc=eval_file + '/avg_efficiency_mse.pdf', show=False, log_scale=True)
 
             evals_dot_avg = {key: np.average(evals_dot[key], axis=0) for key in evals_dot}
+            evals_gauss_avg = {key: np.average(evals_gauss[key], axis=0) for key in evals_gauss}
             evals_mse_avg = {key: np.average(evals_mse[key], axis=0) for key in evals_mse}
 
             # Plot evaluations
             if len(ns) > 1 and len(t_ranges) > 1:
-                plot_evaluations_3d(evals_dot_avg, ns, t_ranges, xlabel='# training trajectories',
-                                    ylabel='training trajectory length', zlabel='Dot product similarity',
-                                    save_loc=eval_file + 'efficiency_dot.pdf', show=False)
-                plot_evaluations_3d(evals_mse_avg, ns, t_ranges, xlabel='# training trajectories',
-                                    ylabel='training trajectory length', zlabel='MSE similarity',
-                                    save_loc=eval_file + 'efficiency_mse.pdf', log_scale=True, show=False)
+                plot_evaluations_3d(evals_dot_avg, t_ranges, ns, ylabel='# training trajectories',
+                                    xlabel='training trajectory length', zlabel='Dot product similarity',
+                                    save_loc=eval_file + 'efficiency_dot', show=False)
+                plot_evaluations_3d(evals_gauss_avg, t_ranges, ns, ylabel='# training trajectories',
+                                    xlabel='training trajectory length', zlabel='Gaussian similarity',
+                                    save_loc=eval_file + 'efficiency_gauss', show=False)
+                plot_evaluations_3d(evals_mse_avg, t_ranges, ns, ylabel='# training trajectories',
+                                    xlabel='training trajectory length', zlabel='Log mean square error',
+                                    save_loc=eval_file + 'efficiency_mse', log_scale=True, show=False)
             else:
                 if len(ns) > 1:
                     x_values = ns
@@ -202,21 +198,35 @@ def plot(cfg, train_data, test_data):
             for i, id in list(enumerate(idx)):
                 pass
 
-
         # Plot MSEs
         if cfg.plotting.plot_avg_mse:
-            pass
-            # file = graph_file + '/mse'
-            # os.mkdir(file)
-            #
+            file = graph_file + '/mse'
+            os.mkdir(file)
+
             # MSE_avgs = {x: {key: np.mean(MSEs[(key, x)], axis=0) for key in model_keys} for x in x_values}
+            MSE_avgs = {key: {tup: np.average(MSEs[(key, tup)], axis=0) for tup in itertools.product(ns, t_ranges)} for key in model_keys}
+            MSE_chopped = {key: {tup: [num if num < 1e5 else float('nan') for num in MSE_avgs[key][tup]] for tup in MSE_avgs[key]} for key in MSE_avgs}
+
+            for key in model_keys:
+                mses = MSE_chopped[key]
+                # arbitrarily chosen color
+                r = np.linspace(187/255, 109/255, len(mses))
+                g = np.linspace(153/255, 36/255, len(mses))
+                b = 1
+                tups = list(set(mses))
+                tups.sort()
+                colors = {tups[i]: (r[i], g[i], b) for i in range(len(mses))}
+                names = {tup: ('n: %d, t: %d' % tup) for tup in tups}
+                plot_mse(mses, title='MSE efficiency for %s' % models[(key,tups[0])].cfg.model.plotting.label,
+                         custom_colors=colors, custom_labels=names, show=False,
+                         save_loc=file+'/%s.pdf' % models[(key, tups[0])].cfg.model.str)
+
+
+
+
             # for x in x_values:
             #     chopped = {key: [(num if num < 10 ** 5 else float("nan")) for num in MSE_avgs[x][key]] for key in MSE_avgs[x]}
             #     plot_mse(chopped, save_loc=file+'/avg_mse_%d.pdf'%x, show=False, log_scale=True)
-
-
-
-
 
 
     if cfg.plotting.num_eval_train:
