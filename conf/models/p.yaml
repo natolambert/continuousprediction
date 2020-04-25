@@ -12,7 +12,7 @@ model:
     train_target: true
     control_params: true
     # the state indices to worry about for model
-    state_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
+    state_indices: [0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]
   optimizer:
     epochs: 15
     batch: 32
