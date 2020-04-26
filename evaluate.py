@@ -70,7 +70,7 @@ def test_models(test_data, models):
         for key in models:
             model = models[key]
             indices = model.state_indices
-            traj = 't' in key or type(key) == tuple and 't' in key[0]
+            traj = model.traj
             # Make predictions on all trajectories at once
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]

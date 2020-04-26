@@ -1,5 +1,5 @@
 model:
-  str: c
+  str: d_state
   prob: false
   ensemble: false
   traj: false
@@ -14,11 +14,11 @@ model:
     # the state indices to worry about for model
     state_indices: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
   optimizer:
-    epochs: 16
+    epochs: 40
     batch: 32
     name: Adam
     split: .8
-    lr: .00005
+    lr: .00002
     max_size: 0
   preprocess:
     state:
@@ -32,8 +32,8 @@ model:
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: Custom
+    label: One Step Deterministic State Based
     color: '#8d67a6'
     color_plotly: rgb(141,103,166)
-    marker: *
+    marker: '*'
     marker_plotly: star
