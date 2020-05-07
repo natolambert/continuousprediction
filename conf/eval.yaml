@@ -1,4 +1,4 @@
-data_dir: l500_t50_v5.dat
+data_dir: l500_t100_n100.dat
 model_dir: l500_t50_v5.dat
 exper_dir: false # set to a name to load models from within a subfolder in the models directory
 plot: false
@@ -18,8 +18,9 @@ hydra:
 
 plotting:
   models: [d, de, p, pe, t, te, tp,tpe]
-  num_eval_train: 3
-  num_eval_test: 3
+  num_eval_train: 0
+  num_eval_test: 10
+  all: false
   states: true
   mse: true
   sorted: true

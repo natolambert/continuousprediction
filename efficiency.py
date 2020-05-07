@@ -32,6 +32,7 @@ def train(cfg, exper_data):
     """
     n = cfg.training.num_traj
     t_range = cfg.training.t_range
+    copies = cfg.training.copies
     subset_data = exper_data[:n]
 
     prob = cfg.model.prob
@@ -61,7 +62,7 @@ def train(cfg, exper_data):
     f = f + cfg.model.str
     if not os.path.exists(f):
         os.makedirs(f)
-    torch.save(model, '%s/n%d_t%d.dat'%(f, n, t_range))
+    torch.save(model, '%s/n%d_t%d_%d.dat'%(f, n, t_range, copies))
 
 
 def plot(cfg, train_data, test_data):
@@ -69,14 +70,19 @@ def plot(cfg, train_data, test_data):
     os.mkdir(graph_file)
     models = {}
 
+    # Basically this is just figuring out which files to load models from
+    # and making sure all the varying parameters are stored in lists
     model_keys, ns, t_ranges = cfg.plotting.models, cfg.plotting.num_traj, cfg.plotting.t_range
+    copies = cfg.plotting.copies
     if type(ns) == int:
         ns = [ns]
     if type(t_ranges) == int:
         t_ranges = [t_ranges]
+    if type(copies) == int:
+        copies = [copies]
     f_names = {}
-    for n, t in itertools.product(ns, t_ranges):
-        f_names[(n, t)] = 'n%d_t%d.dat' % (n, t)
+    for key in itertools.product(ns, t_ranges, copies):
+        f_names[key] = 'n%d_t%d_%d.dat' % key
 
     # Load models
     f = hydra.utils.get_original_cwd() + '/models/reacher'
@@ -87,6 +93,11 @@ def plot(cfg, train_data, test_data):
             model = torch.load("%s/efficiency/%s/%s" % (f, model_type, f_names[key]))
             models[(model_type, key)] = model
 
+    # s = {tuple(models[key].state_indices) for key in models}
+    # assert len(s) == 1, "All models need to use the same state indices"
+    # states = list(list(s)[0])
+
+    # Set up plotting dictionaries
     setup_plotting(models)
 
     # Plot
@@ -95,6 +106,7 @@ def plot(cfg, train_data, test_data):
         Helper to allow plotting for both train and test data without significant code duplication
         """
         if not num:
+            # Exit if there's nothing to plot
             return
         os.mkdir(graph_file)
 
@@ -103,26 +115,29 @@ def plot(cfg, train_data, test_data):
         dat = [data[i] for i in idx]
         gt = np.array([traj.states for traj in dat])
 
-        MSEs, predictions = test_models(dat, models)
-        # Both of these are dictionaries of arrays. The keys are tuples (model_type, n) and the entries are the
-        # evaluation values for the different
+        MSEs, predictions = test_models(dat, models, verbose=True)
+        # Both of these are dictionaries of arrays. The keys are tuples (model_type, (n, t)) and the entries are the
+        # evaluation values for the different evaluation methods
+        print('dot')
         eval_data_dot = num_eval(gt, predictions, models, setting='dot', T_range=cfg.plotting.eval_t_range)
-        eval_data_gauss = num_eval(gt, predictions, models, setting='gaussian', T_range=cfg.plotting.eval_t_range)
+        print('gaussian')
+        eval_data_gauss = num_eval(gt, predictions, models, setting='gaussian', T_range=cfg.plotting.eval_t_range, verbose=True)
+        print('mse')
         eval_data_mse = num_eval(gt, predictions, models, setting='mse', T_range=cfg.plotting.eval_t_range)
 
         # Initialize dictionaries that will hold the data in 2d arrays that are better suited to plotting heatmaps,
         # then move the data into those dictionaries
         n_eval = gt.shape[0]
-        evals_dot = {key: np.zeros((n_eval, len(ns), len(t_ranges))) for key in model_keys}
-        evals_gauss = {key: np.zeros((n_eval, len(ns), len(t_ranges))) for key in model_keys}
-        evals_mse = {key: np.zeros((n_eval, len(ns), len(t_ranges))) for key in model_keys}
-        for (model_type, (n, t)) in eval_data_dot:
-            evals_dot[model_type][:, ns.index(n), t_ranges.index(t)] = np.nan_to_num(eval_data_dot[(model_type, (n, t))])
-        for (model_type, (n, t)) in eval_data_gauss:
-            evals_gauss[model_type][:, ns.index(n), t_ranges.index(t)] = eval_data_gauss[(model_type, (n, t))]
-        for (model_type, (n, t)) in eval_data_mse:
-            dat = eval_data_mse[(model_type, (n, t))]
-            evals_mse[model_type][:, ns.index(n), t_ranges.index(t)] = np.minimum(dat, 100)
+        evals_dot = {key: np.zeros((n_eval, len(ns), len(t_ranges), len(copies))) for key in model_keys}
+        evals_gauss = {key: np.zeros((n_eval, len(ns), len(t_ranges), len(copies))) for key in model_keys}
+        evals_mse = {key: np.zeros((n_eval, len(ns), len(t_ranges), len(copies))) for key in model_keys}
+        for (model_type, (n, t, c)) in eval_data_dot:
+            evals_dot[model_type][:, ns.index(n), t_ranges.index(t), copies.index(c)] = np.nan_to_num(eval_data_dot[(model_type, (n, t, c))])
+        for (model_type, (n, t, c)) in eval_data_gauss:
+            evals_gauss[model_type][:, ns.index(n), t_ranges.index(t), copies.index(c)] = eval_data_gauss[(model_type, (n, t, c))]
+        for (model_type, (n, t, c)) in eval_data_mse:
+            dat = eval_data_mse[(model_type, (n, t, c))]
+            evals_mse[model_type][:, ns.index(n), t_ranges.index(t), copies.index(c)] = np.minimum(dat, 100)
             # The line above caps MSE at 100, which I found to be necessary to get good-looking heatmaps
             # TODO update that ^^^ to make it work for plotting variation over one variable at a time
 
@@ -131,6 +146,7 @@ def plot(cfg, train_data, test_data):
             os.mkdir(eval_file)
 
         if cfg.plotting.plot_all_eval:
+            # TODO: this section might be outdated, it's pretty useless so I haven't been maintaining it
             for i, id in list(enumerate(idx)):
                 file = "%s/test%d" % (eval_file, i + 1)
                 os.mkdir(file)
@@ -165,9 +181,10 @@ def plot(cfg, train_data, test_data):
         # Plot averages
         if cfg.plotting.plot_avg_eval:
 
-            evals_dot_avg = {key: np.average(evals_dot[key], axis=0) for key in evals_dot}
-            evals_gauss_avg = {key: np.average(evals_gauss[key], axis=0) for key in evals_gauss}
-            evals_mse_avg = {key: np.average(evals_mse[key], axis=0) for key in evals_mse}
+            # Find average similarity values to plot
+            evals_dot_avg = {key: np.median(np.average(evals_dot[key], axis=0), axis=2) for key in evals_dot}
+            evals_gauss_avg = {key: np.median(np.average(evals_gauss[key], axis=0), axis=2) for key in evals_gauss}
+            evals_mse_avg = {key: np.median(np.average(evals_mse[key], axis=0), axis=2) for key in evals_mse}
 
             # Plot evaluations
             if len(ns) > 1 and len(t_ranges) > 1:
@@ -204,18 +221,19 @@ def plot(cfg, train_data, test_data):
             os.mkdir(file)
 
             # MSE_avgs = {x: {key: np.mean(MSEs[(key, x)], axis=0) for key in model_keys} for x in x_values}
-            MSE_avgs = {key: {tup: np.average(MSEs[(key, tup)], axis=0) for tup in itertools.product(ns, t_ranges)} for key in model_keys}
+            MSE_avgs = {key: {tup: np.average(MSEs[(key, tup)], axis=0) for tup in itertools.product(ns, t_ranges, copies)} for key in model_keys}
             MSE_chopped = {key: {tup: [num if num < 1e5 else float('nan') for num in MSE_avgs[key][tup]] for tup in MSE_avgs[key]} for key in MSE_avgs}
 
             for key in model_keys:
                 mses = MSE_chopped[key]
                 # arbitrarily chosen color
-                r = np.linspace(187/255, 109/255, len(mses))
-                g = np.linspace(153/255, 36/255, len(mses))
-                b = 1
+                r = np.linspace(0.0, 1.0, len(mses))
+                # g = np.linspace(153/255, 36/255, len(mses))
+                g = 0
+                b = np.linspace(1.0, 0.0, len(mses))
                 tups = list(set(mses))
                 tups.sort()
-                colors = {tups[i]: (r[i], g[i], b) for i in range(len(mses))}
+                colors = {tups[i]: (r[i], g, b[i]) for i in range(len(mses))}
                 names = {tup: ('n: %d, t: %d' % tup) for tup in tups}
                 plot_mse(mses, title='MSE efficiency for %s' % models[(key,tups[0])].cfg.model.plotting.label,
                          custom_colors=colors, custom_labels=names, show=False,
@@ -247,6 +265,8 @@ def plot(cfg, train_data, test_data):
 
 @hydra.main(config_path='conf/eff.yaml')
 def eff(cfg):
+
+    log.info(cfg.pretty())
 
     log.info(f"Loading default data")
     (train_data, test_data) = torch.load(
