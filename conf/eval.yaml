@@ -20,8 +20,11 @@ plotting:
   models: [d, de, p, pe, t, te, tp,tpe]
   num_eval_train: 0
   num_eval_test: 10
+  mse_y_max: 10000
+  copies: 0
   all: false
   states: true
   mse: true
   sorted: true
+
 

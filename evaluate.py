@@ -6,6 +6,7 @@ import sys
 
 import hydra
 import logging
+import itertools
 
 import torch
 import numpy as np
@@ -36,8 +37,6 @@ def test_models(test_data, models, verbose=False):
 
     log.info("Beginning testing of predictions")
 
-    MSEs = {key: [] for key in models}
-
     states, actions, initials = [], [], []
     P, D, target = [], [], []
 
@@ -59,42 +58,20 @@ def test_models(test_data, models, verbose=False):
     target = np.array(target)
 
     N, T, D = states.shape
-    # eval_indices = list(set.intersection(*[models[key].state_indices for key in models]))
-    # eval_indices.sort()
 
     # Iterate through each type of model for evaluation
     predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
     currents = {key: states[:, 0, models[key].state_indices] for key in models}
-    # for i in range(1, T):
-    #     if i % 10 == 0 and verbose:
-    #         print("    " + str(i))
-    #     groundtruth = states[:, i]
-    #     for key in models:
-    #         model = models[key]
-    #         indices = model.state_indices
-    #         traj = model.traj
-    #         # Make predictions on all trajectories at once
-    #         if traj:
-    #             dat = [initials[:, indices], i * np.ones((N, 1))]
-    #             if model.control_params:
-    #                 dat.extend([P_param, D_param])
-    #             if model.train_target:
-    #                 dat.append(target)
-    #             prediction = np.array(model.predict(np.hstack(dat)).detach())
-    #         else:
-    #             prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
-    #             prediction = np.array(prediction.detach())
-    #
-    #         predictions[key].append(prediction)
-    #         MSEs[key].append(np.square(groundtruth[:, indices] - prediction.squeeze()).mean(axis=1))
-    #         currents[key] = prediction.squeeze()
 
+    ind_dict = {}
     for i, key in list(enumerate(models)):
         if verbose and (i+1) % 10 == 0:
             print("    " + str(i+1))
         model = models[key]
         indices = model.state_indices
         traj = model.traj
+
+        ind_dict[key] = indices
 
         for i in range(1, T):
             if traj:
@@ -112,7 +89,7 @@ def test_models(test_data, models, verbose=False):
             currents[key] = prediction.squeeze()
 
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
-    MSEs[key] = np.square(states[:, :, indices] - predictions[key]).mean(axis=2)
+    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2) for key in predictions}
 
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
@@ -184,7 +161,6 @@ def find_deltas(test_data, models):
 
     """
     states, actions = [], []
-    P, D, target = [], [], []
 
     # Compile the various trajectories into arrays
     for traj in test_data:
@@ -202,13 +178,13 @@ def find_deltas(test_data, models):
     for key in models:
         model = models[key]
         indices = model.state_indices
-        if 't' in key:
+        if 't' in key or type(key) == tuple and 't' in key[0]:
             # This doesn't make sense for t models so not gonna bother with this
             continue
         else:
             input = np.dstack((states[:, :, indices], actions)).reshape(N*T, -1)
             prediction = model.predict(input)
-            prediction = np.array(prediction.detach()).reshape(N, T, len(indices))
+            prediction = np.array(prediction.detach()).reshape((N, T, len(indices)))
             delta = prediction-states[:, :, indices]
             deltas[key] = delta
 
@@ -269,13 +245,17 @@ def evaluate(cfg):
 
     # Load models
     log.info("Loading models")
-    model_types = cfg.plotting.models
+    if cfg.plotting.copies:
+        model_types = list(itertools.product(cfg.plotting.models, np.arange(cfg.plotting.copies)))
+    else:
+        model_types = cfg.plotting.models
     models = {}
     f = hydra.utils.get_original_cwd() + '/models/reacher/'
     if cfg.exper_dir:
         f = f + cfg.exper_dir + '/'
     for model_type in model_types:
-        models[model_type] = torch.load(f + model_type + ".dat")
+        model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
+        models[model_type] = torch.load(f + model_str + ".dat")
 
     # Plot
     def plot_helper(data, num, graph_file):
@@ -295,11 +275,19 @@ def evaluate(cfg):
             deltas = find_deltas(dat, models)
 
         mse_evald = []
+        sh = MSEs[model_types[0]][0].shape
         for i, id in list(enumerate(idx)):
             gt = data[id].states
-            mse = {key: MSEs[key][i].squeeze() for key in MSEs}
+            if cfg.plotting.copies:
+                mse_all = {key: np.zeros((cfg.plotting.copies,) + sh) for key in cfg.plotting.models}
+                for type, j in MSEs:
+                    mse_all[type][j] = MSEs[(type, j)][i]
+                mse = {key: np.median(mse_all[key], axis=0) for key in mse_all}
+            else:
+                mse = {key: MSEs[key][i].squeeze() for key in MSEs}
             mse_sub = {key: [(x if x < 10 ** 5 else float("nan")) for x in mse[key]] for key in mse}
-            pred = {key: predictions[key][i] for key in predictions}
+            if not cfg.plotting.copies:
+                pred = {key: predictions[key][i] for key in predictions}
 
             if cfg.plotting.all:
                 file = "%s/test%d" % (graph_file, i + 1)
@@ -315,7 +303,10 @@ def evaluate(cfg):
 
             mse_evald.append(mse)
 
-        plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file), show=False)
+        plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
+                     show=False, y_max=cfg.plotting.mse_y_max)
+
+        mse_all = {}
 
     if cfg.plotting.num_eval_train:
         log.info("Plotting train data")

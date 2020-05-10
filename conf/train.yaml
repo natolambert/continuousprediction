@@ -10,6 +10,7 @@ plot: false
 #determines whether target is part of input data
 train_target: false
 control_params: true
+copies: false
 
 hydra:
   run:

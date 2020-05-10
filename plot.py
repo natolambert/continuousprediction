@@ -84,11 +84,13 @@ def setup_plotting(models):
 
     setup = True
 
-    label_dict = {models[key].str: models[key].cfg.model.plotting.label for key in models}
-    color_dict = {models[key].str: models[key].cfg.model.plotting.color for key in models}
-    color_dict_plotly = {models[key].str: models[key].cfg.model.plotting.color_plotly for key in models}
-    marker_dict = {models[key].str: models[key].cfg.model.plotting.marker for key in models}
-    marker_dict_plotly = {models[key].str: models[key].cfg.model.plotting.marker_plotly for key in models}
+    keyset = {(key[0] if type(key) == tuple else key) for key in models}
+
+    label_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.label for key in models}
+    color_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color for key in models}
+    color_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color_plotly for key in models}
+    marker_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.marker for key in models}
+    marker_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.marker_plotly for key in models}
 
 
 def find_latest_checkpoint(cfg):
@@ -424,7 +426,7 @@ def add_marker(err_traces, color=[], symbol=None, skip=None):
     return err_traces
 
 
-def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None):
+def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_max=1e4):
     assert setup, "Must run setup_plotting before this function"
 
     arrays = []
@@ -447,7 +449,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     layout = dict(title=f"Average Error over Run",
                   xaxis={'title': 'Prediction Step'},
-                  yaxis={'title': 'Mean Error', 'range': [np.log10(0.01), np.log10(10000)]},
+                  yaxis={'title': 'Mean Error', 'range': [np.log10(0.01), np.log10(y_max)]},
                   yaxis_type="log",
                   font=dict(family='Times New Roman', size=30, color='#7f7f7f'),
                   height=1000,
