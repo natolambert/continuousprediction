@@ -22,6 +22,7 @@ import torch
 # import torch.backends.cudnn as cudnn
 import gym
 from envs import *
+from gym.wrappers import Monitor
 
 import hydra
 import logging
@@ -120,7 +121,7 @@ def create_dataset_step(data, delta=True, t_range=0):
     return data_in, data_out
 
 
-def run_controller(env, horizon, policy):
+def run_controller(env, horizon, policy, video = False):
     """
     Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
 
@@ -142,7 +143,8 @@ def run_controller(env, horizon, policy):
 
     observation = env.reset()
     for t in range(horizon):
-        # env.render()
+        if(video):
+            env.render()
         state = observation
         action, t = policy.act(obs2q(state))
 
@@ -173,15 +175,22 @@ def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
 
     env_model = cfg.env.name
     env = gym.make(env_model)
+    if (cfg.video):
+        env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
+         video_callable = lambda episode_id: episode_id==1,force=True)
     log.info('Initializing env: %s' % env_model)
 
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
     # about <horizon> steps with actions, rewards and states
     logs = []
-
+    if (cfg.PID_test):
+        target = np.random.rand(5) * 2 - 1
     for i in range(cfg.num_trials):
         log.info('Trial %d' % i)
-        env.seed(i)
+        if (cfg.PID_test):
+            env.seed(0)
+        else:
+            env.seed(i)
         s0 = env.reset()
 
         # P = np.array([4, 4, 1, 1, 1])
@@ -191,12 +200,13 @@ def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
         D = np.random.rand(5)
 
         # Samples target uniformely from [-1, 1]
-        target = np.random.rand(5) * 2 - 1
+        if (not cfg.PID_test):
+            target = np.random.rand(5) * 2 - 1
 
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         # print(type(env))
+        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
 
-        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy)
         dotmap.target = target
         dotmap.P = P / 5
         dotmap.I = I
