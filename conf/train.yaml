@@ -27,6 +27,3 @@ hydra:
         item_sep: ','
         exclude_keys: ['random_seed']
 
-training:
-  num_traj: 20
-  t_range: 500

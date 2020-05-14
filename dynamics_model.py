@@ -9,6 +9,7 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from collections import OrderedDict
 import hydra
+import math
 
 
 class Net(nn.Module):
@@ -89,7 +90,7 @@ class Net(nn.Module):
         # 26 -> one-step, 37 -> trajectory
         input = dataset[0]
         output = dataset[1]
-        if (cfg.model.traj):
+        if cfg.model.traj:
             self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
             self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
             self.paramScaler = hydra.utils.instantiate(cfg.model.preprocess.param)
@@ -153,7 +154,7 @@ class Net(nn.Module):
 
         # Set up the optimizer and scheduler
         # TODO: the scheduler is currently unused. Should it be doing something it isn't or removed?
-        optimizer = torch.optim.Adam(self.features.parameters(), lr=lr)
+        optimizer = torch.optim.Adam(self.features.parameters(), lr=lr, weight_decay=cfg.model.optimizer.regularization)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.7)
 
         # data preprocessing for normalization
@@ -181,20 +182,20 @@ class Net(nn.Module):
                 optimizer.zero_grad()
                 outputs = self.forward(inputs)
                 loss = self.loss_fn(outputs.float(), targets.float())
-                train_error += loss.item() / (len(trainLoader) * bs)
+                train_error += loss.item() / (len(trainLoader))
 
                 loss.backward()
                 optimizer.step()  # Does the update
 
             # Iterate through dataset to calculate test set accuracy
-            test_error = torch.zeros(1)
+            # test_error = torch.zeros(1)
             for i, (inputs, targets) in enumerate(testLoader):
                 outputs = self.forward(inputs)
                 loss = self.loss_fn(outputs.float(), targets.float())
-                test_error += loss.item() / (len(testLoader) * bs)
+                test_error += loss.item() / (len(testLoader))
 
             train_errors.append(train_error)
-            test_errors.append(test_error.item())
+            test_errors.append(test_error)
 
         return train_errors, test_errors
 
@@ -318,16 +319,17 @@ class ProbLoss(nn.Module):
         B = torch.tensor(1, dtype=torch.float)
         return (torch.log(1 + torch.exp(input.mul_(B)))).div_(B)
 
-        # TODO: This function has been observed outputting negative values. needs fix
-
     def forward(self, inputs, targets):
         # size = targets.size()[1]
         mean = inputs[:, :self.size]
         logvar = inputs[:, self.size:]
 
         # Caps max and min log to avoid NaNs
-        logvar = self.max_logvar - self.softplus_raw(self.max_logvar - logvar)
-        logvar = self.min_logvar + self.softplus_raw(logvar - self.min_logvar)
+        # logvar = self.max_logvar - self.softplus_raw(self.max_logvar - logvar)
+        # logvar = self.min_logvar + self.softplus_raw(logvar - self.min_logvar)
+
+        logvar = torch.min(logvar, self.max_logvar)
+        logvar = torch.max(logvar, self.min_logvar)
 
         var = torch.exp(logvar)
 

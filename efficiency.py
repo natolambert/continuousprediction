@@ -10,6 +10,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 import numpy as np
 import matplotlib.pyplot as plt
 import itertools
+import random
 
 import torch
 import gym
@@ -33,7 +34,8 @@ def train(cfg, exper_data):
     n = cfg.training.num_traj
     t_range = cfg.training.t_range
     copies = cfg.training.copies
-    subset_data = exper_data[:n]
+    # subset_data = exper_data[:n]
+    subset_data = random.sample(exper_data, n)
 
     prob = cfg.model.prob
     traj = cfg.model.traj
@@ -195,7 +197,7 @@ def plot(cfg, train_data, test_data):
                                     xlabel='training trajectory length', zlabel='Gaussian similarity',
                                     save_loc=eval_file + 'efficiency_gauss', show=False)
                 plot_evaluations_3d(evals_mse_avg, t_ranges, ns, ylabel='# training trajectories',
-                                    xlabel='training trajectory length', zlabel='Log mean square error',
+                                    xlabel='training trajectory length', zlabel='Mean square error',
                                     save_loc=eval_file + 'efficiency_mse', log_scale=True, show=False)
             else:
                 if len(ns) > 1:
@@ -234,7 +236,7 @@ def plot(cfg, train_data, test_data):
                 tups = list(set(mses))
                 tups.sort()
                 colors = {tups[i]: (r[i], g, b[i]) for i in range(len(mses))}
-                names = {tup: ('n: %d, t: %d' % tup) for tup in tups}
+                names = {tup: ('n: %d, t: %d, c: %d' % tup) for tup in tups}
                 plot_mse(mses, title='MSE efficiency for %s' % models[(key,tups[0])].cfg.model.plotting.label,
                          custom_colors=colors, custom_labels=names, show=False,
                          save_loc=file+'/%s.pdf' % models[(key, tups[0])].cfg.model.str)
@@ -245,7 +247,6 @@ def plot(cfg, train_data, test_data):
             # for x in x_values:
             #     chopped = {key: [(num if num < 10 ** 5 else float("nan")) for num in MSE_avgs[x][key]] for key in MSE_avgs[x]}
             #     plot_mse(chopped, save_loc=file+'/avg_mse_%d.pdf'%x, show=False, log_scale=True)
-
 
     if cfg.plotting.num_eval_train:
         log.info("Plotting train data")
@@ -265,8 +266,6 @@ def plot(cfg, train_data, test_data):
 
 @hydra.main(config_path='conf/eff.yaml')
 def eff(cfg):
-
-    log.info(cfg.pretty())
 
     log.info(f"Loading default data")
     (train_data, test_data) = torch.load(

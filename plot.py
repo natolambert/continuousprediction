@@ -8,60 +8,13 @@ import plotly.graph_objects as go
 import plotly
 
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from mpl_toolkits.mplot3d import Axes3D
 from dotmap import DotMap
 
 import logging
 
 log = logging.getLogger(__name__)
-
-# label_dict = {'t': 'Trajectory Based Deterministic',
-#               'd': 'One Step Deterministic',
-#               'p': 'One Step Probabilistic',
-#               'tp': 'Trajectory Based Probabilistic',
-#               'te': 'Trajectory Based Deterministic Ensemble',
-#               'de': 'One Step Deterministic Ensemble',
-#               'pe': 'One Step Probabilistic Ensemble',
-#               'tpe': 'Trajectory Based Probabilistic Ensemble',
-#               'c': 'Custom'}
-# color_dict = {'t': 'r',
-#               'd': 'b',
-#               'p': 'g',
-#               'tp': 'y',
-#               'te': '#b53636',
-#               'de': '#3660b5',
-#               'pe': '#52b536',
-#               'tpe': '#b57f11',
-#               'c': '#8d67a6'}
-# color_dict_plotly = {'t': 'rgb(200,0,0)',
-#                      'd': 'rgb(0,0,128)',
-#                      'p': 'rgb(0,128,0)',
-#                      'tp': 'rgb(200,200,0)',
-#                      'te': 'rgb(180,20,20)',
-#                      'de': 'rgb(20,20,128)',
-#                      'pe': 'rgb(20,128,20)',
-#                      'tpe': 'rgb(180,180,25)',
-#                      'c': 'rgb(141,103,166)'}
-#
-# marker_dict = {'t': 's',
-#                'd': 'o',
-#                'p': 'D',
-#                'tp': 'p',
-#                'te': 's',
-#                'de': 'o',
-#                'pe': 'D',
-#                'tpe': 'p',
-#                'c': '*'}
-#
-# marker_dict_plotly = {'t': 'cross-open-dot',
-#                       'd': 'circle-open-dot',
-#                       'p': 'x-open-dot',
-#                       'tp': 'triangle-up-open-dot',
-#                       'te': 'y-down-open',
-#                       'de': 'diamond-open-dot',
-#                       'pe': 'hourglass-open',
-#                       'tpe': 'hash-open-dot',
-#                       'c': 'star'}
 
 setup = False
 label_dict, color_dict, color_dict_plotly, marker_dict, marker_dict_plotly = None, None, None, None, None
@@ -91,6 +44,12 @@ def setup_plotting(models):
     color_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color_plotly for key in models}
     marker_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.marker for key in models}
     marker_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.marker_plotly for key in models}
+
+    # label_dict['zero'] = 'Only Zeros'
+    # color_dict['zero'] = '#db0b3f'
+    # color_dict_plotly['zero'] = 'rgb(219,11,63)'
+    # marker_dict['zero'] = 'o'
+    # marker_dict_plotly['zero'] = 'cross'
 
 
 def find_latest_checkpoint(cfg):
@@ -210,7 +169,7 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
         dict(x=xs[0], y=ymed.tolist(), mode='lines', name=name, type='scatter', legendgroup=f"group-{name}",
              line=dict(color=color, width=4))]
 
-    intensity = .3
+    intensity = 0.3
     '''
     interval = scipy.stats.norm.interval(percentile/100, loc=y, scale=np.sqrt(variance))
     interval = np.nan_to_num(interval)  # Fix stupid case of norm.interval(0) returning nan
@@ -269,7 +228,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             for i in idx_plot:
                 p = np.hstack((p, pred[:, i:i + 1]))
             p_avg = np.average(p[:, 1:], axis=1)
-            chopped = [(x if abs(x) < 3 else float("nan")) for x in p_avg]
+            chopped = [(x if abs(x) < 10 else float("nan")) for x in p_avg]
             plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
                      markevery=50)
         # plt.ylim(-.5, 1.5)
@@ -295,7 +254,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             # print(key)
             pred = predictions[key][:, i]
             # chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-            chopped = [(x if abs(x) < 3 else float("nan")) for x in pred]
+            chopped = [(x if abs(x) < 10 else float("nan")) for x in pred]
             plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
                      markevery=50)
 
@@ -404,8 +363,8 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
 
 
 def add_marker(err_traces, color=[], symbol=None, skip=None):
-    mark_every = 100
-    size = 30
+    mark_every = 50
+    size = 15
     l = len(err_traces[0]['x'])
     if skip is not None:
         size_list = [0] * skip + [size] + [0] * (mark_every - 1 - skip)
@@ -419,7 +378,7 @@ def add_marker(err_traces, color=[], symbol=None, skip=None):
         color=line['line']['color'],
         size=size_list,
         symbol="x" if symbol is None else symbol,
-        line=dict(width=4,
+        line=dict(width=3,
                   color='rgba(1,1,1,1)')
     )
     err_traces[0] = line
@@ -443,20 +402,20 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
                                               name=label_dict[k])
         w_marker = []
         # for t in tr:
-        m = add_marker(tr, color=color_dict_plotly[k], symbol=marker_dict_plotly[k], skip=25)
+        m = add_marker(tr, color=color_dict_plotly[k], symbol=marker_dict_plotly[k], skip=30)
         # w_marker.append(m)
         [traces_plot.append(t) for t in m]
 
-    layout = dict(title=f"Average Error over Run",
+    layout = dict(title=title if title else f"Average Error over Run",
                   xaxis={'title': 'Prediction Step'},
-                  yaxis={'title': 'Mean Error', 'range': [np.log10(0.01), np.log10(y_max)]},
+                  yaxis={'title': 'Mean Error', 'range': [np.log10(0.05), np.log10(y_max)]},
                   yaxis_type="log",
-                  font=dict(family='Times New Roman', size=30, color='#7f7f7f'),
+                  font=dict(family='Times New Roman', size=30, color='#000000'),
                   height=1000,
                   width=1500,
                   plot_bgcolor='white',
                   legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
-                          'font': dict(family='Times New Roman', size=22, color='#7f7f7f')}
+                          'font': dict(family='Times New Roman', size=30, color='#000000')}
                   )
 
     fig = {
@@ -602,78 +561,76 @@ def plot_lorenz(data, cfg, predictions=None):
     fig.write_image(os.getcwd() + "/lorenz.png")
 
 
-def plot_sorted(ground_truth, deltas, idx_plot=None, save_loc=None, show=True):
+def plot_sorted(deltas_gt, deltas_pred, idx_plot=None, save_loc=None, show=True):
     assert setup, "Must run setup_plotting before this function"
 
-    num = ground_truth.shape[0]
-    dx = ground_truth.shape[1]
+    # deltas_gt = {key: np.reshape(deltas_gt[key], (-1, deltas_gt[key].shape[-1])) for key in deltas_gt}
+    # deltas_pred = {key: np.reshape(deltas_pred[key], (-1, deltas_pred[key].shape[-1])) for key in deltas_pred}
+
     if idx_plot is None:
-        idx_plot = list(range(dx))
+        idx_plot = list(range(5))
 
-    # Extracting deltas
-    ground_truth_d = ground_truth[1:,:] - ground_truth[:-1,:]
-    deltas = {key: deltas[key][:-1,:] for key in deltas}
+    for key in deltas_gt:
+        for idx in idx_plot:
+            # Sorting
+            gt = deltas_gt[key][:, :, idx].ravel()
+            pred = deltas_pred[key][:, :, idx].ravel()
+            zipped = list(zip(gt, pred))
+            zipped.sort()
+            gt_plot = []
+            pred_plot = []
+            for gt_i, pred_i in zipped:
+                gt_plot.append(gt_i)
+                pred_plot.append(pred_i)
 
-    for idx in idx_plot:
-        # Sorting
-        gt = ground_truth_d[:,idx].ravel()
-        delt = [{key: deltas[key][i,idx] for key in deltas} for i in range(num-1)]
-        zipped = list(zip(gt, delt))
-        zipped.sort()
-        arr = np.array(zipped)
-        gts = []
-        delts = {key: [] for key in deltas}
-        for gt_i, delts_i in zipped:
-            gts.append(gt_i)
-            _ = {key: delts[key].append(delts_i[key]) for key in delts}
+            # Plotting
+            fig, ax = plt.subplots()
+            plt.title("Sorted Predictions - %s - Dimension %d" % (label_dict[key], idx))
+            plt.ylabel("Delta Predictions")
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
 
-        # Plotting
-        fig, ax = plt.subplots()
-        plt.title("Sorted Predictions - Dimension %d" % idx)
-        plt.ylabel("Delta Predictions")
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
+            plt.plot(gt_plot, c='k', label='Groundtruth')
+            # for key in delts:
+            #     # plt.plot(preds[key], label=label_dict[key], c=color_dict[key])
+            #     plt.scatter(np.arange(len(delts[key])), delts[key], c=color_dict[key],
+            #                 label=label_dict[key], marker=marker_dict[key], s=3)
+            plt.scatter(np.arange(len(pred_plot)), pred_plot, c=color_dict[key], marker=marker_dict[key], s=3)
 
-        plt.plot(gts, c='k', label='Groundtruth')
-        for key in delts:
-            # plt.plot(preds[key], label=label_dict[key], c=color_dict[key])
-            plt.scatter(np.arange(len(delts[key])), delts[key], c=color_dict[key],
-                        label=label_dict[key], marker=marker_dict[key], s=3)
+            plt.ylim(min(np.min(gt)*.8, np.min(gt)*1.2), max(np.max(gt)*.8, np.max(gt)*1.2))
+            plt.legend()
 
-        plt.ylim(min(np.min(gt)*.8, np.min(gt)*1.2), max(np.max(gt)*.8, np.max(gt)*1.2))
-        plt.legend()
-
-        if save_loc:
-            plt.savefig(save_loc + "-state%d.pdf" % idx)
-        if show:
-            plt.show()
-        else:
-            plt.close()
+            if save_loc:
+                plt.savefig(save_loc + "-state%d-%s.pdf" % (idx, key))
+            if show:
+                plt.show()
+            else:
+                plt.close()
 
     # Debug: plot unsorted
-    for idx in idx_plot:
-        gt = ground_truth_d[:,idx].ravel()
-        pred = {key: deltas[key][:,idx].ravel() for key in deltas}
+    for key in deltas_gt:
+        for idx in idx_plot:
+            gt = deltas_gt[key][:, :, idx].ravel()
+            pred = deltas_pred[key][:, :, idx].ravel()
 
-        fig, ax = plt.subplots()
-        plt.title("Unsorted Predictions - Dimension %d" % idx)
-        plt.ylabel("Delta Predictions")
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
+            fig, ax = plt.subplots()
+            plt.title("Unsorted Predictions - Dimension %d" % idx)
+            plt.ylabel("Delta Predictions")
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
 
-        plt.plot(gt, c='k', label='Groundtruth')
-        for key in pred:
-            plt.plot(pred[key], label=label_dict[key], c=color_dict[key])
+            plt.plot(gt, c='k', label='Groundtruth')
+            plt.plot(pred, label=label_dict[key], c=color_dict[key])
 
-        plt.ylim(min(np.min(gt)*.8, np.min(gt)*1.2), max(np.max(gt)*.8, np.max(gt)*1.2))
-        plt.legend()
+            plt.ylim(min(np.min(gt)*.8, np.min(gt)*1.2), max(np.max(gt)*.8, np.max(gt)*1.2))
+            plt.legend()
 
-        if save_loc:
-            plt.savefig(save_loc + "-unsorted-state%d.pdf" % idx)
-        if show:
-            plt.show()
-        else:
-            plt.close()
+            if save_loc:
+                plt.savefig(save_loc + "-unsorted-state%d.pdf" % idx)
+            if show:
+                plt.show()
+            else:
+                plt.close()
 
 
 def plot_evaluations(data, x, ylabel=None, xlabel=None, title=None, log_scale=False, save_loc=None, show=True):
@@ -719,42 +676,86 @@ def plot_evaluations_3d(data, x, y, ylabel=None, xlabel=None, zlabel=None, title
     # X = np.tile(x, len(y)).reshape(len(y), -1).T
     # Y = np.tile(y, len(x)).reshape(len(x), -1)
 
-    if log_scale:
-        data = {key: np.log(data[key]) for key in data}
+    # if log_scale:
+    #     data = {key: np.log(data[key]) for key in data}
 
-    for key in data:
-        fig, ax = plt.subplots()
-        # ax = fig.add_subplot(111, projection='3d')
-        plt.title(label_dict[key])
+    cmap = 'cool'
+
+    images = []
+    dats = []
+    fig, axs = plt.subplots(1, len(data), figsize=(10,5))
+    for i, key in list(enumerate(data)):
+        axs[i].set_title(label_dict[key])
 
         dat = data[key]
         dat = np.nan_to_num(dat)
-        im = plt.imshow(dat, origin='lower')
+        im = axs[i].imshow(data[key], cmap=cmap, origin='lower')
 
-        if ylabel:
-            # yLabel = ax.set_ylabel(ylabel)
-            plt.ylabel(ylabel)
-        if xlabel:
-            # xLabel = ax.set_xlabel(xlabel)
-            plt.xlabel(xlabel)
-        cbar = ax.figure.colorbar(im)
-        if zlabel:
-            cbar.ax.set_ylabel(zlabel)
-        # if zlabel:
-        #     zLabel = ax.set_zlabel(zlabel)
-        # ax.view_init(elev=40, azim=-130)
+        axs[i].set_xticks(np.arange(len(x)))
+        axs[i].set_yticks(np.arange(len(y)))
+        axs[i].set_xticklabels(x)
+        axs[i].set_yticklabels(y)
 
-        ax.set_xticks(np.arange(len(x)))
-        ax.set_yticks(np.arange(len(y)))
-        ax.set_xticklabels(x)
-        ax.set_yticklabels(y)
+        images.append(im)
+        dats.append(dat)
 
-        if save_loc:
-            plt.savefig("%s_%s.pdf" % (save_loc, key))
-        if show:
-            plt.show()
-        else:
-            plt.close()
+    cmin = np.min(np.array(dats))
+    cmax = np.max(np.array(dats))
+    if log_scale:
+        norm = colors.LogNorm(vmin=cmin, vmax=cmax)
+    else:
+        norm = colors.Normalize(vmin=cmin, vmax=cmax)
+    for im in images:
+        im.set_norm(norm)
+
+    cbar = fig.colorbar(images[0], ax=axs, orientation='vertical', fraction=0.1)
+    if zlabel:
+        cbar.ax.set_ylabel(zlabel)
+
+    if xlabel:
+        fig.text(0.5, 0.04, xlabel, ha='center')
+    if ylabel:
+        fig.text(0.04, 0.5, ylabel, va='center', rotation='vertical')
+
+    if save_loc:
+        plt.savefig("%s.pdf" % save_loc)
+    if show:
+        plt.show()
+    else:
+        plt.close()
+    # for key in data:
+    #     fig, ax = plt.subplots()
+    #     # ax = fig.add_subplot(111, projection='3d')
+    #     plt.title(label_dict[key])
+    #
+    #     dat = data[key]
+    #     dat = np.nan_to_num(dat)
+    #     im = plt.imshow(dat, origin='lower')
+    #
+    #     if ylabel:
+    #         # yLabel = ax.set_ylabel(ylabel)
+    #         plt.ylabel(ylabel)
+    #     if xlabel:
+    #         # xLabel = ax.set_xlabel(xlabel)
+    #         plt.xlabel(xlabel)
+    #     cbar = ax.figure.colorbar(im)
+    #     if zlabel:
+    #         cbar.ax.set_ylabel(zlabel)
+    #     # if zlabel:
+    #     #     zLabel = ax.set_zlabel(zlabel)
+    #     # ax.view_init(elev=40, azim=-130)
+    #
+    #     ax.set_xticks(np.arange(len(x)))
+    #     ax.set_yticks(np.arange(len(y)))
+    #     ax.set_xticklabels(x)
+    #     ax.set_yticklabels(y)
+    #
+    #     if save_loc:
+    #         plt.savefig("%s_%s.pdf" % (save_loc, key))
+    #     if show:
+    #         plt.show()
+    #     else:
+    #         plt.close()
 
 
 @hydra.main(config_path='config-plot.yaml')

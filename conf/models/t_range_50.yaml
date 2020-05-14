@@ -1,9 +1,9 @@
 model:
-  str: d
+  str: t_range_50
   prob: false
   ensemble: false
-  traj: false
-  delta: true
+  traj: true
+  delta: false
   training:
     hid_width: 250
     hid_depth: 2
@@ -14,31 +14,30 @@ model:
     # the state indices to worry about for model
     state_indices: [0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]
     filter_rate: 0.0
-    t_range: 500
-    num_traj: 50
+    t_range: 50
   optimizer:
-    epochs: 25
+    epochs: 50
     batch: 32
     name: Adam
     split: .8
-    lr: .0001
-    regularization: 0
-    max_size: 0
+    lr: .0004
+    max_size: 50000
   preprocess:
     state:
       class: sklearn.preprocessing.StandardScaler
-      #Choose between standard scaler and min max scaler
-      #class: sklearn.preprocessing.MinMaxScaler
-        #params:
-          #feature_range: [-1.,1.]"""
-    action:
-      class: sklearn.preprocessing.StandardScaler
+    index:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
+    param:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: One Step Deterministic
-    color: '#0033ff'
-    color_plotly: rgb(0,0,128)
-    marker: o
-    marker_plotly: circle-open-dot
-
+    label: Trajectory Based Deterministic, length 50
+    color: '#8f32a8'
+    color_plotly: rgb(143,50,168)
+    marker: s
+    marker_plotly: cross-open-dot

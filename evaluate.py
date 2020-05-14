@@ -157,7 +157,8 @@ def find_deltas(test_data, models):
         models: the M models to evaluate
 
     Returns:
-        tbd
+        deltas_gt: ground truth deltas for each model
+        deltas_pred: predicted deltas for each model
 
     """
     states, actions = [], []
@@ -174,7 +175,7 @@ def find_deltas(test_data, models):
     N, T, D = states.shape
 
     # Iterate through each type of model for evaluation
-    deltas = {}
+    deltas_gt, deltas_pred = {}, {}
     for key in models:
         model = models[key]
         indices = model.state_indices
@@ -182,13 +183,21 @@ def find_deltas(test_data, models):
             # This doesn't make sense for t models so not gonna bother with this
             continue
         else:
-            input = np.dstack((states[:, :, indices], actions)).reshape(N*T, -1)
-            prediction = model.predict(input)
-            prediction = np.array(prediction.detach()).reshape((N, T, len(indices)))
-            delta = prediction-states[:, :, indices]
-            deltas[key] = delta
+            inp = np.dstack((states[:, :, indices], actions))
+            prediction = model.predict(inp.reshape((N*T, -1))).numpy().reshape((N, T, -1))
+            delta_pred = prediction[:, :-1, :] - states[:, :-1, indices]
+            delta_gt = states[:, 1:, :] - states[:, :-1, :]
+            deltas_gt[key] = delta_gt
+            deltas_pred[key] = delta_pred
 
-    return deltas
+
+            # input = np.dstack((states[:, :, indices], actions)).reshape(N*T, -1)
+            # prediction = model.predict(input)
+            # prediction = np.array(prediction.detach()).reshape((N, T, len(indices)))
+            # delta = prediction-states[:, :, indices]
+            # deltas[key] = delta
+
+    return deltas_gt, deltas_pred
 
 
 def num_eval(gt, predictions, models, setting='gaussian', T_range=10000, verbose=False):
@@ -270,9 +279,12 @@ def evaluate(cfg):
         idx = np.random.choice(np.arange(len(data)), size=num, replace=False)
         dat = [data[i] for i in idx]
 
+        for entry in dat:
+            entry.states = entry.states[1:cfg.plotting.t_range]
+            entry.rewards = entry.rewards[1:cfg.plotting.t_range]
+            entry.actions = entry.actions[1:cfg.plotting.t_range]
+
         MSEs, predictions = test_models(dat, models)
-        if cfg.plotting.sorted:
-            deltas = find_deltas(dat, models)
 
         mse_evald = []
         sh = MSEs[model_types[0]][0].shape
@@ -293,20 +305,39 @@ def evaluate(cfg):
                 file = "%s/test%d" % (graph_file, i + 1)
                 os.mkdir(file)
 
+                # TODO: fix this if it causes bugs
+                gt = gt[:,[0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]]
+
                 if cfg.plotting.states:
-                    plot_states(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/predictions", show=False)
+                    plot_states(gt, pred, idx_plot=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14], save_loc=file+"/predictions", show=False)
                 if cfg.plotting.mse:
                     plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
-                if cfg.plotting.sorted:
-                    ds = {key: deltas[key][i] for key in deltas}
-                    plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
+                # if cfg.plotting.sorted:
+                #     ds = {key: deltas[key][i] for key in deltas}
+                #     plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
+
+            # mse['zero'] = np.zeros(mse[next(iter(mse))].shape)
 
             mse_evald.append(mse)
+
+        if cfg.plotting.sorted:
+            # deltas = find_deltas(dat, models)
+            deltas_gt, deltas_pred = find_deltas(dat, models)
+            plot_sorted(deltas_gt, deltas_pred, idx_plot=[0,1,2,3], save_loc='%s/sorted' % graph_file, show=False)
 
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
                      show=False, y_max=cfg.plotting.mse_y_max)
 
-        mse_all = {}
+
+        mse_all = {key: [] for key in cfg.plotting.models}
+        if cfg.plotting.copies:
+            for key, copy in MSEs:
+                mse_all[key].append(MSEs[(key, copy)])
+            mse_all = {key: np.stack(mse_all[key]) for key in mse_all}
+        mse_all = {key: np.mean(mse_all[key], axis=(1 if cfg.plotting.copies else 0)) for key in mse_all}
+        if cfg.plotting.copies:
+            mse_all = {key: np.median(mse_all[key], axis=0) for key in mse_all}
+        plot_mse(mse_all, log_scale=True, title="Average MSE", save_loc=graph_file+'/mse.pdf', show=False)
 
     if cfg.plotting.num_eval_train:
         log.info("Plotting train data")

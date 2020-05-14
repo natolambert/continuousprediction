@@ -1,5 +1,5 @@
 model:
-  str: d_less_states
+  str: d_exper_2
   prob: false
   ensemble: false
   traj: false
@@ -13,12 +13,16 @@ model:
     control_params: true
     # the state indices to worry about for model
     state_indices: [0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]
+    filter_rate: 0.0
+    t_range: 100
+    num_traj: 20
   optimizer:
-    epochs: 40
+    epochs: 50
     batch: 32
     name: Adam
     split: .8
-    lr: .00002
+    lr: .00001
+    regularization: 0
     max_size: 0
   preprocess:
     state:
@@ -32,9 +36,9 @@ model:
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: One Step Deterministic with less States
-    color: '#34eb98'
-    color_plotly: rgb(52,235,152)
+    label: One Step Deterministic, t100 n20
+    color: '#987651'
+    color_plotly: rgb(98,76,51)
     marker: o
     marker_plotly: circle-open-dot
 

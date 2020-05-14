@@ -327,14 +327,16 @@ def contpred(cfg):
         for i in it:
             print('Training model %d' % i)
 
-            if cfg.training.num_traj:
-                train_data = exper_data[:cfg.training.num_traj]
+            if cfg.model.training.num_traj:
+                train_data = exper_data[:cfg.model.training.num_traj]
             else:
                 train_data = exper_data
 
             if traj:
                 dataset = create_dataset_traj(exper_data, control_params=cfg.model.training.control_params,
-                                              train_target=cfg.model.training.train_target, threshold=cfg.model.training.filter_rate)
+                                              train_target=cfg.model.training.train_target,
+                                              threshold=cfg.model.training.filter_rate,
+                                              t_range=cfg.model.training.t_range)
             else:
                 dataset = create_dataset_step(train_data, delta=delta)
 
