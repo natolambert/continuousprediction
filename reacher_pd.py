@@ -175,9 +175,9 @@ def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
 
     env_model = cfg.env.name
     env = gym.make(env_model)
-    if (cfg.video):
-        env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
-         video_callable = lambda episode_id: episode_id==1,force=True)
+    #if (cfg.video):
+        #env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
+         #video_callable = lambda episode_id: episode_id==1,force=True)
     log.info('Initializing env: %s' % env_model)
 
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data

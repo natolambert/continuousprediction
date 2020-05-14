@@ -13,6 +13,7 @@ model:
     control_params: false
     # the state indices to worry about for model
     state_indices: [0,1,2,3,4]
+    state_indices_lorenz: [0,1,2]
   optimizer:
     epochs: 20
     batch: 32
