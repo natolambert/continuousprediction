@@ -314,6 +314,7 @@ def contpred(cfg):
             hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
 
     if train:
+        it = range(cfg.copies) if cfg.copies else [0]
         prob = cfg.model.prob
         traj = cfg.model.traj
         ens = cfg.model.ensemble
@@ -323,31 +324,35 @@ def contpred(cfg):
 
         log_hyperparams(cfg)
 
-        if cfg.training.num_traj:
-            train_data = exper_data[:cfg.training.num_traj]
-        else:
-            train_data = exper_data
+        for i in it:
+            print('Training model %d' % i)
 
-        if traj:
-            dataset = create_dataset_traj(exper_data, control_params=cfg.model.training.control_params,
-                                          train_target=cfg.model.training.train_target, threshold=0.95)
-        else:
-            dataset = create_dataset_step(train_data, delta=delta)
+            if cfg.training.num_traj:
+                train_data = exper_data[:cfg.training.num_traj]
+            else:
+                train_data = exper_data
 
-        model = DynamicsModel(cfg)
-        train_logs, test_logs = model.train(dataset, cfg)
+            if traj:
+                dataset = create_dataset_traj(exper_data, control_params=cfg.model.training.control_params,
+                                              train_target=cfg.model.training.train_target, threshold=cfg.model.training.filter_rate)
+            else:
+                dataset = create_dataset_step(train_data, delta=delta)
 
-        setup_plotting({cfg.model.str: model})
-        plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
+            model = DynamicsModel(cfg)
+            train_logs, test_logs = model.train(dataset, cfg)
 
-        log.info("Saving new default models")
-        f =  hydra.utils.get_original_cwd() + '/models/reacher/'
-        if cfg.exper_dir:
-            f = f + cfg.exper_dir + '/'
-            if not os.path.exists(f):
-                os.mkdir(f)
-        f = f + cfg.model.str + '.dat'
-        torch.save(model, f)
+            setup_plotting({cfg.model.str: model})
+            plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
+
+            log.info("Saving new default models")
+            f = hydra.utils.get_original_cwd() + '/models/reacher/'
+            if cfg.exper_dir:
+                f = f + cfg.exper_dir + '/'
+                if not os.path.exists(f):
+                    os.mkdir(f)
+            copystr = "_%d" % i if cfg.copies else ""
+            f = f + cfg.model.str + copystr + '.dat'
+            torch.save(model, f)
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
 
 

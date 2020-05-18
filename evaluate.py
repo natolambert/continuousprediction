@@ -6,6 +6,7 @@ import sys
 
 import hydra
 import logging
+import itertools
 
 import torch
 import numpy as np
@@ -15,7 +16,7 @@ from plot import *
 log = logging.getLogger(__name__)
 
 
-def test_models(test_data, models):
+def test_models(test_data, models, verbose=False):
     """
     Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
     Note: this function uses Numpy arrays to handle multiple tests at once efficiently
@@ -35,8 +36,6 @@ def test_models(test_data, models):
     """
 
     log.info("Beginning testing of predictions")
-
-    MSEs = {key: [] for key in models}
 
     states, actions, initials = [], [], []
     P, D, target = [], [], []
@@ -62,19 +61,22 @@ def test_models(test_data, models):
     target = target.reshape((len(test_data),-1))
 
     N, T, D = states.shape
-    # eval_indices = list(set.intersection(*[models[key].state_indices for key in models]))
-    # eval_indices.sort()
 
     # Iterate through each type of model for evaluation
     predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
     currents = {key: states[:, 0, models[key].state_indices] for key in models}
-    for i in range(1, T):
-        groundtruth = states[:, i]
-        for key in models:
-            model = models[key]
-            indices = model.state_indices
-            traj = model.traj
-            # Make predictions on all trajectories at once
+
+    ind_dict = {}
+    for i, key in list(enumerate(models)):
+        if verbose and (i+1) % 10 == 0:
+            print("    " + str(i+1))
+        model = models[key]
+        indices = model.state_indices
+        traj = model.traj
+
+        ind_dict[key] = indices
+
+        for i in range(1, T):
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]
                 if model.control_params:
@@ -87,14 +89,16 @@ def test_models(test_data, models):
                 prediction = np.array(prediction.detach())
 
             predictions[key].append(prediction)
-            MSEs[key].append(np.square(groundtruth[:, indices] - prediction.squeeze()).mean(axis=1))
             currents[key] = prediction.squeeze()
 
-    MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
-    if N > 1:
-        predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in predictions} # vectorized verion
-    else:
-        predictions = {key: np.stack(predictions[key]).squeeze() for key in predictions}
+    predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
+    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2) for key in predictions}
+
+    # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
+    # if N > 1:
+    #     predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in predictions} # vectorized verion
+    # else:
+    #     predictions = {key: np.stack(predictions[key]).squeeze() for key in predictions}
 
     # outcomes = {'mse': MSEs, 'predictions': predictions}
     return MSEs, predictions
@@ -160,7 +164,6 @@ def find_deltas(test_data, models):
 
     """
     states, actions = [], []
-    P, D, target = [], [], []
 
     # Compile the various trajectories into arrays
     for traj in test_data:
@@ -178,20 +181,20 @@ def find_deltas(test_data, models):
     for key in models:
         model = models[key]
         indices = model.state_indices
-        if 't' in key:
+        if 't' in key or type(key) == tuple and 't' in key[0]:
             # This doesn't make sense for t models so not gonna bother with this
             continue
         else:
             input = np.dstack((states[:, :, indices], actions)).reshape(N*T, -1)
             prediction = model.predict(input)
-            prediction = np.array(prediction.detach()).reshape(N, T, len(indices))
+            prediction = np.array(prediction.detach()).reshape((N, T, len(indices)))
             delta = prediction-states[:, :, indices]
             deltas[key] = delta
 
     return deltas
 
 
-def num_eval(gt, predictions, setting='dot', T_range=10000):
+def num_eval(gt, predictions, models, setting='gaussian', T_range=10000, verbose=False):
     """
     Evaluates the predictions in a way that creates one number
 
@@ -208,14 +211,28 @@ def num_eval(gt, predictions, setting='dot', T_range=10000):
     gt = gt[:, :T_range, :]
     predictions = {key: predictions[key][:, :T_range, :] for key in predictions}
 
-    if setting == 'dot':
-        N, T, D = gt.shape
-        gt_norm = gt / np.linalg.norm(gt, axis=1).reshape((N, 1, D))
-        predictions_norm = {key: predictions[key] / np.linalg.norm(predictions[key], axis=1).reshape((N, 1, D)) for key in predictions}
-        return {key: np.sum(predictions_norm[key] * gt_norm, axis=(1, 2)) / D for key in predictions_norm}
-    if setting == 'mse':
-        return {key: np.mean((predictions[key]-gt)**2, axis=(1,2)) for key in predictions}
-    raise ValueError("Invalid setting: " + setting)
+    out = {}
+    for i, model_type in list(enumerate(models)):
+        if (i+1) % 10 == 0 and verbose:
+            print(i+1)
+        gt_subset = gt[:, :, models[model_type].state_indices]
+        if setting == 'dot':
+            N, T, D = gt_subset.shape
+            gt_norm = gt_subset / np.linalg.norm(gt_subset, axis=1).reshape((N, 1, D))
+            prediction_norm = predictions[model_type] / np.linalg.norm(predictions[model_type], axis=1).reshape((N, 1, D))
+            out[model_type] = np.sum(prediction_norm * gt_norm, axis=(1, 2)) / D
+        elif setting == 'mse':
+            out[model_type] = np.mean((predictions[model_type]-gt_subset)**2, axis=(1, 2))
+        elif setting == 'gaussian':
+            diff = 5 * (gt_subset - predictions[model_type])
+            gauss = np.exp(-1 * np.square(diff))
+            out[model_type] = np.mean(gauss, axis=(1, 2))
+            # diff_dict = {key: gt_subset - predictions[key] for key in predictions}
+            # gauss_dict = {key: np.exp(-1 * np.square(diff_dict[key])) for key in diff_dict}
+            # out = {key: np.mean(gauss_dict[key], axis=(1, 2)) for key in gauss_dict}
+        else:
+            raise ValueError("Invalid setting: " + setting)
+    return out
 
 
 @hydra.main(config_path='conf/eval.yaml')
@@ -233,13 +250,17 @@ def evaluate(cfg):
 
         # Load models
         log.info("Loading models")
-        model_types = cfg.plotting.models
+        if cfg.plotting.copies:
+            model_types = list(itertools.product(cfg.plotting.models, np.arange(cfg.plotting.copies)))
+        else:
+            model_types = cfg.plotting.models
         models = {}
         f = hydra.utils.get_original_cwd() + '/models/reacher/'
         if cfg.exper_dir:
             f = f + cfg.exper_dir + '/'
         for model_type in model_types:
-            models[model_type] = torch.load(f + model_type + ".dat")
+            model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
+            models[model_type] = torch.load(f + model_str + ".dat")
 
     if lorenz:
         # Load test data
@@ -262,7 +283,8 @@ def evaluate(cfg):
         setup_plotting(models)
 
         # Select a random subset of training data
-        idx = np.random.randint(0, len(data), num)
+        # idx = np.random.randint(0, len(data), num)
+        idx = np.random.choice(np.arange(len(data)), size=num, replace=False)
         dat = [data[i] for i in idx]
 
         MSEs, predictions = test_models(dat, models)
@@ -270,14 +292,23 @@ def evaluate(cfg):
             deltas = find_deltas(dat, models)
 
         mse_evald = []
+        sh = MSEs[model_types[0]][0].shape
         for i, id in list(enumerate(idx)):
             gt = data[id].states
-            mse = {key: MSEs[key][i].squeeze() for key in MSEs}
+            if cfg.plotting.copies:
+                mse_all = {key: np.zeros((cfg.plotting.copies,) + sh) for key in cfg.plotting.models}
+                for type, j in MSEs:
+                    mse_all[type][j] = MSEs[(type, j)][i]
+                mse = {key: np.median(mse_all[key], axis=0) for key in mse_all}
+            else:
+                mse = {key: MSEs[key][i].squeeze() for key in MSEs}
             mse_sub = {key: [(x if x < 10 ** 5 else float("nan")) for x in mse[key]] for key in mse}
-            pred = {key: predictions[key][i] for key in predictions}
+            if not cfg.plotting.copies:
+                pred = {key: predictions[key][i] for key in predictions}
 
-            file = "%s/test%d" % (graph_file, i + 1)
-            os.mkdir(file)
+            if cfg.plotting.all:
+                file = "%s/test%d" % (graph_file, i + 1)
+                os.mkdir(file)
 
             if cfg.plotting.states:
                 plot_states(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/predictions", show=False)
@@ -289,7 +320,10 @@ def evaluate(cfg):
 
             mse_evald.append(mse)
 
-        plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file), show=False)
+        plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
+                     show=False, y_max=cfg.plotting.mse_y_max)
+
+        mse_all = {}
 
     if cfg.plotting.num_eval_train:
         log.info("Plotting train data")

@@ -5,5 +5,5 @@ env:
   param_size: 15
   target_size: 5
 
-num_trials: 20
+num_trials: 100
 trial_timesteps: 500

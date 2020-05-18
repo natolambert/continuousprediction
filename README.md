@@ -21,4 +21,11 @@ To run the code use the following steps:
 6. There will be another `__init__.py` file in the `mujoco` folder. Copy the line `from gym.envs.mujoco.reacher3d import Reacher3dEnv` into the bottom of that one -->
 
 Experiments:
-Instructions to be added.
+
+Example of how to run efficiency code to train some models and then test them:
+
+Train: `python3 efficiency.py training.num_traj=3,5,7,9 training.t_range=10,20,30,40 models=d,t training.copy=1,2,3,4,5 -m`
+
+Test: `python3 efficiency.py mode=plot plotting.num_traj=[3,5,7,9] plotting.t_range=[10,20,30,40] plotting.models=[d,t] plotting.copy=[1,2,3,4,5] -m`
+
+Example of how to run 
