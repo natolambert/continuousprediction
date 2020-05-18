@@ -19,12 +19,12 @@ hydra:
         exclude_keys: ['random_seed']
 
 plotting:
-  models: [d, de, p, pe, t, te, tp,tpe]
+  models: t
   num_eval_train: 0
   num_eval_test: 10
   mse_y_max: 10000
   copies: 0
-  all: false
-  states: true
+  all: true
+  states: false
   mse: true
-  sorted: true
+  sorted: false

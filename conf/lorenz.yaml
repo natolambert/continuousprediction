@@ -1,5 +1,5 @@
 defaults:
-  - models: tpe
+  - models: t
   - envs: lorenz
 
 

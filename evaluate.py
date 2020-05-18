@@ -310,13 +310,13 @@ def evaluate(cfg):
                 file = "%s/test%d" % (graph_file, i + 1)
                 os.mkdir(file)
 
-            if cfg.plotting.states:
-                plot_states(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/predictions", show=False)
-            if cfg.plotting.mse:
-                plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=True)
-            if cfg.plotting.sorted:
-                ds = {key: deltas[key][i] for key in deltas}
-                plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
+                if cfg.plotting.states:
+                    plot_states(gt, pred, idx_plot=[0,1,2,3], save_loc=file+"/predictions", show=False)
+                if cfg.plotting.mse:
+                    plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=True)
+                if cfg.plotting.sorted:
+                    ds = {key: deltas[key][i] for key in deltas}
+                    plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
 
             mse_evald.append(mse)
 
