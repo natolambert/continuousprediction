@@ -2,15 +2,13 @@ defaults:
   - models: t
   - envs: lorenz
 
-collect_data: false
-train_models: false
-save_data: false
-save_models: false
+
+mode: train # train or collect
 data_dir: 25.dat
 #model_dir: 10.dat
 plot: false
-models_to_eval: [t,p,de]
-num_eval: 5
+#models_to_eval: [t,p,de]
+#num_eval: 5
 
 lorenz:
   sigma: 10
@@ -37,4 +35,3 @@ hydra:
         kv_sep: '='
         item_sep: ','
         exclude_keys: ['random_seed']
-

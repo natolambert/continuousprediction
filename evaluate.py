@@ -54,8 +54,11 @@ def test_models(test_data, models, verbose=False):
     actions = np.array(actions)
     initials = np.array(initials)
     P_param = np.array(P)
+    P_param = P_param.reshape((len(test_data),-1))
     D_param = np.array(D)
+    D_param = D_param.reshape((len(test_data),-1))
     target = np.array(target)
+    target = target.reshape((len(test_data),-1))
 
     N, T, D = states.shape
 
@@ -244,28 +247,42 @@ def num_eval(gt, predictions, models, setting='gaussian', T_range=10000, verbose
 @hydra.main(config_path='conf/eval.yaml')
 def evaluate(cfg):
     # print("here")
+    lorenz = cfg.env == 'lorenz'
     graph_file = 'Plots'
     os.mkdir(graph_file)
 
-    # Load test data
-    log.info(f"Loading default data")
-    (train_data, test_data) = torch.load(
-        hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+    if not lorenz:
+        # Load test data
+        log.info(f"Loading default data")
+        (train_data, test_data) = torch.load(
+            hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
 
-    # Load models
-    log.info("Loading models")
-    if cfg.plotting.copies:
-        model_types = list(itertools.product(cfg.plotting.models, np.arange(cfg.plotting.copies)))
-    else:
+        # Load models
+        log.info("Loading models")
+        if cfg.plotting.copies:
+            model_types = list(itertools.product(cfg.plotting.models, np.arange(cfg.plotting.copies)))
+        else:
+            model_types = cfg.plotting.models
+        models = {}
+        f = hydra.utils.get_original_cwd() + '/models/reacher/'
+        if cfg.exper_dir:
+            f = f + cfg.exper_dir + '/'
+        for model_type in model_types:
+            model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
+            models[model_type] = torch.load(f + model_str + ".dat")
+
+    if lorenz:
+        # Load test data
+        log.info(f"Loading default data")
+        (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'raw' + cfg.data_dir_lorenz)
+
+        # Load models
+        log.info("Loading models")
         model_types = cfg.plotting.models
-    models = {}
-    f = hydra.utils.get_original_cwd() + '/models/reacher/'
-    if cfg.exper_dir:
-        f = f + cfg.exper_dir + '/'
-    for model_type in model_types:
-        model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
-        models[model_type] = torch.load(f + model_str + ".dat")
-
+        models = {}
+        f = hydra.utils.get_original_cwd() + '/models/lorenz/'
+        for model_type in model_types:
+            models[model_type] = torch.load(f + model_type + ".dat")
     # Plot
     def plot_helper(data, num, graph_file):
         """

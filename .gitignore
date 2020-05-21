@@ -6,3 +6,5 @@ MUJOCO_LOG.TXT
 outputs/
 models/
 trajectories/
+venv/
+temp.txt

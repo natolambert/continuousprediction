@@ -16,6 +16,7 @@ model:
     filter_rate: 0.95
     t_range: 500
     num_traj: 50
+    state_indices_lorenz: [0,1,2]
   optimizer:
     epochs: 50
     batch: 32
