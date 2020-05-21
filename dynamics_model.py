@@ -32,9 +32,9 @@ class Net(nn.Module):
         self.n_out = n_out
         self.hidden_w = cfg.model.training.hid_width
         self.cfg = cfg
-        if(env == "Reacher"):
+        if env == "Reacher":
             self.state_indices = cfg.model.training.state_indices
-        elif(env == "Lorenz"):
+        elif env == "Lorenz":
             self.state_indices = cfg.model.training.state_indices_lorenz
 
         # create object nicely
@@ -70,7 +70,7 @@ class Net(nn.Module):
             normParams = self.paramScaler.transform(inputParams)
             return np.hstack((normStates, normIndex, normParams))
         else:
-            inputStates = input[:, cfg.model.training.state_indices]
+            inputStates = input[:, :len(self.state_indices)]
             normStates = self.stateScaler.transform(inputStates)
             if cfg.env.action_size > 0:
                 inputActions = input[:, len(self.state_indices):]
@@ -265,8 +265,10 @@ class DynamicsModel(object):
             scaledInput = n.testPreprocess(x, self.cfg)
             if self.prob:
                 prediction += n.testPostprocess(n.forward(scaledInput)[:, :len(self.state_indices)]) / len(self.nets)
+                # prediction += n.forward(scaledInput)[:, :len(self.state_indices)] / len(self.nets)
             else:
                 prediction += n.testPostprocess(n.forward(scaledInput)) / len(self.nets)
+                # prediction += n.forward(scaledInput) / len(self.nets)
         if not self.delta:
             return prediction[:, :len(self.state_indices)]
         else:

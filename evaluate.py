@@ -187,9 +187,9 @@ def find_deltas(test_data, models):
             continue
         else:
             inp = np.dstack((states[:, :, indices], actions))
-            prediction = model.predict(inp.reshape((N*T, -1))).numpy().reshape((N, T, -1))
+            prediction = model.predict(inp.reshape((N*T, -1))).detach().numpy().reshape((N, T, -1))
             delta_pred = prediction[:, :-1, :] - states[:, :-1, indices]
-            delta_gt = states[:, 1:, :] - states[:, :-1, :]
+            delta_gt = states[:, 1:, indices] - states[:, :-1, indices]
             deltas_gt[key] = delta_gt
             deltas_pred[key] = delta_pred
 
