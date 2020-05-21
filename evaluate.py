@@ -330,9 +330,9 @@ def evaluate(cfg):
                     plot_states(gt, pred, idx_plot=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14], save_loc=file+"/predictions", show=False)
                 if cfg.plotting.mse:
                     plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
-                if cfg.plotting.sorted:
-                    ds = {key: deltas[key][i] for key in deltas}
-                    plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
+                # if cfg.plotting.sorted:
+                #     ds = {key: deltas[key][i] for key in deltas}
+                #     plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
 
             # mse['zero'] = np.zeros(mse[next(iter(mse))].shape)
 
