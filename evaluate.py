@@ -283,6 +283,7 @@ def evaluate(cfg):
         f = hydra.utils.get_original_cwd() + '/models/lorenz/'
         for model_type in model_types:
             models[model_type] = torch.load(f + model_type + ".dat")
+
     # Plot
     def plot_helper(data, num, graph_file):
         """
@@ -329,9 +330,9 @@ def evaluate(cfg):
                     plot_states(gt, pred, idx_plot=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14], save_loc=file+"/predictions", show=False)
                 if cfg.plotting.mse:
                     plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
-                # if cfg.plotting.sorted:
-                #     ds = {key: deltas[key][i] for key in deltas}
-                #     plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
+                if cfg.plotting.sorted:
+                    ds = {key: deltas[key][i] for key in deltas}
+                    plot_sorted(gt, ds, idx_plot=[0,1,2,3], save_loc=file+"/sorted", show=False)
 
             # mse['zero'] = np.zeros(mse[next(iter(mse))].shape)
 
@@ -344,7 +345,6 @@ def evaluate(cfg):
 
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
                      show=False, y_max=cfg.plotting.mse_y_max)
-
 
         mse_all = {key: [] for key in cfg.plotting.models}
         if cfg.plotting.copies:

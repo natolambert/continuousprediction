@@ -1,4 +1,4 @@
-env: lorenz # lorenz or reacher
+env: reacher # lorenz or reacher
 data_dir: l500_t100_n100.dat
 data_dir_lorenz: 25.dat
 model_dir: l500_t50_v5.dat
@@ -28,4 +28,4 @@ plotting:
   all: true
   states: true
   mse: true
-  sorted: false
+  sorted: true

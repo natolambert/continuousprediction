@@ -210,7 +210,7 @@ class DynamicsModel(object):
     an ensemble of 1 net.
     """
 
-    def __init__(self, cfg, env = "Reacher"):
+    def __init__(self, cfg, env="Reacher"):
         self.str = cfg.model.str
         self.ens = cfg.model.ensemble
         self.traj = cfg.model.traj
@@ -218,9 +218,9 @@ class DynamicsModel(object):
         self.delta = cfg.model.delta
         self.train_target = cfg.model.training.train_target
         self.control_params = cfg.model.training.control_params
-        if(env == "Reacher"):
+        if env == "Reacher":
             self.state_indices = cfg.model.training.state_indices
-        elif(env == "Lorenz"):
+        elif env == "Lorenz":
             self.state_indices = cfg.model.training.state_indices_lorenz
         self.cfg = cfg
 
@@ -247,10 +247,10 @@ class DynamicsModel(object):
             self.n_out = self.n_out * 2
         else:
             self.loss_fn = nn.MSELoss()
-        if(env == "Reacher"):
+        if env == "Reacher":
             self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
-        elif(env == "Lorenz"):
-            self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env = "Lorenz") for i in range(self.E)]
+        elif env == "Lorenz":
+            self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="Lorenz") for i in range(self.E)]
 
     def predict(self, x):
         """
