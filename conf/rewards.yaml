@@ -1,0 +1,23 @@
+env: reacher # lorenz or reacher
+data_dir: rawl500_t50_v5.dat #l500_t100_n100.dat
+model_dir: l500_t50_v5.dat
+exper_dir: false # set to a name to load models from within a subfolder in the models directory
+plot: false
+
+traj_model: t
+step_model: p
+split: .8
+
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  job:
+    config:
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: ['random_seed']
+
