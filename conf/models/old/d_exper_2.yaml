@@ -1,6 +1,6 @@
 model:
-  str: p
-  prob: true
+  str: d_exper_2
+  prob: false
   ensemble: false
   traj: false
   delta: true
@@ -14,15 +14,14 @@ model:
     # the state indices to worry about for model
     state_indices: [0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]
     filter_rate: 0.0
-    t_range: 500
-    num_traj: 50
-    state_indices_lorenz: [0,1,2]
+    t_range: 100
+    num_traj: 20
   optimizer:
-    epochs: 25
+    epochs: 50
     batch: 32
     name: Adam
     split: .8
-    lr: .00003
+    lr: .00001
     regularization: 0
     max_size: 0
   preprocess:
@@ -31,14 +30,15 @@ model:
       #Choose between standard scaler and min max scaler
       #class: sklearn.preprocessing.MinMaxScaler
         #params:
-          #feature_range: [-1.,1.]
+          #feature_range: [-1.,1.]"""
     action:
       class: sklearn.preprocessing.StandardScaler
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: One Step Probabilistic
-    color: '#00c414'
-    color_plotly: rgb(0,128,0)
-    marker: D
-    marker_plotly: x-open-dot
+    label: One Step Deterministic, t100 n20
+    color: '#987651'
+    color_plotly: rgb(98,76,51)
+    marker: o
+    marker_plotly: circle-open-dot
+

@@ -4,7 +4,7 @@
 MUJOCO_LOG.TXT
 .idea/
 outputs/
-models/
 trajectories/
 venv/
 temp.txt
+models/reacher/efficiency

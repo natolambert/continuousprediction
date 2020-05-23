@@ -285,9 +285,9 @@ class DynamicsModel(object):
                               dataset[0][:, self.cfg.env.state_size:])),
                    dataset[1][:, self.state_indices])
 
-        from sklearn.model_selection import KFold  # for dataset
-
         if self.ens:
+            from sklearn.model_selection import KFold  # for dataset
+
             # setup cross validation-ish datasets for training ensemble
             kf = KFold(n_splits=self.E)
             kf.get_n_splits(dataset)
@@ -296,7 +296,12 @@ class DynamicsModel(object):
             for (i, n), (train_idx, test_idx) in zip(enumerate(self.nets), kf.split(dataset[0])):
                 print("  Model %d" % (i + 1))
                 # only train on training data to ensure diversity
+                # sub_data = (dataset[0][train_idx], dataset[1][train_idx])
+                # num = len(dataset[0])
+                # k = int(num * .8)
+                # train_idx = np.random.choice(num, k)
                 sub_data = (dataset[0][train_idx], dataset[1][train_idx])
+                print('test ' + str(len(sub_data[0])))
                 train_e, test_e = n.optimize(sub_data, cfg)
                 acctrain_l.append(train_e)
                 acctest_l.append(test_e)

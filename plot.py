@@ -169,7 +169,7 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
         dict(x=xs[0], y=ymed.tolist(), mode='lines', name=name, type='scatter', legendgroup=f"group-{name}",
              line=dict(color=color, width=4))]
 
-    intensity = 0.3
+    intensity = 0.15
     '''
     interval = scipy.stats.norm.interval(percentile/100, loc=y, scale=np.sqrt(variance))
     interval = np.nan_to_num(interval)  # Fix stupid case of norm.interval(0) returning nan

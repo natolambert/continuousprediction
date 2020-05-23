@@ -23,7 +23,7 @@ model:
     name: Adam
     split: .8
     lr: .0001
-    regularization: 0
+    regularization: 0.003
     max_size: 0
   preprocess:
     state:
@@ -39,6 +39,6 @@ model:
   plotting:
     label: One Step Deterministic
     color: '#0033ff'
-    color_plotly: rgb(0,0,128)
+    color_plotly: rgb(0,0,200)
     marker: o
     marker_plotly: circle-open-dot

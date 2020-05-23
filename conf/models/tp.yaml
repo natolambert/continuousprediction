@@ -23,6 +23,7 @@ model:
     name: Adam
     split: .8
     lr: .0005
+    regularization: 0
     max_size: 50000
   preprocess:
     state:
