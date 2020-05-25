@@ -2,12 +2,12 @@ defaults:
   - models: t
   - envs: reacher
 
-mode: train # train or collect
+mode: collect # train or collect
 data_dir: l500_t100_v1.dat
 model_dir: l500_t50_v5.dat
 exper_dir: false # set to a name to save models within a subfolder in the models directory
 plot: false
-video: true
+video: false
 PID_test: true
 #determines whether target is part of input data
 train_target: false

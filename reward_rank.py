@@ -21,9 +21,30 @@ import gpytorch
 
 log = logging.getLogger(__name__)
 
+def get_reward_reacher(state, action):
+    # Copied from the reacher env, without self.state calls
+    vec = state[-3:]
+    reward_dist = - np.linalg.norm(vec)
+    reward_ctrl = - np.square(action).sum() * 0.01
+    reward = reward_dist + reward_ctrl
+    return reward
+
 def get_reward(predictions, actions):
     # takes in the predicted trajectory and returns the reward
-    rewards = []
+    rewards = {}
+    num_traj = len(actions)
+    for m_label, state_data in predictions.items():
+        r = []
+        for i in range(num_traj):
+            r_sub = 0
+            cur_states = state_data[i]
+            cur_actions = actions[i]
+            for s,a in zip(cur_states, cur_actions):
+                # TODO need a specific get reward function for the reacher env
+                r_sub += get_reward_reacher(s,a)
+            r.append(r_sub)
+        rewards[m_label] = (r, np.mean(r), np.std(r))
+
     return rewards
 
 def train_gp(data):
@@ -121,8 +142,8 @@ def evaluate(cfg):
     # 3. different intial state, different goal. Hardest to order reward because potential reward is different
 
     f = hydra.utils.get_original_cwd() + '/models/reacher/'
-    # model_one = torch.load(f+cfg.step_model+'.dat')
-    # model_traj = torch.load(f+cfg.traj_model+'.dat')
+    model_one = torch.load(f+cfg.step_model+'.dat')
+    model_traj = torch.load(f+cfg.traj_model+'.dat')
 
     # get rewards, control policy, etc for each type, and control parameters
     data = trajectories[0]+trajectories[1]
@@ -141,11 +162,18 @@ def evaluate(cfg):
     gp_x_test = gp_x[split:]
     gp_y_test = gp_y[split:] # TRUE REWARD
     gp_pred = predict_gp(torch.stack(gp_x_test), model, likelihood)
-    mean = gp_pred.mean
-    err = (gp_y_test-mean)**2
-    print(err)
+    mean_pred = gp_pred.mean
+    err = (gp_y_test-mean_pred)**2
 
-    # predict with three types of models, rank
+    # predict with one step and traj model
+    models = {
+        'p': model_one,
+        't': model_traj,
+    }
+    MSEs, predictions = test_models(data[split:], models)
+
+    # get dict of rewards for type of model
+    pred_rewards = get_reward(predictions, actions[split:])
 
     # Load test data
     log.info(f"Loading default data")
