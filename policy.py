@@ -1,4 +1,4 @@
- # Compatibility Python 2/3
+# Compatibility Python 2/3
 from __future__ import division, print_function, absolute_import
 from builtins import range
 # ----------------------------------------------------------------------------------------------------------------------
@@ -41,7 +41,7 @@ class Policy(object):
         if a.ndim > 0:  # TODO: deal with the ndim==0 case
             assert a.shape[0] is self.dU, 'Wrong dimension control %d, should be %d' % (a.shape[0], self.dU)
         if self.bounds is not None:  # Bound actions, if desired
-            a = np.maximum(np.minimum(a, self.bounds.get_max()), self.bounds.get_min())
+            a = np.maximum(np.minimum(a, self.bounds[1]), self.bounds[0])
         t = (timer() - start)
         return a, t
 
@@ -72,6 +72,7 @@ class sequenceActions(Policy):
     """
     This policy simply execute a pre-defined sequence of actions
     """
+
     def __init__(self, dX, dU, actions):
         Policy.__init__(self, dX=dX, dU=dU)
         self._actions = np.matrix(actions)
@@ -89,7 +90,7 @@ class sequenceActions(Policy):
         returns an action that does nothing.
         """
         # TODO: use time instead of _counter ?
-        out = self._actions[min(self.n_timestep-1, self._counter), :]
+        out = self._actions[min(self.n_timestep - 1, self._counter), :]
         out = out.ravel()
         self._counter += 1
         return out
@@ -104,7 +105,7 @@ class linearController(Policy):
         :param B:
         """
         Policy.__init__(dX=dX, dU=dU)
-        self.A = np.matrix(A) # I'm confused by this. Aren't matrices necessarily 2D
+        self.A = np.matrix(A)  # I'm confused by this. Aren't matrices necessarily 2D
         self.B = np.matrix(B)
         if self.A.ndim is 3:
             self.timevariant = True
@@ -122,6 +123,7 @@ class PID(Policy):
     """
     Proportional-integral-derivative controller.
     """
+
     def __init__(self, dX, dU, P, I, D, target):
         """
         :param dX: unused
@@ -152,7 +154,7 @@ class PID(Policy):
         # self.cum_error = 0
         # self.I_count = 0
 
-#    should be _action(self, x, obs, time, noise):
+    #    should be _action(self, x, obs, time, noise):
     # def _action(self, q, q_des):
     def _action(self, x, obs, time, noise):
         q_des = self.target
@@ -180,6 +182,7 @@ class jointsTrajectoryTrackingPID(PID):
     """
     jointsTrajectoryTrackingPID
     """
+
     def __init__(self, dX, dU, trajectory, P=1, I=0, D=0, id_states=np.arange(7), verbosity=1):
         """
 
@@ -199,7 +202,8 @@ class jointsTrajectoryTrackingPID(PID):
         else:
             self.trajectory = trajectory
         assert self.trajectory.shape[1] == self.n_dof, \
-            'Number of DOF in the trajectory does not match the number of DOF specified: %d != %d' % (self.trajectory.shape[1], self.n_dof)
+            'Number of DOF in the trajectory does not match the number of DOF specified: %d != %d' % (
+            self.trajectory.shape[1], self.n_dof)
         self.n_timestep = self.trajectory.shape[0]
         self.id_states = id_states
         self.verbosity = verbosity
@@ -208,7 +212,7 @@ class jointsTrajectoryTrackingPID(PID):
         q = x[self.id_states]  # Only care about the position
         if time >= self.n_timestep:
             # Keep the controller stable at the last position
-            action = PID._action(self, q, self.trajectory[self.n_timestep-1, :])
+            action = PID._action(self, q, self.trajectory[self.n_timestep - 1, :])
         else:
             action = PID._action(self, q, self.trajectory[time, :])
             # TODO: use min(self.n_timestep-1, time)
@@ -216,28 +220,35 @@ class jointsTrajectoryTrackingPID(PID):
             print(action)
         return action
 
-# class LQG(Policy):
-#     def __init__(self, n_dof, A, B, Q, R, horizon=10):
-#         '''
-#
-#         :param n_dof:
-#         :param trajectory:
-#         :param horizon: Horizon
-#         '''
-#         Policy.__init__(self, n_dof=n_dof)
-#         self.T = horizon
-#         self.A = A
-#         self.B = B
-#         self.Q = Q
-#         self.R = R
-#         self.controller = self.compute_controller()
-#
-#     def compute_controller(self):
-#         # TODO: implement me!!!
-#         K = 0
-#         k = 0
-#         controller = linearController(A=K, B=k)
-#         return 0
-#
-#     def _action(self, x, obs, time, noise):
-#         return self.controller.action(x, obs, time, noise)
+
+class LQR(Policy):
+    def __init__(self, A, B, Q, R, actionBounds=None,  horizon=10):
+        '''
+        :param n_dof:
+        :param trajectory:
+        :param horizon: Horizon
+        '''
+        Policy.__init__(self, dX = np.shape(A)[1], dU=np.shape(B)[1], actionBounds=actionBounds)
+        from control import lqr
+        # from scipy.linalg import solve_continuous_are, solve_discrete_are
+        self.T = horizon
+        self.A = A
+        self.B = B
+        self.Q = Q
+        self.R = R
+        # self.controller = self.compute_controller()
+        # self.K = solve_continuous_are(A, B, Q, R)
+        self.K, S, E = lqr(A, B, Q, R)
+
+    def compute_controller(self):
+        # TODO: implement me!!!
+        raise NotImplementedError
+        K = 0
+        k = 0
+        controller = linearController(A=K, B=k)
+        return 0
+
+    def _action(self, x, obs, time, noise):
+        u = -np.matmul(self.K, x)
+        return np.array(u).squeeze()
+        # return self.controller.action(x, obs, time, noise)

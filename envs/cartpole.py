@@ -72,7 +72,7 @@ class CartPoleContEnv(gym.Env):
         self.kinematics_integrator = 'euler'
 
         # Angle at which to fail the episode
-        self.theta_threshold_radians = 12 * 2 * math.pi / 360
+        self.theta_threshold_radians = 24 * 2 * math.pi / 360
         self.x_threshold = 2.4
 
         # Angle limit set to 2 * theta_threshold_radians so failing observation is still within bounds
@@ -98,8 +98,8 @@ class CartPoleContEnv(gym.Env):
         return [seed]
 
     def step(self, action):
-        assert self.action_space.contains(
-            action), "%r (%s) invalid" % (action, type(action))
+        action = np.array([action.item()])
+        assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
         state = self.state
         x, x_dot, theta, theta_dot = state
         force = self.force_mag * action

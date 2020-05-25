@@ -47,6 +47,10 @@ def get_reward(predictions, actions):
 
     return rewards
 
+def pred_traj(model, control):
+    # for a one-step model, predicts a trajectory from initial state all in simulation
+    return 0
+
 def train_gp(data):
     class ExactGPModel(gpytorch.models.ExactGP):
         def __init__(self, train_x, train_y, likelihood):
