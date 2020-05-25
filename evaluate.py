@@ -92,7 +92,7 @@ def test_models(test_data, models, verbose=False):
             currents[key] = prediction.squeeze()
 
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
-    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2) for key in predictions}
+    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:,1:] for key in predictions}
 
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
@@ -298,9 +298,9 @@ def evaluate(cfg):
         dat = [data[i] for i in idx]
 
         for entry in dat:
-            entry.states = entry.states[1:cfg.plotting.t_range]
-            entry.rewards = entry.rewards[1:cfg.plotting.t_range]
-            entry.actions = entry.actions[1:cfg.plotting.t_range]
+            entry.states = entry.states[0:cfg.plotting.t_range]
+            entry.rewards = entry.rewards[0:cfg.plotting.t_range]
+            entry.actions = entry.actions[0:cfg.plotting.t_range]
 
         MSEs, predictions = test_models(dat, models)
 
@@ -344,7 +344,8 @@ def evaluate(cfg):
             plot_sorted(deltas_gt, deltas_pred, idx_plot=[0,1,2,3], save_loc='%s/sorted' % graph_file, show=False)
 
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
-                     show=False, y_max=cfg.plotting.mse_y_max)
+                     show=True, y_max=cfg.plotting.mse_y_max)
+        # turn show off here
 
         mse_all = {key: [] for key in cfg.plotting.models}
         if cfg.plotting.copies:

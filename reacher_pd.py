@@ -133,7 +133,10 @@ def run_controller(env, horizon, policy, video = False):
     # WHat is going on here?
     # nol 29 feb - action only acts on first 5 variables
     def obs2q(obs):
-        return obs[0:5]
+        if len(obs) < 5:
+            return obs
+        else:
+            return obs[0:5]
 
     logs = DotMap()
     logs.states = []
@@ -142,7 +145,7 @@ def run_controller(env, horizon, policy, video = False):
     logs.times = []
 
     observation = env.reset()
-    for t in range(horizon):
+    for i in range(horizon):
         if(video):
             env.render()
         state = observation
@@ -152,13 +155,17 @@ def run_controller(env, horizon, policy, video = False):
 
         observation, reward, done, info = env.step(action)
 
+        if done:
+            print("Bypassing done for equal length trajectory")
+
         # Log
         # logs.times.append()
         logs.actions.append(action)
         logs.rewards.append(reward)
-        logs.states.append(observation)
+        logs.states.append(observation.squeeze())
 
     # Cluster state
+    print(f"Rollout completed, cumulative reward: {np.sum(logs.rewards)}")
     logs.actions = np.array(logs.actions)
     logs.rewards = np.array(logs.rewards)
     logs.states = np.array(logs.states)
@@ -247,27 +254,6 @@ def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
             plot_reacher(states, actions)
 
     return logs
-
-
-def collect_and_dataset(cfg):
-    """
-    Collects data and returns it as a dataset in the format used for training
-
-    Params:
-        cfg: the hydra configuration object thing
-
-    Returns:
-        dataset: one step dataset, a tuple (data_in, data_out)
-        dataset_no_t: traj dataset, "    "       "     "      "
-        training_data: an array of dotmaps, each pertaining to a test trajectory
-        test_data: an array of dotmaps, each pertaining to a test trajectory
-    """
-    log.info('Collecting data')
-    exper_data = collect_data(cfg, plot=False)  # 50
-    log.info('Creating dataset')
-    dataset = create_dataset_traj(exper_data, threshold=1.0)
-    dataset_no_t = create_dataset_step(exper_data)  # train_data[0].states)
-    return dataset, dataset_no_t, exper_data
 
 
 ###########################################
