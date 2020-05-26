@@ -1,5 +1,6 @@
-env: reacher # lorenz or reacher
-data_dir: l500_t100_n100.dat # l500_t50_v5.dat #
+defaults:
+  - envs: ???
+
 data_dir_lorenz: 25.dat
 model_dir: l500_t50_v5.dat
 exper_dir: false # set to a name to load models from within a subfolder in the models directory
@@ -20,17 +21,21 @@ hydra:
 
 plotting:
   models:
-  - d_0
-  - de_0
-  - p_0
-  - pe_0
-  - t_0
-  - te_0
-  - tp_0
-  - tpe_0
+  - d
+  - p
+  - t
+  - tp
+#  - d_0
+#  - de_0
+#  - p_0
+#  - pe_0
+#  - t_0
+#  - te_0
+#  - tp_0
+#  - tpe_0
   num_eval_train: 0
-  num_eval_test: 10
-  t_range: 500
+  num_eval_test: 100
+  t_range: 200
   mse_y_max: 10
   copies: 0
   all: false

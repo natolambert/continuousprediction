@@ -15,13 +15,13 @@ model:
     t_range: 500
     num_traj: 50
   optimizer:
-    epochs: 50
+    epochs: 30
     batch: 32
     name: Adam
     split: .8
     lr: .0004
     regularization: 0
-    max_size: 50000
+    max_size: 100000
   preprocess:
     state:
       class: sklearn.preprocessing.StandardScaler

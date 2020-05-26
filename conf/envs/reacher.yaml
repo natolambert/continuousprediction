@@ -1,10 +1,12 @@
 env:
   name: Reacher3d-v2
+  label: reacher
   state_size: 21
   action_size: 5
   param_size: 15
   target_size: 5
 
+data_dir: l500_t100_n100.dat # l500_t50_v5.dat #
 num_trials: 100
 trial_timesteps: 500
 
