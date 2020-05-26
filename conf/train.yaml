@@ -8,7 +8,7 @@ model_dir: l500_t50_v5.dat
 exper_dir: false # set to a name to save models within a subfolder in the models directory
 plot: false
 video: false
-PID_test: true
+PID_test: false # true means identical trajectories
 #determines whether target is part of input data
 train_target: false
 control_params: true

@@ -7,3 +7,8 @@ env:
 
 #num_trials: 20
 #trial_timesteps: 1000
+
+model:
+  training:
+    filter_rate:
+      state_indices_lorenz: [0,1,2]
