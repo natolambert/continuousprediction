@@ -259,7 +259,7 @@ class DynamicsModel(object):
         TODO: particle sampling approach for probabilistic model
         """
         if type(x) == np.ndarray:
-            x = torch.from_numpy(x)
+            x = torch.from_numpy(np.float64(x))
         prediction = torch.zeros((x.shape[0], len(self.state_indices)))
         for n in self.nets:
             scaledInput = n.testPreprocess(x, self.cfg)

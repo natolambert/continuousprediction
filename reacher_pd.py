@@ -155,8 +155,8 @@ def run_controller(env, horizon, policy, video = False):
 
         observation, reward, done, info = env.step(action)
 
-        # if done:
-        #     print("Bypassing done for equal length trajectory")
+        if done:
+            return logs
 
         # Log
         # logs.times.append()
@@ -165,7 +165,7 @@ def run_controller(env, horizon, policy, video = False):
         logs.states.append(observation.squeeze())
 
     # Cluster state
-    print(f"Rollout completed, cumulative reward: {np.sum(logs.rewards)}")
+    # print(f"Rollout completed, cumulative reward: {np.sum(logs.rewards)}")
     logs.actions = np.array(logs.actions)
     logs.rewards = np.array(logs.rewards)
     logs.states = np.array(logs.states)

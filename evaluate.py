@@ -16,7 +16,7 @@ from plot import *
 log = logging.getLogger(__name__)
 
 
-def test_models(test_data, models, verbose=False):
+def test_models(test_data, models, verbose=False, env=None):
     """
     Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
     Note: this function uses Numpy arrays to handle multiple tests at once efficiently
@@ -38,30 +38,48 @@ def test_models(test_data, models, verbose=False):
     log.info("Beginning testing of predictions")
 
     states, actions, initials = [], [], []
-    P, D, target = [], [], []
 
-    # Compile the various trajectories into arrays
-    for traj in test_data:
-        states.append(traj.states)
-        actions.append(traj.actions)
-        initials.append(traj.states[0, :])
-        P.append(traj.P)
-        D.append(traj.D)
-        target.append(traj.target)
+    if env == 'reacher':
+        P, D, target = [], [], []
+
+        # Compile the various trajectories into arrays
+        for traj in test_data:
+            states.append(traj.states)
+            actions.append(traj.actions)
+            initials.append(traj.states[0, :])
+            P.append(traj.P)
+            D.append(traj.D)
+            target.append(traj.target)
+
+        P_param = np.array(P)
+        P_param = P_param.reshape((len(test_data), -1))
+        D_param = np.array(D)
+        D_param = D_param.reshape((len(test_data), -1))
+        target = np.array(target)
+        target = target.reshape((len(test_data), -1))
+
+    elif env == 'cartpole':
+        K = []
+
+        # Compile the various trajectories into arrays
+        for traj in test_data:
+            states.append(traj.states)
+            actions.append(traj.actions)
+            initials.append(traj.states[0, :])
+            K.append(traj.K)
+
+        K_param = np.array(K)
+        K_param = K_param.reshape((len(test_data), -1))
+
 
     # Convert to numpy arrays
-    states = np.array(states)
-    actions = np.array(actions)
+    states = np.stack(states)
+    actions = np.stack(actions)
+
     initials = np.array(initials)
-    P_param = np.array(P)
-    P_param = P_param.reshape((len(test_data),-1))
-    D_param = np.array(D)
-    D_param = D_param.reshape((len(test_data),-1))
-    target = np.array(target)
-    target = target.reshape((len(test_data),-1))
-
     N, T, D = states.shape
-
+    if len(np.shape(actions))==2:
+        actions = np.expand_dims(actions, axis=2)
     # Iterate through each type of model for evaluation
     predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
     currents = {key: states[:, 0, models[key].state_indices] for key in models}
@@ -79,10 +97,13 @@ def test_models(test_data, models, verbose=False):
         for i in range(1, T):
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]
-                if model.control_params:
-                    dat.extend([P_param, D_param])
-                if model.train_target:
-                    dat.append(target)
+                if env == 'reacher':
+                    if model.control_params:
+                        dat.extend([P_param, D_param])
+                    if model.train_target:
+                        dat.append(target)
+                elif env == 'cartpole':
+                    dat.append(K_param)
                 prediction = np.array(model.predict(np.hstack(dat)).detach())
             else:
                 prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
@@ -247,15 +268,15 @@ def num_eval(gt, predictions, models, setting='gaussian', T_range=10000, verbose
 @hydra.main(config_path='conf/eval.yaml')
 def evaluate(cfg):
     # print("here")
-    lorenz = cfg.env == 'lorenz'
+    name = cfg.env.label
     graph_file = 'Plots'
     os.mkdir(graph_file)
 
-    if not lorenz:
+    if not name == 'lorenz':
         # Load test data
         log.info(f"Loading default data")
         (train_data, test_data) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+            hydra.utils.get_original_cwd() + '/trajectories/'+ cfg.env.label + '/' + 'raw' + cfg.data_dir)
 
         # Load models
         log.info("Loading models")
@@ -264,23 +285,23 @@ def evaluate(cfg):
         else:
             model_types = cfg.plotting.models
         models = {}
-        f = hydra.utils.get_original_cwd() + '/models/reacher/'
+        f = hydra.utils.get_original_cwd() + '/models/'+ cfg.env.label + '/'
         if cfg.exper_dir:
             f = f + cfg.exper_dir + '/'
         for model_type in model_types:
             model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
             models[model_type] = torch.load(f + model_str + ".dat")
 
-    if lorenz:
+    else:
         # Load test data
         log.info(f"Loading default data")
-        (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'raw' + cfg.data_dir_lorenz)
+        (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/'+ cfg.env.label + '/' + 'raw' + cfg.data_dir_lorenz)
 
         # Load models
         log.info("Loading models")
         model_types = cfg.plotting.models
         models = {}
-        f = hydra.utils.get_original_cwd() + '/models/lorenz/'
+        f = hydra.utils.get_original_cwd() + '/models/'+ cfg.env.label + '/'
         for model_type in model_types:
             models[model_type] = torch.load(f + model_type + ".dat")
 
@@ -302,7 +323,7 @@ def evaluate(cfg):
             entry.rewards = entry.rewards[0:cfg.plotting.t_range]
             entry.actions = entry.actions[0:cfg.plotting.t_range]
 
-        MSEs, predictions = test_models(dat, models)
+        MSEs, predictions = test_models(dat, models, env=name)
 
         mse_evald = []
         sh = MSEs[model_types[0]][0].shape
@@ -324,10 +345,15 @@ def evaluate(cfg):
                 os.mkdir(file)
 
                 # TODO: fix this if it causes bugs
-                gt = gt[:,[0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]]
+                if name == 'reacher':
+                    gt = gt[:,[0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]]
+                    idx = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
+                elif name == 'cartpole':
+                    gt = gt[:, [0, 1, 2, 3]]
+                    idx = [0, 1, 2, 3]
 
                 if cfg.plotting.states:
-                    plot_states(gt, pred, idx_plot=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14], save_loc=file+"/predictions", show=False)
+                    plot_states(gt, pred, idx_plot=idx, save_loc=file+"/predictions", show=False)
                 if cfg.plotting.mse:
                     plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
                 # if cfg.plotting.sorted:

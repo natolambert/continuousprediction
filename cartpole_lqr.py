@@ -128,12 +128,14 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
     logs = []
     if (cfg.PID_test):
         target = np.random.rand(5) * 2 - 1
+
+    s = 100
     for i in range(cfg.num_trials):
         log.info('Trial %d' % i)
         if (cfg.PID_test):
             env.seed(0)
         else:
-            env.seed(i)
+            env.seed(s)
         s0 = env.reset()
 
         m_c = env.masscart
@@ -157,15 +159,24 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
         R = np.ones(1)
 
         n_dof = np.shape(A)[0]
-        modifier = np.random.random(4)*2 # makes LQR values from 0% to 200% of true value
+        modifier = .5*np.random.random(4)+ 1 #np.random.random(4)*1.5 # makes LQR values from 0% to 200% of true value
         policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0,1.0])
         policy.K = np.multiply(policy.K,modifier)
         # print(type(env))
         dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
-
+        while len(dotmap.states) < cfg.trial_timesteps:
+            env.seed(s)
+            env.reset()
+            modifier = .5*np.random.random(4)+ 1 # makes LQR values from 0% to 200% of true value
+            policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
+            policy.K = np.multiply(policy.K, modifier)
+            dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
+            print(f"- Repeat simulation")
+            s +=1
         # dotmap.target = target
         dotmap.K = np.array(policy.K).flatten()
         logs.append(dotmap)
+        s+= 1
 
     if plot:
         import plotly.graph_objects as go

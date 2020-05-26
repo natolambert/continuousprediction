@@ -151,14 +151,16 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
     y = np.array(ys)
 
     def median_percentile(data, des_percentiles='66+95'):
-        median = np.nanmedian(data, axis=0)
+        # median = np.nanmedian(data, axis=0)
+        median = np.mean(data, axis=0)
         out = np.array(list(map(int, des_percentiles.split("+"))))
         for i in range(out.size):
             assert 0 <= out[i] <= 100, 'Percentile must be >0 <100; instead is %f' % out[i]
         list_percentiles = np.empty((2 * out.size,), dtype=out.dtype)
         list_percentiles[0::2] = out  # Compute the percentile
         list_percentiles[1::2] = 100 - out  # Compute also the mirror percentile
-        percentiles = np.nanpercentile(data, list_percentiles, axis=0)
+        # percentiles = np.nanpercentile(data, list_percentiles, axis=0)
+        percentiles = np.percentile(data, list_percentiles, axis=0)
         return [median, percentiles]
 
     out = median_percentile(y, des_percentiles=percentiles)
@@ -228,7 +230,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             for i in idx_plot:
                 p = np.hstack((p, pred[:, i:i + 1]))
             p_avg = np.average(p[:, 1:], axis=1)
-            chopped = [(x if abs(x) < 10 else float("nan")) for x in p_avg]
+            chopped = [(x if abs(x) < 50 else float("nan")) for x in p_avg]
             plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
                      markevery=50)
         # plt.ylim(-.5, 1.5)
@@ -254,7 +256,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             # print(key)
             pred = predictions[key][:, i]
             # chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-            chopped = [(x if abs(x) < 10 else float("nan")) for x in pred]
+            chopped = [(x if abs(x) < 50 else float("nan")) for x in pred]
             plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
                      markevery=50)
 
