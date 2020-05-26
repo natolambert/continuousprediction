@@ -155,8 +155,8 @@ def run_controller(env, horizon, policy, video = False):
 
         observation, reward, done, info = env.step(action)
 
-        if done:
-            print("Bypassing done for equal length trajectory")
+        # if done:
+        #     print("Bypassing done for equal length trajectory")
 
         # Log
         # logs.times.append()

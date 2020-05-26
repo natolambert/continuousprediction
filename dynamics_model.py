@@ -175,7 +175,6 @@ class Net(nn.Module):
         train_errors = []
         test_errors = []
         for epoch in range(epochs):
-            print("    Epoch %d" % (epoch + 1))
 
             train_error = 0
             test_error = 0
@@ -197,6 +196,7 @@ class Net(nn.Module):
                 loss = self.loss_fn(outputs.float(), targets.float())
                 test_error += loss.item() / (len(testLoader))
 
+            print(f"    Epoch {epoch + 1}, Train err: {train_error}, Test err: {test_error}")
             train_errors.append(train_error)
             test_errors.append(test_error)
 

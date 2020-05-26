@@ -47,12 +47,10 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
         states = sequence.states
         if t_range:
             states = states[:t_range]
-        P = sequence.P
-        D = sequence.D
-        target = sequence.target
+        K = sequence.K
         n = states.shape[0]
         for i in range(n):  # From one state p
-            for j in range(i + 1, n):
+            for j in range(i, n):
                 # This creates an entry for a given state concatenated
                 # with a number t of time steps as well as the PID parameters
 
@@ -61,10 +59,7 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
                 if np.random.random() < threshold:
                     continue
                 dat = [states[i], j - i]
-                if control_params:
-                    dat.extend([P, D])
-                if train_target:
-                    dat.append(target)
+                dat.append(K)
                 data_in.append(np.hstack(dat))
                 # data_in.append(np.hstack((states[i], j-i, target)))
                 if delta:
@@ -157,19 +152,19 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
             [0, 1/m_c, 0, -1/(l*m_c)],
         ])
 
-        Q = np.diag([1, .5, 1, .5])
+        Q = np.diag([.5, .05, 1, .05])
 
         R = np.ones(1)
 
         n_dof = np.shape(A)[0]
+        modifier = np.random.random(4)*2 # makes LQR values from 0% to 200% of true value
         policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0,1.0])
+        policy.K = np.multiply(policy.K,modifier)
         # print(type(env))
         dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
 
-        dotmap.target = target
-        dotmap.P = policy.K.flatten()
-        dotmap.I = 0
-        dotmap.D = 0
+        # dotmap.target = target
+        dotmap.K = np.array(policy.K).flatten()
         logs.append(dotmap)
 
     if plot:
@@ -229,30 +224,25 @@ def log_hyperparams(cfg):
 
 @hydra.main(config_path='conf/lqr.yaml')
 def contpred(cfg):
-    collect_data_lqr(cfg, plot=False)
-    quit()
-
     train = cfg.mode == 'train'
-
-
     # Collect data
     if not train:
         log.info(f"Collecting new trials")
 
-        exper_data = collect_data(cfg)
-        test_data = collect_data(cfg)
+        exper_data = collect_data_lqr(cfg, plot=False)
+        test_data = collect_data_lqr(cfg, plot=False)
 
         log.info("Saving new default data")
         torch.save((exper_data, test_data),
-                   hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
-        log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
+                   hydra.utils.get_original_cwd() + '/trajectories/cartpole/' + 'raw' + cfg.data_dir)
+        log.info(f"Saved trajectories to {'/trajectories/cartpole/' + 'raw' + cfg.data_dir}")
     # Load data
     else:
         log.info(f"Loading default data")
         # raise ValueError("Current Saved data old format")
         # Todo re-save data
         (exper_data, test_data) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+            hydra.utils.get_original_cwd() + '/trajectories/cartpole/' + 'raw' + cfg.data_dir)
 
     if train:
         it = range(cfg.copies) if cfg.copies else [0]
@@ -268,10 +258,10 @@ def contpred(cfg):
         for i in it:
             print('Training model %d' % i)
 
-            if cfg.model.training.num_traj:
-                train_data = exper_data[:cfg.model.training.num_traj]
-            else:
-                train_data = exper_data
+            # if cfg.model.training.num_traj:
+            #     train_data = exper_data[:cfg.model.training.num_traj]
+            # else:
+            train_data = exper_data
 
             if traj:
                 dataset = create_dataset_traj(exper_data, control_params=cfg.model.training.control_params,
@@ -288,7 +278,7 @@ def contpred(cfg):
             plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
 
             log.info("Saving new default models")
-            f = hydra.utils.get_original_cwd() + '/models/reacher/'
+            f = hydra.utils.get_original_cwd() + '/models/cartpole/'
             if cfg.exper_dir:
                 f = f + cfg.exper_dir + '/'
                 if not os.path.exists(f):
