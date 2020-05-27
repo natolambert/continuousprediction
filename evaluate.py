@@ -369,8 +369,13 @@ def evaluate(cfg):
             deltas_gt, deltas_pred = find_deltas(dat, models)
             plot_sorted(deltas_gt, deltas_pred, idx_plot=[0,1,2,3], save_loc='%s/sorted' % graph_file, show=False)
 
+        if name == 'reacher':
+            y_min = .05
+        elif name == 'cartpole':
+            y_min = .0002
+
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
-                     show=True, y_max=cfg.plotting.mse_y_max)
+                     show=True, y_min=y_min,  y_max=cfg.plotting.mse_y_max)
         # turn show off here
 
         mse_all = {key: [] for key in cfg.plotting.models}

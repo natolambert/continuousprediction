@@ -22,9 +22,13 @@ hydra:
 plotting:
   models:
   - d
-  - p
   - t
-  - tp
+#  - p
+#  - tp
+#  - de
+#  - pe
+#  - te
+#  - tpe
 #  - d_0
 #  - de_0
 #  - p_0
@@ -35,8 +39,8 @@ plotting:
 #  - tpe_0
   num_eval_train: 0
   num_eval_test: 100
-  t_range: 200
-  mse_y_max: 10
+  t_range: 500
+  mse_y_max: 2 #5
   copies: 0
   all: false
   states: true

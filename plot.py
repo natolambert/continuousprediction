@@ -152,7 +152,7 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
 
     def median_percentile(data, des_percentiles='66+95'):
         # median = np.nanmedian(data, axis=0)
-        median = np.mean(data, axis=0)
+        median = np.median(data, axis=0)
         out = np.array(list(map(int, des_percentiles.split("+"))))
         for i in range(out.size):
             assert 0 <= out[i] <= 100, 'Percentile must be >0 <100; instead is %f' % out[i]
@@ -171,8 +171,8 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
         dict(x=xs[0], y=ymed.tolist(), mode='lines', name=name, type='scatter', legendgroup=f"group-{name}",
              line=dict(color=color, width=4))]
 
-    intensity = 0.15
-    '''
+    intensity = .3# .15 #
+    ''' 
     interval = scipy.stats.norm.interval(percentile/100, loc=y, scale=np.sqrt(variance))
     interval = np.nan_to_num(interval)  # Fix stupid case of norm.interval(0) returning nan
     '''
@@ -207,6 +207,11 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
 
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
+    import matplotlib
+
+    font = {'size': 18, 'family': 'serif', 'serif': ['Times']}
+    matplotlib.rc('font', **font)
+
     if idx_plot is None:
         idx_plot = list(range(dx))
 
@@ -366,7 +371,7 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
 
 def add_marker(err_traces, color=[], symbol=None, skip=None):
     mark_every = 50
-    size = 15
+    size = 30
     l = len(err_traces[0]['x'])
     if skip is not None:
         size_list = [0] * skip + [size] + [0] * (mark_every - 1 - skip)
@@ -387,7 +392,7 @@ def add_marker(err_traces, color=[], symbol=None, skip=None):
     return err_traces
 
 
-def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_max=1e4):
+def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_min = .05, y_max=1e4):
     assert setup, "Must run setup_plotting before this function"
 
     arrays = []
@@ -400,7 +405,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     traces_plot = []
     for ar, k in zip(arrays, keys):
-        tr, xs, ys = generate_errorbar_traces(ar, xs=None, percentiles='66+95', color=color_dict_plotly[k],
+        tr, xs, ys = generate_errorbar_traces(ar, xs=[np.arange(1,np.shape(ar)[1]+1).tolist()], percentiles='66+95', color=color_dict_plotly[k],
                                               name=label_dict[k])
         w_marker = []
         # for t in tr:
@@ -408,15 +413,18 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         # w_marker.append(m)
         [traces_plot.append(t) for t in m]
 
-    layout = dict(title=title if title else f"Average Error over Run",
+    layout = dict(#title=title if title else f"Average Error over Run",
                   xaxis={'title': 'Prediction Step'},
-                  yaxis={'title': 'Mean Error', 'range': [np.log10(0.05), np.log10(y_max)]},
+                  yaxis={'title': 'Mean Error', 'range': [np.log10(y_min), np.log10(y_max)]},
                   yaxis_type="log",
-                  font=dict(family='Times New Roman', size=30, color='#000000'),
-                  height=1000,
+                  font=dict(family='Times New Roman', size=40, color='#000000'),
+                  height=800,
                   width=1500,
                   plot_bgcolor='white',
-                  legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
+                  showlegend=False,
+                margin=dict(r=0, l=10, b=10, t=1),
+
+                legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
                           'font': dict(family='Times New Roman', size=30, color='#000000')}
                   )
 

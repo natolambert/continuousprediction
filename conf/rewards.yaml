@@ -1,11 +1,12 @@
-env: reacher # lorenz or reacher
-data_dir: rawl500_t50_v5.dat #l500_t100_n100.dat
+defaults:
+  - envs: reacher
+
 model_dir: l500_t50_v5.dat
 exper_dir: false # set to a name to load models from within a subfolder in the models directory
 plot: false
 
-traj_model: t_0
-step_model: p_0
+traj_model: t
+step_model: p
 split: .8
 
 hydra:

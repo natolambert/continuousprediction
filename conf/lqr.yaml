@@ -2,11 +2,11 @@ defaults:
   - models: t
   - envs: cartpole
 
-mode: collect # train or collect
+mode: train # train or collect
 model_dir: l200_t100_v1.dat
 exper_dir: false # set to a name to save models within a subfolder in the models directory
 plot: false
-video: false
+video: true
 PID_test: false
 #determines whether target is part of input data
 train_target: false
