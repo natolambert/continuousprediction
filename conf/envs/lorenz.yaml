@@ -11,5 +11,4 @@ env:
 
 model:
   training:
-    filter_rate:
-      state_indices_lorenz: [0,1,2]
+    state_indices_lorenz: [0,1,2]
