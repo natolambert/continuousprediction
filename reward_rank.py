@@ -26,7 +26,7 @@ def get_reward_reacher(state, action):
     vec = state[-3:]
     reward_dist = - np.linalg.norm(vec)
     reward_ctrl = - np.square(action).sum() * 0.01
-    reward = reward_dist + reward_ctrl
+    reward = reward_dist # + reward_ctrl
     return reward
 
 def get_reward_cp(state, action):
@@ -53,9 +53,117 @@ def get_reward(predictions, actions, r_function):
 
     return rewards
 
-def pred_traj(model, control):
+def pred_traj(test_data, models, control = None, env=None):
     # for a one-step model, predicts a trajectory from initial state all in simulation
-    return 0
+    log.info("Beginning testing of predictions")
+
+    states, actions, initials = [], [], []
+
+    if env == 'reacher':
+        P, D, target = [], [], []
+
+        # Compile the various trajectories into arrays
+        for traj in test_data:
+            states.append(traj.states)
+            actions.append(traj.actions)
+            initials.append(traj.states[0, :])
+            P.append(traj.P)
+            D.append(traj.D)
+            target.append(traj.target)
+
+        P_param = np.array(P)
+        P_param = P_param.reshape((len(test_data), -1))
+        D_param = np.array(D)
+        D_param = D_param.reshape((len(test_data), -1))
+        target = np.array(target)
+        target = target.reshape((len(test_data), -1))
+
+    elif env == 'cartpole':
+        K = []
+
+        # Compile the various trajectories into arrays
+        for traj in test_data:
+            states.append(traj.states)
+            actions.append(traj.actions)
+            initials.append(traj.states[0, :])
+            K.append(traj.K)
+
+        K_param = np.array(K)
+        K_param = K_param.reshape((len(test_data), -1))
+
+        # create LQR controllers to propogate predictions in one-step
+        from policy import LQR
+
+        # These values are replaced an don't matter
+        m_c = 1
+        m_p =1
+        m_t = m_c + m_p
+        g = 9.8
+        l = .01
+        A = np.array([
+            [0, 1, 0, 0],
+            [0, g * m_p / m_c, 0, 0],
+            [0, 0, 0, 1],
+            [0, 0, g * m_t / (l * m_c), 0],
+        ])
+        B = np.array([
+            [0, 1 / m_c, 0, -1 / (l * m_c)],
+        ])
+        Q = np.diag([.5, .05, 1, .05])
+        R = np.ones(1)
+
+        n_dof = np.shape(A)[0]
+        modifier = .5 * np.random.random(
+            4) + 1  # np.random.random(4)*1.5 # makes LQR values from 0% to 200% of true value
+        policies = [LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0]) for i in range(len(test_data))]
+        for p, K in zip(policies, K_param):
+            p.K = K
+
+    # Convert to numpy arrays
+    states = np.stack(states)
+    actions = np.stack(actions)
+
+    def obs2q(obs):
+        if len(obs) < 5:
+            return obs
+        else:
+            return obs[0:5]
+
+    initials = np.array(initials)
+    N, T, D = states.shape
+    if len(np.shape(actions)) == 2:
+        actions = np.expand_dims(actions, axis=2)
+    # Iterate through each type of model for evaluation
+    predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
+    currents = {key: states[:, 0, models[key].state_indices] for key in models}
+
+    ind_dict = {}
+    for i, key in list(enumerate(models)):
+        model = models[key]
+        if model.traj:
+            raise ValueError("Traj model conditioned on predicted states is invalid")
+        indices = model.state_indices
+        traj = model.traj
+
+        ind_dict[key] = indices
+
+        for i in range(1, T):
+            # if control:
+                # policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
+                # act, t = control.act(obs2q(currents[key]))
+            acts = np.stack([[p.act(obs2q(currents[key][i,:]))[0]] for i,p in enumerate(policies)])
+
+            prediction = model.predict(np.hstack((currents[key], acts)))
+            prediction = np.array(prediction.detach())
+
+            predictions[key].append(prediction)
+            currents[key] = prediction.squeeze()
+
+    predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
+    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
+
+
+    return MSEs, predictions
 
 def train_gp(data):
     class ExactGPModel(gpytorch.models.ExactGP):
@@ -172,6 +280,8 @@ def reward_rank(cfg):
     if label == 'reacher':
         control = [np.concatenate((t['D'],t['P'],t['target'])) for t in data_train]
         r_func = get_reward_reacher
+        reward = [np.sum([r_func(s,a) for s,a in zip(sta,act)]) for sta,act in zip(states,actions)]
+
     else:
         for vec_s, vec_a in zip(states, actions):
             vec_s[0, 1] = vec_s[0, 1].item()
@@ -197,7 +307,9 @@ def reward_rank(cfg):
     gp_x =  [torch.Tensor(np.concatenate((s[0], c))) for s,c in zip(states,control)]
     #[torch.Tensor(np.concatenate((np.array([np.asscalar(np.array(i)) for i in s[0]])), c)) for s,c in zip(states,control)]
     if label == 'reacher':
-        gp_y = torch.Tensor(np.sum(np.stack(reward),axis=1))
+        # gp_y = torch.Tensor(np.sum(np.stack(reward),axis=1))
+        gp_y = torch.Tensor(reward)
+
     else:
         gp_y = torch.Tensor(reward)
 
@@ -222,6 +334,8 @@ def reward_rank(cfg):
     if label == 'reacher':
         control = [np.concatenate((t['D'], t['P'], t['target'])) for t in data_test]
         r_func = get_reward_reacher
+        reward = [np.sum([r_func(s,a) for s,a in zip(sta,act)]) for sta,act in zip(states,actions)]
+
     else:
         for vec_s, vec_a in zip(states, actions):
             vec_s[0, 1] = vec_s[0, 1].item()
@@ -245,25 +359,38 @@ def reward_rank(cfg):
     # get dict of rewards for type of model
     pred_rewards = get_reward(predictions, actions, r_func)
 
+
+    models_step = {
+        'p': model_one,
+    }
+
+    _, pred_drift = pred_traj(data_test, models_step, env = cfg.env.label)
+
+    # get dict of rewards for type of model
+    pred_rewards_true = get_reward(pred_drift, actions, r_func)
+
     if label == 'reacher':
         cum_reward = [np.sum(rew) for rew in reward]
     else:
         cum_reward = reward
 
     gp_pr_test = gp_pred_test.mean.detach().numpy()
-    nn_step = pred_rewards['p'][0]
+    nn_step_oracle = pred_rewards['p'][0]
+    nn_step_drift = pred_rewards_true['p'][0]
     nn_traj = pred_rewards['t'][0]
     # Load test data
     print(f"Mean GP reward err: {np.mean((gp_pr_test-cum_reward)**2)}")
-    print(f"Mean one step reward err: {np.mean((cum_reward-np.array(nn_step))**2)}")
+    print(f"Mean one step reward err: {np.mean((cum_reward-np.array(nn_step_oracle))**2)}")
+    print(f"Mean one step reward err: {np.mean((cum_reward-np.array(nn_step_drift))**2)}")
     print(f"Mean traj reward err: {np.mean((cum_reward-np.array(nn_traj))**2)}")
-    arr = np.stack(sorted(zip(cum_reward, gp_pr_test, np.array(nn_step), np.array(nn_traj))))
+    arr = np.stack(sorted(zip(cum_reward, gp_pr_test, np.array(nn_step_oracle), np.array(nn_traj), np.array(nn_step_drift))))
     # arr = np.stack((cum_reward, gp_pr_test, nn_step, nn_traj))
     import matplotlib.pyplot as plt
     plt.plot(arr[:, 0], label='gt')
     plt.plot(arr[:, 1], label='gp')
     plt.plot(arr[:, 2], label='step')
     plt.plot(arr[:, 3], label='traj')
+    plt.plot(arr[:, 4], label='step-drift')
     plt.xlabel('Sorted Trajectory')
     plt.ylabel('Cumulative Episode reward')
     plt.legend()
