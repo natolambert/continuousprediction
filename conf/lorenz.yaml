@@ -7,8 +7,7 @@ mode: train # train or collect
 data_dir: 25.dat
 #model_dir: 10.dat
 plot: false
-#models_to_eval: [t,p,de]
-#num_eval: 5
+
 
 lorenz:
   sigma: 10
@@ -21,6 +20,36 @@ lorenz:
   tmax: 5
   n: 1000
   num_traj: 25
+
+plotting:
+  models:
+  - d
+  - p
+  - t
+  - tp
+#  - p
+#  - tp
+#  - de
+#  - pe
+#  - te
+#  - tpe
+#  - d_0
+#  - de_0
+#  - p_0
+#  - pe_0
+#  - t_0
+#  - te_0
+#  - tp_0
+#  - tpe_0
+  num_eval_train: 0
+  num_eval_test: 100
+  t_range: 1000
+  mse_y_max: 2 #5
+  copies: 0
+  all: false
+  states: true
+  mse: true
+  sorted: false
 
 
 hydra:

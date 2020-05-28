@@ -392,7 +392,7 @@ def add_marker(err_traces, color=[], symbol=None, skip=None):
     return err_traces
 
 
-def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_min = .05, y_max=1e4):
+def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_min = .05, y_max=1e4, legend=False):
     assert setup, "Must run setup_plotting before this function"
 
     arrays = []
@@ -421,7 +421,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
                   height=800,
                   width=1500,
                   plot_bgcolor='white',
-                  showlegend=False,
+                  showlegend=legend,
                 margin=dict(r=0, l=10, b=10, t=1),
 
                 legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
@@ -511,7 +511,21 @@ def plot_lorenz(data, cfg, predictions=None):
 
     if predictions is not None:
         for key, p in predictions.items():
-            fig.add_trace(go.Scatter3d(x=p[:, 0], y=p[:, 1], z=p[:, 2],
+            if len(np.shape(p)) == 3:
+                fig.add_trace(go.Scatter3d(x=p[0,:, 0], y=p[0,:, 1], z=p[0,:, 2],
+                                           name=label_dict[key], legendgroup=key,
+                                           marker=dict(
+                                               size=1,
+                                               color=np.arange(len(x)),
+                                               colorscale=color_scales_dict[key],
+                                           ),
+                                           line=dict(
+                                               color=color_dict_plotly[key],
+                                               width=1
+                                           ),
+                                           ))
+            else:
+                fig.add_trace(go.Scatter3d(x=p[:, 0], y=p[:, 1], z=p[:, 2],
                                        name=label_dict[key], legendgroup=key,
                                        marker=dict(
                                            size=1,

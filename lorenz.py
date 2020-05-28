@@ -56,20 +56,10 @@ def collect_data(cfg):
 
 @hydra.main(config_path='conf/lorenz.yaml')
 def lorenz(cfg):
+    mode = cfg.mode
+    name = cfg.env.label
 
-    # u0, v0, w0 = cfg.lorenz.ex.u0, cfg.lorenz.ex.v0, cfg.lorenz.ex.w0
-
-    # # Maximum time point and total number of time points
-    # tmax, n = cfg.lorenz.tmax, cfg.lorenz.n
-    #
-    # # Integrate the Lorenz equations on the time grid t
-    # t = np.linspace(0, tmax, n)
-    # f = odeint(sim_lorenz, (u0, v0, w0), t, args=(sigma, beta, rho))
-    # x, y, z = f.T
-
-    train = cfg.mode == 'train'
-
-    if not train:
+    if mode == 'collect':
         # Lorenz paramters and initial conditions
 
         #data_X = np.zeros((1, 3))
@@ -90,7 +80,7 @@ def lorenz(cfg):
         (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'raw' + cfg.data_dir)
 
     # Analysis
-    if train:
+    if mode == 'train':
 
         from dynamics_model import DynamicsModel
         from reacher_pd import create_dataset_step, create_dataset_traj
@@ -105,7 +95,7 @@ def lorenz(cfg):
 
         if traj:
             dataset = create_dataset_traj(train_data, control_params=cfg.model.training.control_params,
-                                            train_target=cfg.model.training.train_target, threshold=0.95)
+                                            train_target=cfg.model.training.train_target)
         else:
             dataset = create_dataset_step(train_data, delta=delta)
 
@@ -122,6 +112,48 @@ def lorenz(cfg):
         setup_plotting({cfg.model.str: model})
         plot_lorenz(train_data, cfg, predictions=None)
 
+    elif mode == 'plot':
+        # TODO add plotting code for predictions
+        # Load test data
+        log.info(f"Loading default data")
+        (test_data, _) = torch.load(
+            hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + 'raw' + cfg.data_dir)
+
+        # Load models
+        log.info("Loading models")
+        model_types = cfg.plotting.models
+        models = {}
+        f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/'
+        for model_type in model_types:
+            models[model_type] = torch.load(f + model_type + ".dat")
+
+        graph_file = 'Plots'
+        os.mkdir(graph_file)
+        setup_plotting(models)
+
+        # Select a random subset of training data
+        # idx = np.random.randint(0, len(data), num)
+        idx = np.random.choice(np.arange(len(test_data)), size=min(len(test_data),cfg.plotting.num_eval_test), replace=False)
+        dat = [test_data[i] for i in idx]
+
+        for entry in dat:
+            entry.states = entry.states[0:cfg.plotting.t_range]
+            # entry.rewards = entry.rewards[0:cfg.plotting.t_range]
+            # entry.actions = entry.actions[0:cfg.plotting.t_range]
+
+        MSEs, predictions = test_models(dat, models, env=name)
+
+
+        from plot import plot_mse_err, plot_lorenz
+
+        plot_lorenz(test_data, cfg, predictions=predictions)
+        mse_evald = []
+        for i, id in list(enumerate(idx)):
+            mse = {key: MSEs[key][i].squeeze() for key in MSEs}
+            mse_sub = {key: [(x if x < 10 ** 5 else float("nan")) for x in mse[key]] for key in mse}
+            mse_evald.append(mse)
+
+        plot_mse_err(mse_evald,  log_scale=True, title="Average MSE", save_loc=graph_file+'/mse.pdf', show=True, legend=True)
     # models = {}
     # for model_type in cfg.models_to_eval:
     #     models[model_type] = torch.load(hydra.utils.get_original_cwd() + '/models/lorenz/' + model_type + ".dat")

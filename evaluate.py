@@ -71,10 +71,28 @@ def test_models(test_data, models, verbose=False, env=None):
         K_param = np.array(K)
         K_param = K_param.reshape((len(test_data), -1))
 
+    if env == 'lorenz':
+        P, D, target = [], [], []
+        for traj in test_data:
+            states.append(traj.states)
+            initials.append(traj.states[0, :])
+            P.append(traj.P)
+            D.append(traj.D)
+            target.append(traj.target)
 
-    # Convert to numpy arrays
-    states = np.stack(states)
-    actions = np.stack(actions)
+        P_param = np.array(P)
+        P_param = P_param.reshape((len(test_data), -1))
+        D_param = np.array(D)
+        D_param = D_param.reshape((len(test_data), -1))
+        target = np.array(target)
+        target = target.reshape((len(test_data), -1))
+
+        states = np.stack(states)
+
+    else:
+        # Convert to numpy arrays
+        states = np.stack(states)
+        actions = np.stack(actions)
 
     initials = np.array(initials)
     N, T, D = states.shape
@@ -97,7 +115,7 @@ def test_models(test_data, models, verbose=False, env=None):
         for i in range(1, T):
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]
-                if env == 'reacher':
+                if env == 'reacher' or env == 'lorenz':
                     if model.control_params:
                         dat.extend([P_param, D_param])
                     if model.train_target:
@@ -106,8 +124,12 @@ def test_models(test_data, models, verbose=False, env=None):
                     dat.append(K_param)
                 prediction = np.array(model.predict(np.hstack(dat)).detach())
             else:
-                prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
-                prediction = np.array(prediction.detach())
+                if env == 'lorenz':
+                    prediction = model.predict(np.array(currents[key]))
+                    prediction = np.array(prediction.detach())
+                else:
+                    prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
+                    prediction = np.array(prediction.detach())
 
             predictions[key].append(prediction)
             currents[key] = prediction.squeeze()
@@ -293,9 +315,10 @@ def evaluate(cfg):
             models[model_type] = torch.load(f + model_str + ".dat")
 
     else:
-        # Load test data
-        log.info(f"Loading default data")
-        (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/'+ cfg.env.label + '/' + 'raw' + cfg.data_dir_lorenz)
+        # # Load test data
+        # Below was copied from lorenz... strange
+        # log.info(f"Loading default data")
+        # (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/'+ cfg.env.label + '/' + 'raw' + cfg.data_dir_lorenz)
 
         # Load models
         log.info("Loading models")
