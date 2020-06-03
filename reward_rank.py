@@ -18,7 +18,7 @@ import numpy as np
 from plot import *
 from evaluate import test_models
 import gpytorch
-
+from mbrl_resources import obs2q
 log = logging.getLogger(__name__)
 
 def get_reward_reacher(state, action):
@@ -123,11 +123,6 @@ def pred_traj(test_data, models, control = None, env=None):
     states = np.stack(states)
     actions = np.stack(actions)
 
-    def obs2q(obs):
-        if len(obs) < 5:
-            return obs
-        else:
-            return obs[0:5]
 
     initials = np.array(initials)
     N, T, D = states.shape
@@ -380,21 +375,40 @@ def reward_rank(cfg):
     nn_traj = pred_rewards['t'][0]
     # Load test data
     print(f"Mean GP reward err: {np.mean((gp_pr_test-cum_reward)**2)}")
-    print(f"Mean one step reward err: {np.mean((cum_reward-np.array(nn_step_oracle))**2)}")
+    print(f"Mean one step oracle reward err: {np.mean((cum_reward-np.array(nn_step_oracle))**2)}")
     print(f"Mean one step reward err: {np.mean((cum_reward-np.array(nn_step_drift))**2)}")
     print(f"Mean traj reward err: {np.mean((cum_reward-np.array(nn_traj))**2)}")
     arr = np.stack(sorted(zip(cum_reward, gp_pr_test, np.array(nn_step_oracle), np.array(nn_traj), np.array(nn_step_drift))))
     # arr = np.stack((cum_reward, gp_pr_test, nn_step, nn_traj))
     import matplotlib.pyplot as plt
-    plt.plot(arr[:, 0], label='gt')
-    plt.plot(arr[:, 1], label='gp')
-    plt.plot(arr[:, 2], label='step')
-    plt.plot(arr[:, 3], label='traj')
-    plt.plot(arr[:, 4], label='step-drift')
-    plt.xlabel('Sorted Trajectory')
-    plt.ylabel('Cumulative Episode reward')
-    plt.legend()
-    plt.savefig("Reward Predictions.png")
+    fig, ax = plt.subplots()
+    ax.plot(arr[:, 0], label='True Predicted Reward',  clip_on = True, ms=14, markevery=16, marker='o' )
+    ax.plot(arr[:, 1], label='Gaussian Process',  clip_on = True, ms=14, markevery=19, marker='*' )
+    ax.plot(arr[:, 2], label='One-step Neural Network',  clip_on = True, ms=14, markevery=22, marker='+' )
+    ax.plot(arr[:, 3], label='Trajectory-based Model',  clip_on = True, ms=14, markevery=25, marker='d' )
+    # plt.plot(arr[:, 4], label='step-drift')
+    import matplotlib
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    font = {'size': 18, 'family': 'serif', 'serif': ['Times New Roman']}
+    font_axes = {'size': 18, 'family': 'serif'}
+    matplotlib.rc('font', **font)
+    # plt.xlabel('Sorted Trajectory', fontdict=font_axes)
+    # plt.ylabel('Cumulative Episode Reward', fontdict=font)
+
+    plt.yticks(fontname="Times New Roman")  # This argument will change the font.
+    plt.xticks(fontname="Times New Roman")  # This argument will change the font.
+
+    ax.set_xlabel('Sorted Trajectory', fontdict=font_axes)
+    ax.set_ylabel('Cumulative Episode Reward', fontdict=font_axes)
+    ax.set_xlim([0,100])
+    ax.set_ylim([-900,0])
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig("Reward_Predictions.pdf")
+
+    del matplotlib.font_manager.weight_dict['roman']
+    matplotlib.font_manager._rebuild()
 
     plt.plot(arr[:, 0], label='gt')
     plt.plot(arr[:, 1], label='gp')
@@ -403,7 +417,7 @@ def reward_rank(cfg):
     plt.xlabel('Sorted Trajectory')
     plt.ylabel('Cumulative Episode reward')
     plt.legend()
-    plt.savefig("Reward Predictions Error.png")
+    fig.savefig("Reward Predictions Error.png")
 
     quit()
     log.info(f"Loading default data")

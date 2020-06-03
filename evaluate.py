@@ -12,11 +12,12 @@ import torch
 import numpy as np
 
 from plot import *
+from mbrl_resources import obs2q
 
 log = logging.getLogger(__name__)
 
 
-def test_models(test_data, models, verbose=False, env=None):
+def test_models(test_data, models, verbose=False, env=None, compute_action = False):
     """
     Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
     Note: this function uses Numpy arrays to handle multiple tests at once efficiently
@@ -94,6 +95,39 @@ def test_models(test_data, models, verbose=False, env=None):
         states = np.stack(states)
         actions = np.stack(actions)
 
+    if compute_action:
+        # create LQR controllers to propogate predictions in one-step
+        from policy import LQR, PID
+        if env == 'reacher':
+            policies = [PID(dX=5, dU=5, P=P_param[i,:], I=np.array([0,0,0,0,0]), D=D_param[i,:], target=target[i,:]) for i in range(len(test_data))]
+
+        elif env == 'cartpole':
+
+            # These values are replaced an don't matter
+            m_c = 1
+            m_p = 1
+            m_t = m_c + m_p
+            g = 9.8
+            l = .01
+            A = np.array([
+                [0, 1, 0, 0],
+                [0, g * m_p / m_c, 0, 0],
+                [0, 0, 0, 1],
+                [0, 0, g * m_t / (l * m_c), 0],
+            ])
+            B = np.array([
+                [0, 1 / m_c, 0, -1 / (l * m_c)],
+            ])
+            Q = np.diag([.5, .05, 1, .05])
+            R = np.ones(1)
+
+            n_dof = np.shape(A)[0]
+            modifier = .5 * np.random.random(
+                4) + 1  # np.random.random(4)*1.5 # makes LQR values from 0% to 200% of true value
+            policies = [LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0]) for i in range(len(test_data))]
+            for p, K in zip(policies, K_param):
+                p.K = K
+
     initials = np.array(initials)
     N, T, D = states.shape
     if len(np.shape(actions))==2:
@@ -112,6 +146,12 @@ def test_models(test_data, models, verbose=False, env=None):
 
         ind_dict[key] = indices
 
+        # # temp for plotting one-step
+        # if i == 1:
+        #     compute_action = False
+        # elif i > 1:
+        #     continue
+
         for i in range(1, T):
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]
@@ -128,7 +168,14 @@ def test_models(test_data, models, verbose=False, env=None):
                     prediction = model.predict(np.array(currents[key]))
                     prediction = np.array(prediction.detach())
                 else:
-                    prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
+                    if compute_action:
+                        if env == 'cartpole':
+                            acts = np.stack([[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
+                        else:
+                            acts = np.stack([[p.act(obs2q(currents[key][i, :]))[0]][0] for i, p in enumerate(policies)])
+                    else:
+                        acts = actions[:, i - 1, :]
+                    prediction = model.predict(np.hstack((currents[key], acts)))
                     prediction = np.array(prediction.detach())
 
             predictions[key].append(prediction)
@@ -334,7 +381,6 @@ def evaluate(cfg):
         Helper to allow plotting for both train and test data without significant code duplication
         """
         os.mkdir(graph_file)
-        setup_plotting(models)
 
         # Select a random subset of training data
         # idx = np.random.randint(0, len(data), num)
@@ -346,8 +392,9 @@ def evaluate(cfg):
             entry.rewards = entry.rewards[0:cfg.plotting.t_range]
             entry.actions = entry.actions[0:cfg.plotting.t_range]
 
-        MSEs, predictions = test_models(dat, models, env=name)
+        MSEs, predictions = test_models(dat, models, env=name, compute_action=cfg.plotting.compute_action)
 
+        setup_plotting(models)
         mse_evald = []
         sh = MSEs[model_types[0]][0].shape
         for i, id in list(enumerate(idx)):
@@ -398,7 +445,7 @@ def evaluate(cfg):
             y_min = .0002
 
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
-                     show=True, y_min=y_min,  y_max=cfg.plotting.mse_y_max)
+                     show=True, y_min=y_min,  y_max=cfg.plotting.mse_y_max, legend=cfg.plotting.legend)
         # turn show off here
 
         mse_all = {key: [] for key in cfg.plotting.models}

@@ -39,6 +39,9 @@ def setup_plotting(models):
 
     keyset = {(key[0] if type(key) == tuple else key) for key in models}
 
+    # temp for one-step plot
+    # models['pe'].cfg =  models['t'].cfg
+
     label_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.label for key in models}
     color_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color for key in models}
     color_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color_plotly for key in models}
@@ -171,7 +174,7 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
         dict(x=xs[0], y=ymed.tolist(), mode='lines', name=name, type='scatter', legendgroup=f"group-{name}",
              line=dict(color=color, width=4))]
 
-    intensity = .3# .15 #
+    intensity =  .3# .15 #
     ''' 
     interval = scipy.stats.norm.interval(percentile/100, loc=y, scale=np.sqrt(variance))
     interval = np.nan_to_num(interval)  # Fix stupid case of norm.interval(0) returning nan
@@ -371,12 +374,14 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
 
 def add_marker(err_traces, color=[], symbol=None, skip=None):
     mark_every = 50
-    size = 30
+    size = 50
     l = len(err_traces[0]['x'])
+    skip = np.random.randint(mark_every-10)+15
+    # skip = np.random.randint(mark_every)
     if skip is not None:
-        size_list = [0] * skip + [size] + [0] * (mark_every - 1 - skip)
+        size_list = [0] * skip + [size] + [0] * (mark_every - skip)
     else:
-        size_list = [size] + [0] * (mark_every - 1)
+        size_list = [size] + [0] * (mark_every )
     repeat = int(l / mark_every)
     size_list = size_list * repeat
     line = err_traces[0]
@@ -404,7 +409,10 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         arrays.append(np.stack(temp))
 
     traces_plot = []
-    for ar, k in zip(arrays, keys):
+    for n, (ar, k) in enumerate(zip(arrays, keys)):
+        # temp
+        # if n > 1:
+        #     continue
         tr, xs, ys = generate_errorbar_traces(ar, xs=[np.arange(1,np.shape(ar)[1]+1).tolist()], percentiles='66+95', color=color_dict_plotly[k],
                                               name=label_dict[k])
         w_marker = []
@@ -415,14 +423,14 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     layout = dict(#title=title if title else f"Average Error over Run",
                   xaxis={'title': 'Prediction Step'},
-                  yaxis={'title': 'Mean Error', 'range': [np.log10(y_min), np.log10(y_max)]},
+                  yaxis={'title': 'Mean Squared Error', 'range': [np.log10(y_min), np.log10(y_max)]},
                   yaxis_type="log",
-                  font=dict(family='Times New Roman', size=40, color='#000000'),
+                  font=dict(family='Times New Roman', size=50, color='#000000'),
                   height=800,
                   width=1500,
                   plot_bgcolor='white',
                   showlegend=legend,
-                margin=dict(r=0, l=10, b=10, t=1),
+                margin=dict(r=0, l=0, b=10, t=1),
 
                 legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
                           'font': dict(family='Times New Roman', size=30, color='#000000')}

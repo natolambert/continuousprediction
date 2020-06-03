@@ -38,6 +38,8 @@ plotting:
 #  - tpe_0
   num_eval_train: 0
   num_eval_test: 100
+  compute_action: false
+  legend: false
   t_range: 500
   mse_y_max: 2 #5
   copies: 0
