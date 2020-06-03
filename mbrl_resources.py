@@ -23,6 +23,12 @@ import multiprocessing as mp
 log = logging.getLogger(__name__)
 
 
+def obs2q(obs):
+    if len(obs) < 5:
+        return obs
+    else:
+        return obs[0:5]
+
 class Net(nn.Module):
     """
     Deterministic Neural Network

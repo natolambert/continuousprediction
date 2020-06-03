@@ -12,11 +12,12 @@ import torch
 import numpy as np
 
 from plot import *
+from mbrl_resources import obs2q
 
 log = logging.getLogger(__name__)
 
 
-def test_models(test_data, models, verbose=False):
+def test_models(test_data, models, verbose=False, env=None, compute_action = False):
     """
     Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
     Note: this function uses Numpy arrays to handle multiple tests at once efficiently
@@ -38,30 +39,99 @@ def test_models(test_data, models, verbose=False):
     log.info("Beginning testing of predictions")
 
     states, actions, initials = [], [], []
-    P, D, target = [], [], []
 
-    # Compile the various trajectories into arrays
-    for traj in test_data:
-        states.append(traj.states)
-        actions.append(traj.actions)
-        initials.append(traj.states[0, :])
-        P.append(traj.P)
-        D.append(traj.D)
-        target.append(traj.target)
+    if env == 'reacher':
+        P, D, target = [], [], []
 
-    # Convert to numpy arrays
-    states = np.array(states)
-    actions = np.array(actions)
+        # Compile the various trajectories into arrays
+        for traj in test_data:
+            states.append(traj.states)
+            actions.append(traj.actions)
+            initials.append(traj.states[0, :])
+            P.append(traj.P)
+            D.append(traj.D)
+            target.append(traj.target)
+
+        P_param = np.array(P)
+        P_param = P_param.reshape((len(test_data), -1))
+        D_param = np.array(D)
+        D_param = D_param.reshape((len(test_data), -1))
+        target = np.array(target)
+        target = target.reshape((len(test_data), -1))
+
+    elif env == 'cartpole':
+        K = []
+
+        # Compile the various trajectories into arrays
+        for traj in test_data:
+            states.append(traj.states)
+            actions.append(traj.actions)
+            initials.append(traj.states[0, :])
+            K.append(traj.K)
+
+        K_param = np.array(K)
+        K_param = K_param.reshape((len(test_data), -1))
+
+    if env == 'lorenz':
+        P, D, target = [], [], []
+        for traj in test_data:
+            states.append(traj.states)
+            initials.append(traj.states[0, :])
+            P.append(traj.P)
+            D.append(traj.D)
+            target.append(traj.target)
+
+        P_param = np.array(P)
+        P_param = P_param.reshape((len(test_data), -1))
+        D_param = np.array(D)
+        D_param = D_param.reshape((len(test_data), -1))
+        target = np.array(target)
+        target = target.reshape((len(test_data), -1))
+
+        states = np.stack(states)
+
+    else:
+        # Convert to numpy arrays
+        states = np.stack(states)
+        actions = np.stack(actions)
+
+    if compute_action:
+        # create LQR controllers to propogate predictions in one-step
+        from policy import LQR, PID
+        if env == 'reacher':
+            policies = [PID(dX=5, dU=5, P=P_param[i,:], I=np.array([0,0,0,0,0]), D=D_param[i,:], target=target[i,:]) for i in range(len(test_data))]
+
+        elif env == 'cartpole':
+
+            # These values are replaced an don't matter
+            m_c = 1
+            m_p = 1
+            m_t = m_c + m_p
+            g = 9.8
+            l = .01
+            A = np.array([
+                [0, 1, 0, 0],
+                [0, g * m_p / m_c, 0, 0],
+                [0, 0, 0, 1],
+                [0, 0, g * m_t / (l * m_c), 0],
+            ])
+            B = np.array([
+                [0, 1 / m_c, 0, -1 / (l * m_c)],
+            ])
+            Q = np.diag([.5, .05, 1, .05])
+            R = np.ones(1)
+
+            n_dof = np.shape(A)[0]
+            modifier = .5 * np.random.random(
+                4) + 1  # np.random.random(4)*1.5 # makes LQR values from 0% to 200% of true value
+            policies = [LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0]) for i in range(len(test_data))]
+            for p, K in zip(policies, K_param):
+                p.K = K
+
     initials = np.array(initials)
-    P_param = np.array(P)
-    P_param = P_param.reshape((len(test_data),-1))
-    D_param = np.array(D)
-    D_param = D_param.reshape((len(test_data),-1))
-    target = np.array(target)
-    target = target.reshape((len(test_data),-1))
-
     N, T, D = states.shape
-
+    if len(np.shape(actions))==2:
+        actions = np.expand_dims(actions, axis=2)
     # Iterate through each type of model for evaluation
     predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
     currents = {key: states[:, 0, models[key].state_indices] for key in models}
@@ -76,23 +146,43 @@ def test_models(test_data, models, verbose=False):
 
         ind_dict[key] = indices
 
+        # # temp for plotting one-step
+        # if i == 1:
+        #     compute_action = False
+        # elif i > 1:
+        #     continue
+
         for i in range(1, T):
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]
-                if model.control_params:
-                    dat.extend([P_param, D_param])
-                if model.train_target:
-                    dat.append(target)
+                if env == 'reacher' or env == 'lorenz':
+                    if model.control_params:
+                        dat.extend([P_param, D_param])
+                    if model.train_target:
+                        dat.append(target)
+                elif env == 'cartpole':
+                    dat.append(K_param)
                 prediction = np.array(model.predict(np.hstack(dat)).detach())
             else:
-                prediction = model.predict(np.hstack((currents[key], actions[:, i - 1, :])))
-                prediction = np.array(prediction.detach())
+                if env == 'lorenz':
+                    prediction = model.predict(np.array(currents[key]))
+                    prediction = np.array(prediction.detach())
+                else:
+                    if compute_action:
+                        if env == 'cartpole':
+                            acts = np.stack([[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
+                        else:
+                            acts = np.stack([[p.act(obs2q(currents[key][i, :]))[0]][0] for i, p in enumerate(policies)])
+                    else:
+                        acts = actions[:, i - 1, :]
+                    prediction = model.predict(np.hstack((currents[key], acts)))
+                    prediction = np.array(prediction.detach())
 
             predictions[key].append(prediction)
             currents[key] = prediction.squeeze()
 
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
-    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2) for key in predictions}
+    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:,1:] for key in predictions}
 
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
@@ -247,15 +337,15 @@ def num_eval(gt, predictions, models, setting='gaussian', T_range=10000, verbose
 @hydra.main(config_path='conf/eval.yaml')
 def evaluate(cfg):
     # print("here")
-    lorenz = cfg.env == 'lorenz'
+    name = cfg.env.label
     graph_file = 'Plots'
     os.mkdir(graph_file)
 
-    if not lorenz:
+    if not name == 'lorenz':
         # Load test data
         log.info(f"Loading default data")
         (train_data, test_data) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+            hydra.utils.get_original_cwd() + '/trajectories/'+ cfg.env.label + '/' + 'raw' + cfg.data_dir)
 
         # Load models
         log.info("Loading models")
@@ -264,23 +354,24 @@ def evaluate(cfg):
         else:
             model_types = cfg.plotting.models
         models = {}
-        f = hydra.utils.get_original_cwd() + '/models/reacher/'
+        f = hydra.utils.get_original_cwd() + '/models/'+ cfg.env.label + '/'
         if cfg.exper_dir:
             f = f + cfg.exper_dir + '/'
         for model_type in model_types:
             model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
             models[model_type] = torch.load(f + model_str + ".dat")
 
-    if lorenz:
-        # Load test data
-        log.info(f"Loading default data")
-        (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'raw' + cfg.data_dir_lorenz)
+    else:
+        # # Load test data
+        # Below was copied from lorenz... strange
+        # log.info(f"Loading default data")
+        # (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/'+ cfg.env.label + '/' + 'raw' + cfg.data_dir_lorenz)
 
         # Load models
         log.info("Loading models")
         model_types = cfg.plotting.models
         models = {}
-        f = hydra.utils.get_original_cwd() + '/models/lorenz/'
+        f = hydra.utils.get_original_cwd() + '/models/'+ cfg.env.label + '/'
         for model_type in model_types:
             models[model_type] = torch.load(f + model_type + ".dat")
 
@@ -290,20 +381,20 @@ def evaluate(cfg):
         Helper to allow plotting for both train and test data without significant code duplication
         """
         os.mkdir(graph_file)
-        setup_plotting(models)
 
         # Select a random subset of training data
         # idx = np.random.randint(0, len(data), num)
         idx = np.random.choice(np.arange(len(data)), size=num, replace=False)
         dat = [data[i] for i in idx]
 
-        # for entry in dat:
-        #     entry.states = entry.states[1:cfg.plotting.t_range]
-        #     entry.rewards = entry.rewards[1:cfg.plotting.t_range]
-        #     entry.actions = entry.actions[1:cfg.plotting.t_range]
+        for entry in dat:
+            entry.states = entry.states[0:cfg.plotting.t_range]
+            entry.rewards = entry.rewards[0:cfg.plotting.t_range]
+            entry.actions = entry.actions[0:cfg.plotting.t_range]
 
-        MSEs, predictions = test_models(dat, models)
+        MSEs, predictions = test_models(dat, models, env=name, compute_action=cfg.plotting.compute_action)
 
+        setup_plotting(models)
         mse_evald = []
         sh = MSEs[model_types[0]][0].shape
         for i, id in list(enumerate(idx)):
@@ -324,10 +415,15 @@ def evaluate(cfg):
                 os.mkdir(file)
 
                 # TODO: fix this if it causes bugs
-                gt = gt[:,[0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]]
+                if name == 'reacher':
+                    gt = gt[:,[0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]]
+                    idx = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]
+                elif name == 'cartpole':
+                    gt = gt[:, [0, 1, 2, 3]]
+                    idx = [0, 1, 2, 3]
 
                 if cfg.plotting.states:
-                    plot_states(gt, pred, idx_plot=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14], save_loc=file+"/predictions", show=False)
+                    plot_states(gt, pred, idx_plot=idx, save_loc=file+"/predictions", show=False)
                 if cfg.plotting.mse:
                     plot_mse(mse_sub, save_loc=file+"/mse.pdf", show=False)
                 # if cfg.plotting.sorted:
@@ -343,8 +439,14 @@ def evaluate(cfg):
             deltas_gt, deltas_pred = find_deltas(dat, models)
             plot_sorted(deltas_gt, deltas_pred, idx_plot=[0,1,2,3], save_loc='%s/sorted' % graph_file, show=False)
 
+        if name == 'reacher':
+            y_min = .05
+        elif name == 'cartpole':
+            y_min = .0002
+
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
-                     show=False, y_max=cfg.plotting.mse_y_max)
+                     show=True, y_min=y_min,  y_max=cfg.plotting.mse_y_max, legend=cfg.plotting.legend)
+        # turn show off here
 
         mse_all = {key: [] for key in cfg.plotting.models}
         if cfg.plotting.copies:

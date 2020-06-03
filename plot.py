@@ -39,6 +39,9 @@ def setup_plotting(models):
 
     keyset = {(key[0] if type(key) == tuple else key) for key in models}
 
+    # temp for one-step plot
+    # models['pe'].cfg =  models['t'].cfg
+
     label_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.label for key in models}
     color_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color for key in models}
     color_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color_plotly for key in models}
@@ -151,14 +154,16 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
     y = np.array(ys)
 
     def median_percentile(data, des_percentiles='66+95'):
-        median = np.nanmedian(data, axis=0)
+        # median = np.nanmedian(data, axis=0)
+        median = np.median(data, axis=0)
         out = np.array(list(map(int, des_percentiles.split("+"))))
         for i in range(out.size):
             assert 0 <= out[i] <= 100, 'Percentile must be >0 <100; instead is %f' % out[i]
         list_percentiles = np.empty((2 * out.size,), dtype=out.dtype)
         list_percentiles[0::2] = out  # Compute the percentile
         list_percentiles[1::2] = 100 - out  # Compute also the mirror percentile
-        percentiles = np.nanpercentile(data, list_percentiles, axis=0)
+        # percentiles = np.nanpercentile(data, list_percentiles, axis=0)
+        percentiles = np.percentile(data, list_percentiles, axis=0)
         return [median, percentiles]
 
     out = median_percentile(y, des_percentiles=percentiles)
@@ -169,8 +174,8 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
         dict(x=xs[0], y=ymed.tolist(), mode='lines', name=name, type='scatter', legendgroup=f"group-{name}",
              line=dict(color=color, width=4))]
 
-    intensity = 0.15
-    '''
+    intensity =  .3# .15 #
+    ''' 
     interval = scipy.stats.norm.interval(percentile/100, loc=y, scale=np.sqrt(variance))
     interval = np.nan_to_num(interval)  # Fix stupid case of norm.interval(0) returning nan
     '''
@@ -205,6 +210,11 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
 
     num = np.shape(ground_truth)[0]
     dx = np.shape(ground_truth)[1]
+    import matplotlib
+
+    font = {'size': 18, 'family': 'serif', 'serif': ['Times']}
+    matplotlib.rc('font', **font)
+
     if idx_plot is None:
         idx_plot = list(range(dx))
 
@@ -228,7 +238,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             for i in idx_plot:
                 p = np.hstack((p, pred[:, i:i + 1]))
             p_avg = np.average(p[:, 1:], axis=1)
-            chopped = [(x if abs(x) < 10 else float("nan")) for x in p_avg]
+            chopped = [(x if abs(x) < 50 else float("nan")) for x in p_avg]
             plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
                      markevery=50)
         # plt.ylim(-.5, 1.5)
@@ -254,7 +264,7 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
             # print(key)
             pred = predictions[key][:, i]
             # chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-            chopped = [(x if abs(x) < 10 else float("nan")) for x in pred]
+            chopped = [(x if abs(x) < 50 else float("nan")) for x in pred]
             plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
                      markevery=50)
 
@@ -364,12 +374,14 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
 
 def add_marker(err_traces, color=[], symbol=None, skip=None):
     mark_every = 50
-    size = 15
+    size = 50
     l = len(err_traces[0]['x'])
+    skip = np.random.randint(mark_every-10)+15
+    # skip = np.random.randint(mark_every)
     if skip is not None:
-        size_list = [0] * skip + [size] + [0] * (mark_every - 1 - skip)
+        size_list = [0] * skip + [size] + [0] * (mark_every - skip)
     else:
-        size_list = [size] + [0] * (mark_every - 1)
+        size_list = [size] + [0] * (mark_every )
     repeat = int(l / mark_every)
     size_list = size_list * repeat
     line = err_traces[0]
@@ -385,7 +397,7 @@ def add_marker(err_traces, color=[], symbol=None, skip=None):
     return err_traces
 
 
-def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_max=1e4):
+def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_min = .05, y_max=1e4, legend=False):
     assert setup, "Must run setup_plotting before this function"
 
     arrays = []
@@ -397,8 +409,11 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         arrays.append(np.stack(temp))
 
     traces_plot = []
-    for ar, k in zip(arrays, keys):
-        tr, xs, ys = generate_errorbar_traces(ar, xs=None, percentiles='66+95', color=color_dict_plotly[k],
+    for n, (ar, k) in enumerate(zip(arrays, keys)):
+        # temp
+        # if n > 1:
+        #     continue
+        tr, xs, ys = generate_errorbar_traces(ar, xs=[np.arange(1,np.shape(ar)[1]+1).tolist()], percentiles='66+95', color=color_dict_plotly[k],
                                               name=label_dict[k])
         w_marker = []
         # for t in tr:
@@ -406,16 +421,19 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         # w_marker.append(m)
         [traces_plot.append(t) for t in m]
 
-    layout = dict(title=title if title else f"Average Error over Run",
+    layout = dict(#title=title if title else f"Average Error over Run",
                   xaxis={'title': 'Prediction Step'},
-                  yaxis={'title': 'Mean Error', 'range': [np.log10(0.05), np.log10(y_max)]},
+                  yaxis={'title': 'Mean Squared Error', 'range': [np.log10(y_min), np.log10(y_max)]},
                   yaxis_type="log",
-                  font=dict(family='Times New Roman', size=30, color='#000000'),
-                  height=1000,
+                  font=dict(family='Times New Roman', size=50, color='#000000'),
+                  height=800,
                   width=1500,
                   plot_bgcolor='white',
-                  legend=go.layout.Legend(x=.01, y=.98, bgcolor='rgba(50, 50, 50, .03)',
-                          font=dict(family='Times New Roman', size=30, color='#000000'))
+                  showlegend=legend,
+                  margin=dict(r=0, l=0, b=10, t=1),
+
+                  legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
+                          'font': dict(family='Times New Roman', size=30, color='#000000')}
                   )
 
     fig = {
@@ -502,7 +520,21 @@ def plot_lorenz(data, cfg, predictions=None):
 
     if predictions is not None:
         for key, p in predictions.items():
-            fig.add_trace(go.Scatter3d(x=p[:, 0], y=p[:, 1], z=p[:, 2],
+            if len(np.shape(p)) == 3:
+                fig.add_trace(go.Scatter3d(x=p[0,:, 0], y=p[0,:, 1], z=p[0,:, 2],
+                                           name=label_dict[key], legendgroup=key,
+                                           marker=dict(
+                                               size=1,
+                                               color=np.arange(len(x)),
+                                               colorscale=color_scales_dict[key],
+                                           ),
+                                           line=dict(
+                                               color=color_dict_plotly[key],
+                                               width=1
+                                           ),
+                                           ))
+            else:
+                fig.add_trace(go.Scatter3d(x=p[:, 0], y=p[:, 1], z=p[:, 2],
                                        name=label_dict[key], legendgroup=key,
                                        marker=dict(
                                            size=1,

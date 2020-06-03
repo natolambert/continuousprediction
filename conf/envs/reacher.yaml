@@ -1,9 +1,15 @@
 env:
   name: Reacher3d-v2
+  label: reacher
   state_size: 21
   action_size: 5
   param_size: 15
   target_size: 5
 
+data_dir: l500_t100_n100.dat # l500_t50_v5.dat #
 num_trials: 100
 trial_timesteps: 500
+
+model:
+  training:
+    state_indices: [0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]
