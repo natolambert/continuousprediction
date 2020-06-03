@@ -39,3 +39,4 @@ plotting:
   plot_avg_eval: true
   plot_states: false
   plot_avg_mse: true
+  data_save_dir: false

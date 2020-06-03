@@ -130,7 +130,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action = Fal
 
     initials = np.array(initials)
     N, T, D = states.shape
-    if len(np.shape(actions))==2:
+    if len(np.shape(actions)) == 2:
         actions = np.expand_dims(actions, axis=2)
     # Iterate through each type of model for evaluation
     predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}

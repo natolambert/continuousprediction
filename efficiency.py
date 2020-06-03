@@ -117,15 +117,38 @@ def plot(cfg, train_data, test_data):
         dat = [data[i] for i in idx]
         gt = np.array([traj.states for traj in dat])
 
-        MSEs, predictions = test_models(dat, models, verbose=True)
-        # Both of these are dictionaries of arrays. The keys are tuples (model_type, (n, t)) and the entries are the
-        # evaluation values for the different evaluation methods
-        print('dot')
-        eval_data_dot = num_eval(gt, predictions, models, setting='dot', T_range=cfg.plotting.eval_t_range)
-        print('gaussian')
-        eval_data_gauss = num_eval(gt, predictions, models, setting='gaussian', T_range=cfg.plotting.eval_t_range, verbose=True)
-        print('mse')
-        eval_data_mse = num_eval(gt, predictions, models, setting='mse', T_range=cfg.plotting.eval_t_range)
+        if cfg.plotting.data_save_dir:
+            folder = os.path.join(hydra.utils.get_original_cwd(), 'eval_data', cfg.plotting.data_save_dir)
+            file = os.path.join(folder, 'save.dat')
+
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+            if not os.path.exists(file):
+                MSEs, predictions = test_models(dat, models, verbose=False, env=cfg.env.label)
+                print('dot')
+                eval_data_dot = num_eval(gt, predictions, models, setting='dot', T_range=cfg.plotting.eval_t_range)
+                print('gaussian')
+                eval_data_gauss = num_eval(gt, predictions, models, setting='gaussian',
+                                           T_range=cfg.plotting.eval_t_range,
+                                           verbose=True)
+                print('mse')
+                eval_data_mse = num_eval(gt, predictions, models, setting='mse', T_range=cfg.plotting.eval_t_range)
+                torch.save((eval_data_dot, eval_data_gauss, eval_data_mse), file)
+            else:
+                # MSEs, predictions = torch.load(file)
+                eval_data_dot, eval_data_gauss, eval_data_mse = torch.load(file)
+        else:
+            MSEs, predictions = test_models(dat, models, verbose=False, env=cfg.env.label)
+            # Both of these are dictionaries of arrays. The keys are tuples (model_type, (n, t)) and the entries are the
+            # evaluation values for the different evaluation methods
+            print('dot')
+            eval_data_dot = num_eval(gt, predictions, models, setting='dot', T_range=cfg.plotting.eval_t_range)
+            print('gaussian')
+            eval_data_gauss = num_eval(gt, predictions, models, setting='gaussian', T_range=cfg.plotting.eval_t_range,
+                                       verbose=True)
+            print('mse')
+            eval_data_mse = num_eval(gt, predictions, models, setting='mse', T_range=cfg.plotting.eval_t_range)
+
 
         # Initialize dictionaries that will hold the data in 2d arrays that are better suited to plotting heatmaps,
         # then move the data into those dictionaries
