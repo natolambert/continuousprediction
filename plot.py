@@ -414,17 +414,18 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
                   height=1000,
                   width=1500,
                   plot_bgcolor='white',
-                  legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
-                          'font': dict(family='Times New Roman', size=30, color='#000000')}
+                  legend=go.layout.Legend(x=.01, y=.98, bgcolor='rgba(50, 50, 50, .03)',
+                          font=dict(family='Times New Roman', size=30, color='#000000'))
                   )
 
     fig = {
         'data': traces_plot,
-        'layout': layout
+        # 'layout': layout
     }
 
     import plotly.io as pio
     fig = go.Figure(fig)
+    fig.update_layout(layout)
     if show: fig.show()
     fig.write_image(save_loc + ".pdf")
 
@@ -679,7 +680,7 @@ def plot_evaluations_3d(data, x, y, ylabel=None, xlabel=None, zlabel=None, title
     # if log_scale:
     #     data = {key: np.log(data[key]) for key in data}
 
-    cmap = 'cool'
+    cmap = 'magma'
 
     images = []
     dats = []
@@ -691,10 +692,15 @@ def plot_evaluations_3d(data, x, y, ylabel=None, xlabel=None, zlabel=None, title
         dat = np.nan_to_num(dat)
         im = axs[i].imshow(data[key], cmap=cmap, origin='lower')
 
-        axs[i].set_xticks(np.arange(len(x)))
-        axs[i].set_yticks(np.arange(len(y)))
-        axs[i].set_xticklabels(x)
-        axs[i].set_yticklabels(y)
+        ind_x = np.arange(1, len(x), 2) if len(x) > 10 else np.arange(len(x))
+        ind_y = np.arange(1, len(y), 2) if len(y) > 10 else np.arange(len(y))
+        ticks_x = np.array(x)[ind_x]
+        ticks_y = np.array(y)[ind_y]
+
+        axs[i].set_xticks(ind_x)
+        axs[i].set_yticks(ind_y)
+        axs[i].set_xticklabels(ticks_x)
+        axs[i].set_yticklabels(ticks_y)
 
         images.append(im)
         dats.append(dat)

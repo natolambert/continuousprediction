@@ -297,10 +297,10 @@ def evaluate(cfg):
         idx = np.random.choice(np.arange(len(data)), size=num, replace=False)
         dat = [data[i] for i in idx]
 
-        for entry in dat:
-            entry.states = entry.states[1:cfg.plotting.t_range]
-            entry.rewards = entry.rewards[1:cfg.plotting.t_range]
-            entry.actions = entry.actions[1:cfg.plotting.t_range]
+        # for entry in dat:
+        #     entry.states = entry.states[1:cfg.plotting.t_range]
+        #     entry.rewards = entry.rewards[1:cfg.plotting.t_range]
+        #     entry.actions = entry.actions[1:cfg.plotting.t_range]
 
         MSEs, predictions = test_models(dat, models)
 

@@ -292,6 +292,8 @@ def log_hyperparams(cfg):
 @hydra.main(config_path='conf/train.yaml')
 def contpred(cfg):
 
+    print(cfg.pretty())
+
     train = cfg.mode == 'train'
 
     # Collect data
