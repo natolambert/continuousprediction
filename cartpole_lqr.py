@@ -129,13 +129,13 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
     if (cfg.PID_test):
         target = np.random.rand(5) * 2 - 1
 
-    s = 100
+    s = np.random.randint(0,100)
     for i in range(cfg.num_trials):
         log.info('Trial %d' % i)
         if (cfg.PID_test):
             env.seed(0)
         else:
-            env.seed(s)
+            env.seed(s+i)
         s0 = env.reset()
 
         m_c = env.masscart
@@ -233,7 +233,7 @@ def log_hyperparams(cfg):
 #             Main Functions              #
 ###########################################
 
-@hydra.main(config_path='conf/lqr.yaml')
+@hydra.main(config_path='conf/cartpole_lqr.yaml')
 def contpred(cfg):
     train = cfg.mode == 'train'
     # Collect data

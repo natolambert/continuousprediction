@@ -40,7 +40,7 @@ plotting:
   num_eval_test: 100
   compute_action: false
   legend: false
-  t_range: 500
+  t_range: 1000
   mse_y_max: 2 #5
   copies: 0
   all: false

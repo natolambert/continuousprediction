@@ -275,7 +275,7 @@ def log_hyperparams(cfg):
 #             Main Functions              #
 ###########################################
 
-@hydra.main(config_path='conf/train.yaml')
+@hydra.main(config_path='conf/reacher_pd.yaml')
 def contpred(cfg):
 
     train = cfg.mode == 'train'

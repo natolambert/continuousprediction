@@ -1,0 +1,28 @@
+defaults:
+  - models: t
+  - envs: cartpole
+
+mode: collect # train or collect
+#model_dir: l400_t100_v4.dat
+exper_dir: false # set to a name to save models within a subfolder in the models directory
+plot: false
+video: false
+PID_test: false
+#determines whether target is part of input data
+train_target: false
+control_params: true
+copies: false
+
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  job:
+    config:
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: ['random_seed']
+

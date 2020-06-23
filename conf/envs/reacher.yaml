@@ -6,9 +6,9 @@ env:
   param_size: 15
   target_size: 5
 
-data_dir: l500_t100_n100.dat # l500_t50_v5.dat #
+data_dir: l1000_t100_n100.dat # l500_t50_v5.dat #
 num_trials: 100
-trial_timesteps: 500
+trial_timesteps: 1000
 
 model:
   training:
