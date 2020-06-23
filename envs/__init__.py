@@ -15,3 +15,13 @@ register(
     # reward_threshold=-200,
 )
 
+
+register(
+    id='Crazyflie-v0',
+    entry_point='envs.crazyflie:CrazyFlieEnv',
+    # max_episode_steps=500,
+    # reward_threshold=-200,
+)
+
+
+
