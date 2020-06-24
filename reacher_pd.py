@@ -50,7 +50,8 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
     threshold: the probability of dropping a given data entry
     """
     data_in, data_out = [], []
-    for sequence in data:
+    for id, sequence in enumerate(data):
+        if id % 5 == 0: print(f"- processing seq {id}")
         states = sequence.states
         if t_range:
             states = states[:t_range]

@@ -1,10 +1,10 @@
 env:
   name: Crazyflie-v0
   label: crazyflie
-  state_size: 0
-  action_size: 0
-  param_size: 0
-  target_size: 0
+  state_size: 6
+  action_size: 4
+  param_size: 4
+  target_size: 2
 
 data_dir: todo.dat # l500_t50_v5.dat #
 num_trials: 100

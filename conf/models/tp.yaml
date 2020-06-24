@@ -1,12 +1,12 @@
 model:
-  str: tp
+  str: tp_1
   prob: true
   ensemble: false
   traj: true
   delta: false
   training:
-    hid_width: 250
-    hid_depth: 2
+    hid_width: 1500
+    hid_depth: 3
     E: 1
     # Note: these do nothing for non trajectory based models
     train_target: true
@@ -16,10 +16,10 @@ model:
     num_traj: 50
   optimizer:
     epochs: 30
-    batch: 32
+    batch: 256 #32
     name: Adam
     split: .8
-    lr: .0005
+    lr: .0008 # 5
     regularization: 0
     max_size: 100000
   preprocess:

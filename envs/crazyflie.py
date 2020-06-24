@@ -1,14 +1,12 @@
 import numpy as np
 import torch
-import torch.optim as optim
 import math
 import gym
 from gym import spaces, logger
 from gym.utils import seeding
-from .rigidbody import RigidEnv
 
 
-class CrazyflieEnv(gym.Env):
+class CrazyFlieEnv(gym.Env):
     """
     Description:
        A flying robot with 4 thrusters moves through space
@@ -39,8 +37,8 @@ class CrazyflieEnv(gym.Env):
 
     """
 
-    def __init__(self, dt=.0025, m=.035, L=.065, Ixx=2.3951e-5, Iyy=2.3951e-5, Izz=3.2347e-5):
-        super(CrazyflieRigidEnv, self).__init__(dt=dt)
+    def __init__(self, dt=.0025, m=.035, L=.065, Ixx=2.3951e-5, Iyy=2.3951e-5, Izz=3.2347e-5,x_noise=.01, u_noise=0):
+#         super(self).__init__()
 
         # Setup the parameters
         self.m = m
@@ -71,7 +69,7 @@ class CrazyflieEnv(gym.Env):
         self.x_noise = x_noise
 
         # simulate ten steps per return
-        self.repeat = 10
+        self.repeat = 1
         self.dt = self.dt/self.repeat
 
         # Setup the state indices
@@ -178,12 +176,6 @@ class CrazyflieEnv(gym.Env):
         self.steps_beyond_done = None
         return self.get_obs()
 
-    def get_reward(self, next_ob, action):
-        raise NotImplementedError("Subclass must implement this function")
-
-    def get_reward_torch(self, next_ob, action):
-        raise NotImplementedError("Subclass must implement this function")
-
     def get_done(self, state):
         # Done is pitch or roll > 35 deg
         max_a = np.deg2rad(45)
@@ -196,9 +188,6 @@ class CrazyflieEnv(gym.Env):
                                 [0., math.sin(x0[0]) / math.cos(x0[1]), math.cos(x0[0]) / math.cos(x0[1])]])
         return rotn_matrix.dot(pqr)
 
-    def pwm_thrust_torque(self, PWM):
-        raise NotImplementedError("Subclass must implement this function")
-
 
     def get_obs(self):
         return np.array(self.state[6:])
@@ -206,101 +195,28 @@ class CrazyflieEnv(gym.Env):
     def set_state(self, x):
         self.state = x
 
-    # def reset(self):
-    #     x0 = np.array([0, 0, 0])
-    #     v0 = self.np_random.uniform(low=-0.01, high=0.01, size=(3,))
-    #     # ypr0 = self.np_random.uniform(low=-0.25, high=0.25, size=(3,))
-    #     ypr0 = self.np_random.uniform(low=-10., high=10., size=(3,))
-    #     w0 = self.np_random.uniform(low=-0.01, high=0.01, size=(3,))
-    #
-    #     self.state = np.concatenate([x0, v0, ypr0, w0])
-    #     self.steps_beyond_done = None
-    #     return self.get_obs()
 
     def get_reward(self, next_ob, action):
         # Going to make the reward -c(x) where x is the attitude based cost
-        assert isinstance(next_ob, np.ndarray)
-        assert isinstance(action, np.ndarray)
-        assert next_ob.ndim in (1, 2)
+#         assert isinstance(next_ob, np.ndarray)
+#         assert isinstance(action, np.ndarray)
+#         assert next_ob.ndim in (1, 2)
+#             assert torch.is_tensor(next_ob)
+#         assert torch.is_tensor(action)
+#         assert next_ob.dim() in (1, 2)
+        if torch.is_tensor(state):
+            pitch = state[:, 0]
+            roll = state[:, 1]
+            rew = torch.cos(pitch) * torch.cos(roll)
 
-        was1d = next_ob.ndim == 1
-        if was1d:
-            next_ob = np.expand_dims(next_ob, 0)
-            action = np.expand_dims(action, 0)
-
-        assert next_ob.ndim == 2
-
-        if not self.inv_huber:
-            pitch = next_ob[:, 0]
-            roll = next_ob[:, 1]
-            # cost_pr = np.power(pitch, 2) + np.power(roll, 2)
-            # cost_rates = np.power(next_ob[:, 3], 2) + np.power(next_ob[:, 4], 2) + np.power(next_ob[:, 5], 2)
-            # lambda_omega = .0001
-            # cost = cost_pr + lambda_omega * cost_rates
-            flag1 = np.abs(pitch) < 5
-            flag2 = np.abs(roll) < 5
-            rew = int(flag1) + int(flag2)
-            return rew
         else:
-            pitch = np.divide(next_ob[:, 0], 180)
-            roll = np.divide(next_ob[:, 1], 180)
+            rew = math.cos(state[0]) * math.cos(state[1])
 
-            def invhuber(input):
-                input = np.abs(input)
-                if input.ndim == 1:
-                    if np.abs(input) > 5:
-                        return input ** 2
-                    else:
-                        return input
-                else:
-                    flag = np.abs(input) > 5
-                    sqr = np.power(input, 2)
-                    cost = input[np.logical_not(flag)] + sqr[flag]
-                    return cost
-
-            p = invhuber(pitch)
-            r = invhuber(roll)
-            cost = p + r
-        return -cost
-
-    def get_reward_torch(self, next_ob, action):
-        assert torch.is_tensor(next_ob)
-        assert torch.is_tensor(action)
-        assert next_ob.dim() in (1, 2)
-
-        was1d = len(next_ob.shape) == 1
-        if was1d:
-            next_ob = next_ob.unsqueeze(0)
-            action = action.unsqueeze(0)
-
-        if not self.inv_huber:
-            # cost_pr = next_ob[:, 0].pow(2) + next_ob[:, 1].pow(2)
-            # cost_rates = next_ob[:, 3].pow(2) + next_ob[:, 4].pow(2) + next_ob[:, 5].pow(2)
-            # lambda_omega = .0001
-            # cost = cost_pr + lambda_omega * cost_rates
-            flag1 = torch.abs(next_ob[:, 0]) < 5
-            flag2 = torch.abs(next_ob[:, 1]) < 5
-            rew = (flag1).double() + (flag2).double()
-            return rew
-        else:
-            def invhuber(input):
-                input = torch.abs(input)
-                if len(input) == 1:
-                    if torch.abs(input) > 5:
-                        return input.pow(2)
-                    else:
-                        return input
-                else:
-                    flag = torch.abs(input) > 5
-                    sqr = input.pow(2)
-                    cost = (~flag).double() * input + flag.double() * sqr
-                    return cost
-
-            p = invhuber(next_ob[:, 0])
-            r = invhuber(next_ob[:, 1])
-            cost = p + r
-
-        return -cost
+        # rotn_matrix = np.array([[1., math.sin(x0[0]) * math.tan(x0[1]), math.cos(x0[0]) * math.tan(x0[1])],
+        #                         [0., math.cos(x0[0]), -math.sin(x0[0])],
+        #                         [0., math.sin(x0[0]) / math.cos(x0[1]), math.cos(x0[0]) / math.cos(x0[1])]])
+        # return np.linalg.det(np.linalg.inv(rotn_matrix))
+        return rew
 
     def pwm_thrust_torque(self, PWM):
         # Takes in the a 4 dimensional PWM vector and returns a vector of
