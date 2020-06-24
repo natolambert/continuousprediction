@@ -94,28 +94,53 @@ class Net(nn.Module):
         input = dataset[0]
         output = dataset[1]
         if cfg.model.traj:
-            self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
-            self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
-            self.paramScaler = hydra.utils.instantiate(cfg.model.preprocess.param)
-            self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
+            #no control params (state + time index)
+            if np.shape(dataset[0])[1] == len(self.state_indices)+1:
+                self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
+                self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
+                self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
 
-            inputStates = input[:, :len(self.state_indices)]
-            inputIndex = input[:, len(self.state_indices)]
-            inputParams = input[:, len(self.state_indices) + 1:]
+                inputStates = input[:, :len(self.state_indices)]
+                inputIndex = input[:, len(self.state_indices)]
 
-            # reshape index for one feature length
-            inputIndex = inputIndex.reshape(-1, 1)
+                # reshape index for one feature length
+                inputIndex = inputIndex.reshape(-1, 1)
 
-            self.stateScaler.fit(inputStates)
-            self.indexScaler.fit(inputIndex)
-            self.paramScaler.fit(inputParams)
-            self.outputScaler.fit(output)
+                self.stateScaler.fit(inputStates)
+                self.indexScaler.fit(inputIndex)
 
-            normStates = self.stateScaler.transform(inputStates)
-            normIndex = self.indexScaler.transform(inputIndex)
-            normParams = self.paramScaler.transform(inputParams)
-            normOutput = self.outputScaler.transform(output)
-            normInput = np.hstack((normStates, normIndex, normParams))
+                self.outputScaler.fit(output)
+
+                normStates = self.stateScaler.transform(inputStates)
+                normIndex = self.indexScaler.transform(inputIndex)
+
+                normOutput = self.outputScaler.transform(output)
+                normInput = np.hstack((normStates, normIndex))
+
+            # control params
+            else:
+                self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
+                self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
+                self.paramScaler = hydra.utils.instantiate(cfg.model.preprocess.param)
+                self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
+
+                inputStates = input[:, :len(self.state_indices)]
+                inputIndex = input[:, len(self.state_indices)]
+                inputParams = input[:, len(self.state_indices) + 1:]
+
+                # reshape index for one feature length
+                inputIndex = inputIndex.reshape(-1, 1)
+
+                self.stateScaler.fit(inputStates)
+                self.indexScaler.fit(inputIndex)
+                self.paramScaler.fit(inputParams)
+                self.outputScaler.fit(output)
+
+                normStates = self.stateScaler.transform(inputStates)
+                normIndex = self.indexScaler.transform(inputIndex)
+                normParams = self.paramScaler.transform(inputParams)
+                normOutput = self.outputScaler.transform(output)
+                normInput = np.hstack((normStates, normIndex, normParams))
             return list(zip(normInput, normOutput))
         else:
             self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
@@ -280,7 +305,13 @@ class DynamicsModel(object):
         acctrain_l = []
 
         # The purpose of this line is to reform the dataset to use only the state indices requested
-        dataset = (np.hstack((dataset[0][:, self.state_indices],
+        if not self.train_target and not self.control_params:
+            dataset = (np.hstack((dataset[0][:, self.state_indices],
+                                  # dataset[0][:, (self.cfg.env.state_size - len(self.state_indices)):])),
+                                  dataset[0][:, [self.cfg.env.state_size]])),
+                       dataset[1][:, self.state_indices])
+        else:
+            dataset = (np.hstack((dataset[0][:, self.state_indices],
                               # dataset[0][:, (self.cfg.env.state_size - len(self.state_indices)):])),
                               dataset[0][:, self.cfg.env.state_size:])),
                    dataset[1][:, self.state_indices])

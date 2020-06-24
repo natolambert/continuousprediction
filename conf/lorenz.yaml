@@ -2,12 +2,8 @@ defaults:
   - models: t
   - envs: lorenz
 
-
 mode: train # train or collect
-data_dir: 25.dat
-#model_dir: 10.dat
-plot: false
-
+plot: true
 
 lorenz:
   sigma: 10
@@ -17,16 +13,15 @@ lorenz:
     u0: 0
     v0: 1
     w0: 1.05
-  tmax: 5
+  tmax: 10
   n: 1000
-  num_traj: 25
 
 plotting:
   models:
-  - d
+#  - d
   - p
-  - t
   - tp
+#  - tp
 #  - p
 #  - tp
 #  - de
@@ -42,7 +37,7 @@ plotting:
 #  - tp_0
 #  - tpe_0
   num_eval_train: 0
-  num_eval_test: 100
+  num_eval_test: 25
   t_range: 1000
   mse_y_max: 2 #5
   copies: 0
