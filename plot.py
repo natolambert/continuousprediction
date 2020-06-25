@@ -201,7 +201,7 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
     return err_traces, xs, ys
 
 
-def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_loc=None, show=True):
+def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot_avg=True, save_loc=None, show=True):
     """
     Plots the states given in predictions against the groundtruth. Predictions
     is a dictionary mapping model types to predictions
@@ -212,7 +212,8 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
     dx = np.shape(ground_truth)[1]
     import matplotlib
 
-    font = {'size': 18, 'family': 'serif', 'serif': ['Times']}
+    # font = {'size': 18, 'family': 'serif', 'serif': ['Times']}
+    font = {'size': 18, 'family': 'Times New Roman'}#, 'serif': ['Times']}
     matplotlib.rc('font', **font)
 
     if idx_plot is None:
@@ -263,10 +264,20 @@ def plot_states(ground_truth, predictions, idx_plot=None, plot_avg=True, save_lo
         for key in predictions:
             # print(key)
             pred = predictions[key][:, i]
+
+
             # chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
             chopped = [(x if abs(x) < 50 else float("nan")) for x in pred]
             plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
                      markevery=50)
+
+            if variances is not None:
+                err_every = 20
+                start = np.random.randint(10)
+                v = variances[key][:, i]
+                v = [(x if abs(x) < 10 else float("nan")) for x in v]
+                plt.errorbar(x=np.arange(len(chopped))[start+1::err_every], y=chopped[start+1::err_every],
+                             yerr=v[start::err_every], c=color_dict[key])
 
         plt.legend()
 
