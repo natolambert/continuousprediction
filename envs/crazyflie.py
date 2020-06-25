@@ -37,7 +37,7 @@ class CrazyFlieEnv(gym.Env):
 
     """
 
-    def __init__(self, dt=.0025, m=.035, L=.065, Ixx=2.3951e-5, Iyy=2.3951e-5, Izz=3.2347e-5,x_noise=.01, u_noise=0):
+    def __init__(self, dt=.001, m=.035, L=.065, Ixx=2.3951e-5, Iyy=2.3951e-5, Izz=3.2347e-5,x_noise=.01, u_noise=0):
 #         super(self).__init__()
 
         # Setup the parameters
@@ -204,13 +204,13 @@ class CrazyFlieEnv(gym.Env):
 #             assert torch.is_tensor(next_ob)
 #         assert torch.is_tensor(action)
 #         assert next_ob.dim() in (1, 2)
-        if torch.is_tensor(state):
-            pitch = state[:, 0]
-            roll = state[:, 1]
+        if torch.is_tensor(next_ob):
+            pitch = next_ob[:, 0]
+            roll = next_ob[:, 1]
             rew = torch.cos(pitch) * torch.cos(roll)
 
         else:
-            rew = math.cos(state[0]) * math.cos(state[1])
+            rew = math.cos(next_ob[0]) * math.cos(next_ob[1])
 
         # rotn_matrix = np.array([[1., math.sin(x0[0]) * math.tan(x0[1]), math.cos(x0[0]) * math.tan(x0[1])],
         #                         [0., math.cos(x0[0]), -math.sin(x0[0])],

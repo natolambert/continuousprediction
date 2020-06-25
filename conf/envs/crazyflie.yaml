@@ -7,8 +7,24 @@ env:
   target_size: 2
 
 data_dir: todo.dat # l500_t50_v5.dat #
-num_trials: 100
-trial_timesteps: 200
+num_trials: 10
+trial_timesteps: 1000
+
+pid:
+  params:
+    mode: INTEG
+    equil: [16383, 16383, 16383, 16383]
+    min_pwm: 0
+    max_pwm: 65535
+    int_max: 50000
+    dt: .02
+    min_values: [.1, .1, .1]
+    max_values: [50000, 1, 50000]
+    terminal_cost: 1
+    living_cost: .1
+    pitch_mult: [1, -1, -1, +1]
+    roll_mult: [-1, -1, +1, +1]
+    pry: [1, 0, 2]
 
 model:
   training:
