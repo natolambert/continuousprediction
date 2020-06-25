@@ -279,6 +279,8 @@ def log_hyperparams(cfg):
 @hydra.main(config_path='conf/reacher_pd.yaml')
 def contpred(cfg):
 
+    print(cfg.pretty())
+
     train = cfg.mode == 'train'
 
     # Collect data

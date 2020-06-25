@@ -20,7 +20,7 @@ To run the code use the following steps:
 5. From the `reacher3d` folder in the repo, copy the `reacher3d.py` file into `mujoco` and copy `reacher3d.xml` into `mujoco/assets`
 6. There will be another `__init__.py` file in the `mujoco` folder. Copy the line `from gym.envs.mujoco.reacher3d import Reacher3dEnv` into the bottom of that one -->
 
-Experiments:
+###Experiments:
 
 Example of how to run efficiency code to train some models and then test them:
 
