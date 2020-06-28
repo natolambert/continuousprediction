@@ -10,7 +10,72 @@ import torch.backends.cudnn as cudnn
 from collections import OrderedDict
 import hydra
 import math
+import GPy
 
+class GP(object):
+    def __init__(self, n_in, n_out, cfg, loss_fn, env = "Reacher", tf=nn.ReLU()):
+        self.name = 'GP'  # Default value
+        self.probabilistic = True  # Default value
+        # self.verbosity = parameters.get('verbosity', 3)
+        # self.indent = parameters.get('indent', 0)
+        self.n_inputs = n_in
+        self.n_outputs = n_out
+        self.kernel = 'Matern52'
+        self.ARD = True
+        self.fixNoise = None
+
+        self.normalizeOutput = False
+        self.t_output = None  # Store the output transformation
+
+        self._kernel = []
+        self._model = []
+        self._logs = []
+        self._startTime = None
+
+    def optimize(self,  dataset, cfg):
+        # logging.info('Training GP')
+        # self._startTime = timer()
+
+        # if self.normalizeOutput is True:
+        #     self.t_output = train_set.normalize_output()
+        # self.n_inputs = train_set.get_dim_input()
+        # self.n_outputs = train_set.get_dim_output()
+        # logging.info('Dataset %d -> %d with %d data' % (self.n_inputs, self.n_outputs, train_set.get_n_data()))
+
+        for i in range(self.n_outputs):
+            # logging.info('Training covariate %d (of %d)' % (i+1, self.n_outputs))
+            print('Training covariate %d (of %d)' % (i+1, self.n_outputs))
+            if self.kernel == 'Matern52':
+                self._kernel.append(GPy.kern.Matern52(input_dim=self.n_inputs, ARD=self.ARD))
+            if self.kernel == 'Linear':
+                self._kernel.append(GPy.kern.Linear(input_dim=self.n_inputs, ARD=self.ARD))
+
+            # TODO check this line
+            self._model.append(GPy.models.GPRegression(dataset[0].T, dataset[1][:,i].T, kernel=self._kernel[i]))
+            if self.fixNoise is not None:
+                self._model[i].likelihood.variance.fix(self.fixNoise)
+            self._model[i].optimize_restarts(num_restarts=10, verbose=False)  # , parallel=True, num_processes=5
+
+        #
+        # end = timer()
+        # logging.info('Training completed in %f[s]' % (end - self._startTime))
+
+    def forward(self, dataset):
+        n_data = dataset.get_n_data()
+        mean = np.zeros((n_data, self.n_outputs))
+        var = np.zeros((n_data, self.n_outputs))
+        for i in range(self.n_outputs):
+            t_mean, t_var = self._model[i].predict(np.array(dataset.get_input().T))
+            mean[:, i] = t_mean.T
+            var[:, i] = t_var.T
+        if np.any(var < 0):
+            # logging.warning('Variance was negative! Now it is 0, but you should be careful!')
+            var[var < 0] = 0  # Make sure that variance is always positive
+        return np.concatenate((mean, var))
+
+
+    def get_hyperparameters(self):
+        return self._model._param_array_
 
 class Net(nn.Module):
     """

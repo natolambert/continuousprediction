@@ -1,14 +1,14 @@
 model:
-  str: de
+  str: gp
   prob: false
-  ensemble: true
+  ensemble: false
   traj: false
   delta: true
-  gp: false
+  gp: true
   training:
     hid_width: 250
     hid_depth: 2
-    E: 5
+    E: 1
     # Note: these do nothing for non trajectory based models
     train_target: true
     control_params: true
@@ -19,8 +19,8 @@ model:
     batch: 32
     name: Adam
     split: .8
-    lr: .00003
-    regularization: 0
+    lr: .0001
+    regularization: 0.003
     max_size: 0
   preprocess:
     state:
@@ -28,14 +28,14 @@ model:
       #Choose between standard scaler and min max scaler
       #class: sklearn.preprocessing.MinMaxScaler
         #params:
-          #feature_range: [-1.,1.]
+          #feature_range: [-1.,1.]"""
     action:
       class: sklearn.preprocessing.StandardScaler
     output:
       class: sklearn.preprocessing.StandardScaler
   plotting:
-    label: One Step Deterministic Ensemble
-    color: '#3660b5'
-    color_plotly: rgb(20,20,128)
-    marker: o
-    marker_plotly: diamond-open-dot
+    label: Gaussian Process
+    color: '#0033ff' #todo
+    color_plotly: rgb(0,0,200) #todo
+    marker: o #todo
+    marker_plotly: circle-open-dot #todo

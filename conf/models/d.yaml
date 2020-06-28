@@ -4,6 +4,7 @@ model:
   ensemble: false
   traj: false
   delta: true
+  gp: false
   training:
     hid_width: 250
     hid_depth: 2
@@ -12,7 +13,6 @@ model:
     train_target: true
     control_params: true
     filter_rate: 0.0
-    t_range: 500
     num_traj: 50
   optimizer:
     epochs: 25

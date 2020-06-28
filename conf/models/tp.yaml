@@ -4,19 +4,19 @@ model:
   ensemble: false
   traj: true
   delta: false
+  gp: false
   training:
-    hid_width: 1500
+    hid_width: 500
     hid_depth: 3
     E: 1
     # Note: these do nothing for non trajectory based models
     train_target: true
     control_params: true
     filter_rate: 0.95
-    t_range: 500
     num_traj: 50
   optimizer:
-    epochs: 30
-    batch: 256 #32
+    epochs: 22
+    batch: 128 #32
     name: Adam
     split: .8
     lr: .0008 # 5
@@ -24,7 +24,10 @@ model:
     max_size: 100000
   preprocess:
     state:
-      class: sklearn.preprocessing.StandardScaler
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
+        #      class: sklearn.preprocessing.StandardScaler
         #Choose between standard scaler and min max scaler
         #class: sklearn.preprocessing.MinMaxScaler
       #params:
