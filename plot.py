@@ -86,6 +86,52 @@ def get_helper(dict1, dict2, key, default):
 ############
 # Plotters #
 ############
+def plot_cf(states, actions):
+    ar = np.stack(states)
+    l = np.shape(ar)[0]
+    xs = np.arange(l)
+
+    r = np.rad2deg(ar[:, 3])
+    p = np.rad2deg(ar[:, 4])
+    y = ar[:, 5]
+
+    actions = np.stack(actions)
+
+    fig = plotly.subplots.make_subplots(rows=2, cols=1,
+                                        subplot_titles=("Position", "Action - Torques"),
+                                        vertical_spacing=.15)  # go.Figure()
+    fig.add_trace(go.Scatter(x=xs, y=r, name='roll',
+                             line=dict(color='firebrick', width=4)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=xs, y=p, name='pitch',
+                             line=dict(color='royalblue', width=4)), row=1, col=1)
+    # fig.add_trace(go.Scatter(x=xs, y=y, name='yaw',
+    #                          line=dict(color='green', width=4)), row=1, col=1)
+
+    # fig.add_trace(go.Scatter(x=xs, y=actions[:, 0], name='M1',
+    #                          line=dict(color='firebrick', width=4)), row=2, col=1)
+    # fig.add_trace(go.Scatter(x=xs, y=actions[:, 1], name='M2',
+    #                          line=dict(color='royalblue', width=4)), row=2, col=1)
+    # fig.add_trace(go.Scatter(x=xs, y=actions[:, 2], name='M3',
+    #                          line=dict(color='green', width=4)), row=2, col=1)
+    # fig.add_trace(go.Scatter(x=xs, y=actions[:, 3], name='M4',
+    #                          line=dict(color='orange', width=4)), row=2, col=1)
+    # fig.add_trace(go.Scatter(x=xs, y=actions[:, 4], name='M5',
+    #                          line=dict(color='black', width=4)), row=2, col=1)
+
+    fig.update_layout(title='Position of Crazyflie Task',
+                      xaxis_title='Timestep',
+                      yaxis_title='Angle (Degrees)',
+                      plot_bgcolor='white',
+                      xaxis=dict(
+                          showline=True,
+                          showgrid=False,
+                          showticklabels=True, ),
+                      yaxis=dict(
+                          showline=True,
+                          showgrid=False,
+                          showticklabels=True, ),
+                      )
+    fig.show()
 
 
 def plot_reacher(states, actions):
@@ -239,7 +285,8 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
             for i in idx_plot:
                 p = np.hstack((p, pred[:, i:i + 1]))
             p_avg = np.average(p[:, 1:], axis=1)
-            chopped = [(x if abs(x) < 50 else float("nan")) for x in p_avg]
+            # chopped = [(x if abs(x) < 50 else float("nan")) for x in p_avg]
+            chopped = p_avg
             plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
                      markevery=50)
         # plt.ylim(-.5, 1.5)
@@ -254,35 +301,45 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
     for i in idx_plot:
         fig, ax = plt.subplots()
         gt = ground_truth[:, i]
-        plt.title("Predictions on one dimension")
+        # plt.title("Predictions on one dimension")
         plt.xlabel("Timestep")
         plt.ylabel("State Value")
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
 
-        plt.plot(gt, c='k', label='Groundtruth')
+        plt.plot(gt, c='k', label='gt')
         for key in predictions:
             # print(key)
             pred = predictions[key][:, i]
 
 
             # chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-            chopped = [(x if abs(x) < 50 else float("nan")) for x in pred]
-            plt.plot(chopped, c=color_dict[key], label=label_dict[key], markersize=10, marker=marker_dict[key],
+            chopped = [(x if abs(x) < 50 else np.nan) for x in pred]
+            # chopped = pred
+            plt.plot(chopped, c=color_dict[key], label=key, #label_dict[key],
+                     markersize=10, marker=marker_dict[key],
                      markevery=50)
-
+            chopped[0] = chopped[0].item()
             if variances is not None:
                 err_every = 20
                 start = np.random.randint(10)
-                v = variances[key][:, i]
-                v = [(x if abs(x) < 10 else float("nan")) for x in v]
-                plt.errorbar(x=np.arange(len(chopped))[start+1::err_every], y=chopped[start+1::err_every],
-                             yerr=v[start::err_every], c=color_dict[key])
+                chopped = np.array(chopped)
+                v = np.sqrt(np.array(variances[key][:, i]))
+                v = np.array([(x if abs(x) < 10 else 10) for x in v])
+                # v = np.array([(x if abs(x) < 10 else np.nan) for x in v])
+                # plt.errorbar(x=np.arange(len(chopped))[start+1::err_every], y=chopped[start+1::err_every],
+                #              yerr=v[start::err_every], c=color_dict[key])
+                plt.fill_between(np.arange(len(chopped))[1:], chopped[1:] + v, chopped[1:] - v,
+                                 facecolor=color_dict[key], alpha=0.5)
 
-        plt.legend()
+        plt.legend(ncol=2, fontsize=16)
+        # if i > 9:
+        #     plt.ylim(-3,3)
+        # else:
+        #     plt.ylim(-1.5,1.5)
 
         if save_loc:
-            plt.savefig(save_loc + "-state%d.pdf" % i)
+            plt.savefig(save_loc + "-state%d.pdf" % i, bbox_inches='tight')
         if show:
             plt.show()
         else:
@@ -424,7 +481,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         # temp
         # if n > 1:
         #     continue
-        tr, xs, ys = generate_errorbar_traces(ar, xs=[np.arange(1,np.shape(ar)[1]+1).tolist()], percentiles='66+95', color=color_dict_plotly[k],
+        tr, xs, ys = generate_errorbar_traces(ar, xs=[np.arange(1,np.shape(ar)[1]+1).tolist()], percentiles='66+90', color=color_dict_plotly[k],
                                               name=label_dict[k])
         w_marker = []
         # for t in tr:
@@ -433,9 +490,10 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         [traces_plot.append(t) for t in m]
 
     layout = dict(#title=title if title else f"Average Error over Run",
-                  xaxis={'title': 'Prediction Step'},
-                  yaxis={'title': 'Mean Squared Error', 'range': [np.log10(y_min), np.log10(y_max)]},
+                  xaxis={'title': 'Prediction Step'}, #2e-9, 5
+                  yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(5)]},# [np.log10(y_min), np.log10(y_max)]},
                   yaxis_type="log",
+                  xaxis_showgrid=False, yaxis_showgrid=False,
                   font=dict(family='Times New Roman', size=50, color='#000000'),
                   height=800,
                   width=1500,

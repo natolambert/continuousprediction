@@ -53,8 +53,10 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
     for id, sequence in enumerate(data):
         if id % 5 == 0: print(f"- processing seq {id}")
         states = sequence.states
-        if t_range:
+        if t_range>0:
             states = states[:t_range]
+        if id > 99:
+            continue
         P = sequence.P
         D = sequence.D
         target = sequence.target
@@ -98,7 +100,7 @@ def create_dataset_step(data, delta=True, t_range=0):
     data_out = []
     for sequence in data:
         states = sequence.states
-        if t_range:
+        if t_range > 0:
             states = states[:t_range]
         for i in range(states.shape[0] - 1):
             if 'actions' in sequence.keys():

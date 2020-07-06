@@ -42,6 +42,12 @@ class GP(object):
         # self.n_outputs = train_set.get_dim_output()
         # logging.info('Dataset %d -> %d with %d data' % (self.n_inputs, self.n_outputs, train_set.get_n_data()))
 
+        if 0 < cfg.model.optimizer.max_size < len(dataset[0]):
+            use = np.random.randint(0,len(dataset[0]), cfg.model.optimizer.max_size)
+            d = []
+            d.append(dataset[0][use])
+            d.append(dataset[1][use])
+
         for i in range(self.n_outputs):
             # logging.info('Training covariate %d (of %d)' % (i+1, self.n_outputs))
             print('Training covariate %d (of %d)' % (i+1, self.n_outputs))
@@ -51,21 +57,22 @@ class GP(object):
                 self._kernel.append(GPy.kern.Linear(input_dim=self.n_inputs, ARD=self.ARD))
 
             # TODO check this line
-            self._model.append(GPy.models.GPRegression(dataset[0].T, dataset[1][:,i].T, kernel=self._kernel[i]))
+            self._model.append(GPy.models.GPRegression(d[0], d[1][:,1].reshape(-1,1), kernel=self._kernel[i]))
             if self.fixNoise is not None:
                 self._model[i].likelihood.variance.fix(self.fixNoise)
             self._model[i].optimize_restarts(num_restarts=10, verbose=False)  # , parallel=True, num_processes=5
 
+        return 0,0
         #
         # end = timer()
         # logging.info('Training completed in %f[s]' % (end - self._startTime))
 
-    def forward(self, dataset):
-        n_data = dataset.get_n_data()
+    def forward(self, x):
+        n_data =np.shape(x)[0]
         mean = np.zeros((n_data, self.n_outputs))
         var = np.zeros((n_data, self.n_outputs))
         for i in range(self.n_outputs):
-            t_mean, t_var = self._model[i].predict(np.array(dataset.get_input().T))
+            t_mean, t_var = self._model[i].predict(np.array(x))
             mean[:, i] = t_mean.T
             var[:, i] = t_var.T
         if np.any(var < 0):
@@ -338,7 +345,10 @@ class DynamicsModel(object):
         else:
             self.loss_fn = nn.MSELoss()
         if env == "Reacher":
-            self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
+            if cfg.model.gp:
+                self.nets = [GP(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
+            else:
+                self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
         elif env == "Lorenz":
             self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="Lorenz") for i in range(self.E)]
 

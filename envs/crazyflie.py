@@ -37,7 +37,7 @@ class CrazyFlieEnv(gym.Env):
 
     """
 
-    def __init__(self, dt=.001, m=.035, L=.065, Ixx=2.3951e-5, Iyy=2.3951e-5, Izz=3.2347e-5,x_noise=.01, u_noise=0):
+    def __init__(self, dt=.05, m=.035, L=.065, Ixx=2.3951e-5, Iyy=2.3951e-5, Izz=3.2347e-5,x_noise=.0001, u_noise=0):
 #         super(self).__init__()
 
         # Setup the parameters
@@ -52,7 +52,6 @@ class CrazyFlieEnv(gym.Env):
 
         # Define equilibrium input for quadrotor around hover
         # This is not the case for PWM inputs
-        self.u_e = np.array([m * self.g, 0, 0, 0])
         # Four PWM inputs around hover, extracted from mean of clean_hover_data.csv
         # self.u_e = np.array([42646, 40844, 47351, 40116])
 
@@ -69,7 +68,7 @@ class CrazyFlieEnv(gym.Env):
         self.x_noise = x_noise
 
         # simulate ten steps per return
-        self.repeat = 1
+        self.repeat = 10
         self.dt = self.dt/self.repeat
 
         # Setup the state indices
@@ -153,13 +152,10 @@ class CrazyFlieEnv(gym.Env):
         self.state += x_noise_vec
 
         obs = self.get_obs()
-        reward = self.get_reward(obs, u)
-        done = self.get_done(obs)
+        reward = self.get_reward(obs[3:], u)
+        done = self.get_done(obs[3:])
 
         return obs, reward, done, {}
-
-    def get_obs(self):
-        raise NotImplementedError("Subclass must implement this function")
 
     def set_state(self, x):
         self.state = x
@@ -168,7 +164,7 @@ class CrazyFlieEnv(gym.Env):
         x0 = np.array([0, 0, 0])
         v0 = self.np_random.uniform(low=-0.01, high=0.01, size=(3,))
         # ypr0 = self.np_random.uniform(low=-0.0, high=0.0, size=(3,))
-        ypr0 = self.np_random.uniform(low=-np.pi/16., high=np.pi/16., size=(3,))
+        ypr0 = self.np_random.uniform(low=-np.pi/8., high=np.pi/8., size=(3,))
         ypr0[-1] = 0 # 0 out yaw
         w0 = self.np_random.uniform(low=-0.01, high=0.01, size=(3,))
 
@@ -190,11 +186,11 @@ class CrazyFlieEnv(gym.Env):
 
 
     def get_obs(self):
-        return np.array(self.state[6:])
+#         return np.array(self.state[6:9])
+        return np.array(self.state[3:])
 
     def set_state(self, x):
         self.state = x
-
 
     def get_reward(self, next_ob, action):
         # Going to make the reward -c(x) where x is the attitude based cost

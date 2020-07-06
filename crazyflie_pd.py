@@ -2,10 +2,10 @@ import sys
 import warnings
 import os
 
-import matplotlib.cbook
-
-warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
-warnings.filterwarnings("ignore", category=UserWarning)
+# import matplotlib.cbook
+#
+# warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
+# warnings.filterwarnings("ignore", category=UserWarning)
 
 import numpy as np
 from dotmap import DotMap
@@ -30,7 +30,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from policy import PID
-from plot import plot_reacher, plot_loss, setup_plotting
+from plot import plot_cf, plot_loss, setup_plotting
 from dynamics_model import DynamicsModel
 from reacher_pd import run_controller, create_dataset_step, create_dataset_traj
 
@@ -174,11 +174,12 @@ def run_controller(env, horizon, policy, video = False):
     logs.times = []
 
     observation = env.reset()
+    print(f"Initial RPY {observation[3:6]}")
     for i in range(horizon):
         if(video):
             env.render()
         state = observation
-        action = policy.get_action(state)
+        action = policy.get_action(state[3:6])
         # actions = equil+
 
         # print(action)
@@ -186,6 +187,9 @@ def run_controller(env, horizon, policy, video = False):
         observation, reward, done, info = env.step(action)
 
         if done:
+            logs.actions = np.array(logs.actions)
+            logs.rewards = np.array(logs.rewards)
+            logs.states = np.array(logs.states)
             return logs
 
         # Log
@@ -225,66 +229,57 @@ def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
     s = np.random.randint(0, 100)
     for i in range(cfg.num_trials):
         log.info('Trial %d' % i)
-        if (cfg.PID_test):
-            env.seed(0)
-        else:
-            env.seed(s + i)
-        s0 = env.reset()
+        env.seed(s + i)
 
-        P = np.random.rand(2) * 100
+        P = 100+np.random.rand(2) * 10000
         I = np.zeros(2)
-        D = np.random.rand(2)*10
+        D = 10+np.random.rand(2) * 50000
 
         # Samples target uniformely from [-1, 1]
         if (not cfg.PID_test):
             # target = np.random.rand(5) * 2 - 1
-            target = np.array([0,0])
+            target = np.array([0, 0])
 
-        parameters = [[P[0],0,D[0]],
-                      [P[1],0,D[1]]]
+        parameters = [[P[0], 0, D[0]],
+                      [P[1], 0, D[1]]]
         policy = PidPolicy(parameters, cfg.pid)
+
+        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
+        if plot: plot_cf(dotmap.states, dotmap.actions)
+        flag = (abs(np.rad2deg(dotmap.states[-1][3])) < 5) and (abs(np.rad2deg(dotmap.states[-1][4])) < 5)
+        # print(flag)
+        while len(dotmap.states) < cfg.trial_timesteps or not flag:
+            print(f"- Repeat simulation")
+            env.seed(s)
+            s0 = env.reset()
+            P = 100+np.random.rand(2) * 10000
+            I = np.zeros(2)
+            D = 10+np.random.rand(2) * 50000
+
+            # Samples target uniformely from [-1, 1]
+            if (not cfg.PID_test):
+                # target = np.random.rand(5) * 2 - 1
+                target = np.array([0, 0])
+
+            parameters = [[P[0], 0, D[0]],
+                          [P[1], 0, D[1]]]
+            policy = PidPolicy(parameters, cfg.pid)
+
+            dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
+            if plot: plot_cf(dotmap.states, dotmap.actions)
+            flag = (abs(np.rad2deg(dotmap.states[-1][3])) < 5) and (abs(np.rad2deg(dotmap.states[-1][4])) < 5)
+            # print(flag)
+            s += 1
+
+
+
         # policy = PID(dX=2, dU=2, P=P, I=I, D=D, target=target)
         # print(type(env))
-        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
-
         dotmap.target = target
         dotmap.P = P
         dotmap.I = I
         dotmap.D = D
         logs.append(dotmap)
-
-    if plot:
-        import plotly.graph_objects as go
-
-        fig = go.Figure()
-
-        fig.update_layout(
-            width=1500,
-            height=800,
-            autosize=False,
-            scene=dict(
-                camera=dict(
-                    up=dict(
-                        x=0,
-                        y=0,
-                        z=1
-                    ),
-                    eye=dict(
-                        x=0,
-                        y=1.0707,
-                        z=1,
-                    )
-                ),
-                aspectratio=dict(x=1, y=1, z=0.7),
-                aspectmode='manual'
-            ),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
-        for d in logs:
-            states = d.states
-            actions = d.actions
-            plot_reacher(states, actions)
 
     return logs
 
@@ -317,8 +312,8 @@ def contpred(cfg):
     if not train:
         log.info(f"Collecting new trials")
 
-        exper_data = collect_data(cfg)
-        test_data = collect_data(cfg)
+        exper_data = collect_data(cfg, plot=cfg.plot)
+        test_data = collect_data(cfg, plot=cfg.plot)
 
         log.info("Saving new default data")
         torch.save((exper_data, test_data),
@@ -345,19 +340,13 @@ def contpred(cfg):
 
         for i in it:
             print('Training model %d' % i)
-
-            if cfg.model.training.num_traj:
-                train_data = exper_data[:cfg.model.training.num_traj]
-            else:
-                train_data = exper_data
-
             if traj:
                 dataset = create_dataset_traj(exper_data, control_params=cfg.model.training.control_params,
                                               train_target=cfg.model.training.train_target,
                                               threshold=cfg.model.training.filter_rate,
                                               t_range=cfg.model.training.t_range)
             else:
-                dataset = create_dataset_step(train_data, delta=delta)
+                dataset = create_dataset_step(exper_data, delta=delta, t_range=cfg.model.training.t_range)
 
             model = DynamicsModel(cfg)
             train_logs, test_logs = model.train(dataset, cfg)
@@ -373,7 +362,10 @@ def contpred(cfg):
                     os.mkdir(f)
             copystr = "_%d" % i if cfg.copies else ""
             f = f + cfg.model.str + copystr + '.dat'
-            torch.save(model, f)
+            if cfg.model.gp:
+                model._save_model(f)
+            else:
+                torch.save(model, f)
 
 if __name__ == '__main__':
     sys.exit(contpred())

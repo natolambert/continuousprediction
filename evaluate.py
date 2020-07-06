@@ -53,7 +53,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
     states, actions, initials = [], [], []
 
-    if env == 'reacher':
+    if env == 'reacher' or env == 'crazyflie':
         P, D, target = [], [], []
 
         # Compile the various trajectories into arrays
@@ -116,6 +116,14 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                 PID(dX=5, dU=5, P=P_param[i, :], I=np.array([0, 0, 0, 0, 0]), D=D_param[i, :], target=target[i, :]) for
                 i in range(len(test_data))]
 
+        elif env == 'crazyflie':
+            from crazyflie_pd import PidPolicy
+            parameters = [[P[0], 0, D[0]],
+                          [P[1], 0, D[1]]]
+            policy = PidPolicy(parameters, cfg.pid)
+            policies = [
+                PID(dX=5, dU=5, P=P_param[i, :], I=np.array([0, 0, 0, 0, 0]), D=D_param[i, :], target=target[i, :]) for
+                i in range(len(test_data))]
         elif env == 'cartpole':
 
             # These values are replaced an don't matter
@@ -171,7 +179,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         for i in range(1, T):
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]
-                if env == 'reacher' or env == 'lorenz':
+                if env == 'reacher' or env == 'lorenz' or env=='crazyflie':
                     if model.control_params:
                         dat.extend([P_param, D_param])
                     if model.train_target:
@@ -212,7 +220,21 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
     variances = {key: np.stack(variances[key]).transpose([1,0,2]) for key in variances}
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
+
     MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
+
+    MSEscaled = {}
+    for key in predictions:
+        # scaling of error
+        if env == 'crazyflie':
+            # ind_dict[key] = [0,1,3,4,5]
+            ind_dict[key] = [0,1,3, 4]
+        min_states = np.min(states[:, :, ind_dict[key]], axis=(0, 1))
+        max_states = np.ptp(states[:, :, ind_dict[key]], axis=(0, 1))
+        scaled_states = (states[:, :, ind_dict[key]] - min_states) / max_states
+        scaled_pred = (predictions[key][:,:,ind_dict[key]] - min_states) / max_states
+        MSEscaled[key] = np.square(scaled_states - scaled_pred).mean(axis=2)[:, 1:]
+
 
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
@@ -222,9 +244,9 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
     # outcomes = {'mse': MSEs, 'predictions': predictions}
     if ret_var:
-        return MSEs, predictions, variances
+        return MSEscaled, predictions, variances
     else:
-        return MSEs, predictions
+        return MSEscaled, predictions
 
 
 def test_traj_ensemble(ensemble, test_data):
@@ -380,6 +402,9 @@ def evaluate(cfg):
         (train_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + 'raw' + cfg.data_dir)
 
+        if cfg.plotting.train_set:
+            test_data = train_data
+
         # Load models
         log.info("Loading models")
         if cfg.plotting.copies:
@@ -406,7 +431,11 @@ def evaluate(cfg):
         models = {}
         f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/'
         for model_type in model_types:
-            models[model_type] = torch.load(f + model_type + ".dat")
+            if 'gp' in model_type:
+                from GPy.core.model import load_model
+                models[model_type] = load_model(f + model_type + ".dat")
+            else:
+                models[model_type] = torch.load(f + model_type + ".dat")
 
     # Plot
     def plot_helper(data, num, graph_file):
@@ -454,6 +483,12 @@ def evaluate(cfg):
                 elif name == 'cartpole':
                     gt = gt[:, [0, 1, 2, 3]]
                     idx = [0, 1, 2, 3]
+                elif name == 'crazyflie':
+                    # gt = gt[:,[0,1,2,3,4,5,6,7,8,9,10,11]]
+                    # idx = [0,1,2,3,4,5,6,7,8,9,10,11]
+
+                    gt = gt[:, [0, 1, 2, 3, 4, 5, 6, 7, 8]]
+                    idx = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
                 if cfg.plotting.states:
                     # if
@@ -473,10 +508,11 @@ def evaluate(cfg):
             deltas_gt, deltas_pred = find_deltas(dat, models)
             plot_sorted(deltas_gt, deltas_pred, idx_plot=[0, 1, 2, 3], save_loc='%s/sorted' % graph_file, show=False)
 
-        if name == 'reacher':
+        if name == 'reacher'or name =='crazyflie':
             y_min = .05
         elif name == 'cartpole':
             y_min = .0002
+
 
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
                      show=True, y_min=y_min, y_max=cfg.plotting.mse_y_max, legend=cfg.plotting.legend)
