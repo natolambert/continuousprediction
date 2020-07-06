@@ -1,5 +1,5 @@
 model:
-  str: tp_1
+  str: tp
   prob: true
   ensemble: false
   traj: true
@@ -22,26 +22,26 @@ model:
     lr: .0008 # 5
     regularization: 0
     max_size: 100000
-  preprocess:
-    state:
-      class: sklearn.preprocessing.MinMaxScaler
-      params:
-        feature_range: [-1.,1.]
-        #      class: sklearn.preprocessing.StandardScaler
-        #Choose between standard scaler and min max scaler
-        #class: sklearn.preprocessing.MinMaxScaler
-      #params:
-      #feature_range: [-1.,1.]
-    index:
-      class: sklearn.preprocessing.MinMaxScaler
-      params:
-        feature_range: [-1.,1.]
-    param:
-      class: sklearn.preprocessing.MinMaxScaler
-      params:
-        feature_range: [-1.,1.]
-    output:
-      class: sklearn.preprocessing.StandardScaler
+#  preprocess:
+#    state:
+#      class: sklearn.preprocessing.MinMaxScaler
+#      params:
+#        feature_range: [-1.,1.]
+#        #      class: sklearn.preprocessing.StandardScaler
+#        #Choose between standard scaler and min max scaler
+#        #class: sklearn.preprocessing.MinMaxScaler
+#      #params:
+#      #feature_range: [-1.,1.]
+#    index:
+#      class: sklearn.preprocessing.MinMaxScaler
+#      params:
+#        feature_range: [-1.,1.]
+#    param:
+#      class: sklearn.preprocessing.MinMaxScaler
+#      params:
+#        feature_range: [-1.,1.]
+#    output:
+#      class: sklearn.preprocessing.StandardScaler
   plotting:
     label: Trajectory Based Probabilistic
     color: '#dcdc00'

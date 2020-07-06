@@ -23,17 +23,17 @@ model:
     lr: .00005
     regularization: 0.001
     max_size: 0
-  preprocess:
-    state:
-      class: sklearn.preprocessing.StandardScaler
-      #Choose between standard scaler and min max scaler
-      #class: sklearn.preprocessing.MinMaxScaler
-        #params:
-          #feature_range: [-1.,1.]
-    action:
-      class: sklearn.preprocessing.StandardScaler
-    output:
-      class: sklearn.preprocessing.StandardScaler
+#  preprocess:
+#    state:
+#      class: sklearn.preprocessing.StandardScaler
+#      #Choose between standard scaler and min max scaler
+#      #class: sklearn.preprocessing.MinMaxScaler
+#        #params:
+#          #feature_range: [-1.,1.]
+#    action:
+#      class: sklearn.preprocessing.StandardScaler
+#    output:
+#      class: sklearn.preprocessing.StandardScaler
   plotting:
     label: One Step Probabilistic Ensemble
     color: '#52b536'

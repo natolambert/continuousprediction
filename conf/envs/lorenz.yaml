@@ -12,5 +12,23 @@ data_dir: l500_n25_v1.dat
 
 model:
   training:
+    t_range: 1000
     state_indices_lorenz: [0,1,2]
     state_indices: [0,1,2]
+  preprocess:
+    state:
+      class: sklearn.preprocessing.StandardScaler
+    action:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
+    output:
+      class: sklearn.preprocessing.StandardScaler
+    index:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
+    param:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]

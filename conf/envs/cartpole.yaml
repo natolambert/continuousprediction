@@ -6,10 +6,28 @@ env:
   param_size: 4
   target_size: 0
 
-data_dir: l1000_t100_v1.dat # l500_t50_v5.dat #
-num_trials: 100
-trial_timesteps: 1000
+data_dir: l400_t1250_v1.dat # l500_t50_v5.dat #
+num_trials: 250
+trial_timesteps: 400
 
 model:
   training:
+    t_range: 200
     state_indices: [0,1,2,3]
+  preprocess:
+    state:
+      class: sklearn.preprocessing.StandardScaler
+    action:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
+    output:
+      class: sklearn.preprocessing.StandardScaler
+    index:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
+    param:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]

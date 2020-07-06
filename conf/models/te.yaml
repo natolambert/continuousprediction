@@ -26,23 +26,23 @@ model:
     lr: .0004
     regularization: 0
     max_size: 100000
-  preprocess:
-    state:
-      class: sklearn.preprocessing.StandardScaler
-        #Choose between standard scaler and min max scaler
-        #class: sklearn.preprocessing.MinMaxScaler
-      #params:
-      #feature_range: [-1.,1.]
-    index:
-      class: sklearn.preprocessing.MinMaxScaler
-      params:
-        feature_range: [-1.,1.]
-    param:
-      class: sklearn.preprocessing.MinMaxScaler
-      params:
-        feature_range: [-1.,1.]
-    output:
-      class: sklearn.preprocessing.StandardScaler
+#  preprocess:
+#    state:
+#      class: sklearn.preprocessing.StandardScaler
+#        #Choose between standard scaler and min max scaler
+#        #class: sklearn.preprocessing.MinMaxScaler
+#      #params:
+#      #feature_range: [-1.,1.]
+#    index:
+#      class: sklearn.preprocessing.MinMaxScaler
+#      params:
+#        feature_range: [-1.,1.]
+#    param:
+#      class: sklearn.preprocessing.MinMaxScaler
+#      params:
+#        feature_range: [-1.,1.]
+#    output:
+#      class: sklearn.preprocessing.StandardScaler
   plotting:
     label: Trajectory Based Deterministic Ensemble
     color: '#b53636'
