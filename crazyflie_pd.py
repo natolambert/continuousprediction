@@ -245,7 +245,7 @@ def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
         policy = PidPolicy(parameters, cfg.pid)
 
         dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
-        if plot: plot_cf(dotmap.states, dotmap.actions)
+
         flag = (abs(np.rad2deg(dotmap.states[-1][3])) < 5) and (abs(np.rad2deg(dotmap.states[-1][4])) < 5)
         # print(flag)
         while len(dotmap.states) < cfg.trial_timesteps or not flag:
@@ -266,11 +266,11 @@ def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
             policy = PidPolicy(parameters, cfg.pid)
 
             dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
-            if plot: plot_cf(dotmap.states, dotmap.actions)
             flag = (abs(np.rad2deg(dotmap.states[-1][3])) < 5) and (abs(np.rad2deg(dotmap.states[-1][4])) < 5)
             # print(flag)
             s += 1
 
+        if plot: plot_cf(dotmap.states, dotmap.actions)
 
 
         # policy = PID(dX=2, dU=2, P=P, I=I, D=D, target=target)

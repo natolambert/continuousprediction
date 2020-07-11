@@ -124,7 +124,7 @@ class CartPoleContEnv(gym.Env):
             x = x + self.tau * x_dot
             theta_dot = theta_dot + self.tau * thetaacc
             theta = theta + self.tau * theta_dot
-        self.state = (x, x_dot, theta, theta_dot)
+        self.state = (x, x_dot[0], theta, theta_dot[0])
         done = x < -self.x_threshold \
                or x > self.x_threshold \
                or theta < -self.theta_threshold_radians \
@@ -151,7 +151,7 @@ class CartPoleContEnv(gym.Env):
         self.state[0]=self.state[0]*20
         self.state[2]=self.state[2]*20
         self.steps_beyond_done = None
-        return np.array(self.state)
+        return self.state
 
     def render(self, mode='human'):
         screen_width = 600

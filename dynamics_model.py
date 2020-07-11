@@ -108,6 +108,8 @@ class Net(nn.Module):
             self.state_indices = cfg.model.training.state_indices
         elif env == "Lorenz":
             self.state_indices = cfg.model.training.state_indices_lorenz
+        else:
+            self.state_indices = np.arange(n_in)
 
         # create object nicely
         layers = []

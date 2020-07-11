@@ -23,7 +23,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from policy import LQR
-from plot import plot_reacher, plot_loss, setup_plotting
+from plot import plot_cp, plot_loss, setup_plotting
 
 from dynamics_model import DynamicsModel
 from reacher_pd import run_controller
@@ -159,57 +159,48 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
         R = np.ones(1)
 
         n_dof = np.shape(A)[0]
-        modifier = .5*np.random.random(4)+ 1 #np.random.random(4)*1.5 # makes LQR values from 0% to 200% of true value
+        if cfg.data_mode == 'chaotic':
+            modifier = .75 * np.random.random(4)
+            lim = cfg.trial_timesteps
+        elif cfg.data_mode =='unstable':
+            modifier =1.5 * np.random.random(4) - .75
+            env.theta_threshold_radians = 2 * env.theta_threshold_radians
+            # default 2.4
+            env.x_threshold = 2*env.x_threshold
+            lim = cfg.trial_timesteps
+        else:
+            modifier = .5 * np.random.random(4) + 1
+            lim = cfg.trial_timesteps
         policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0,1.0])
         policy.K = np.multiply(policy.K,modifier)
         # print(type(env))
         dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
-        while len(dotmap.states) < cfg.trial_timesteps:
+        while len(dotmap.states) < lim:
             env.seed(s)
             env.reset()
-            modifier = .5*np.random.random(4)+ 1 # makes LQR values from 0% to 200% of true value
+            if cfg.data_mode == 'chaotic':
+                modifier =  .75 * np.random.random(4)
+            elif cfg.data_mode == 'unstable':
+                modifier = 1.5 * np.random.random(4) - .75
+                env.theta_threshold_radians = 2 * env.theta_threshold_radians
+                # default 2.4
+                env.x_threshold = 2 * env.x_threshold
+            else:
+                modifier = .5 * np.random.random(4) + 1
             policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
             policy.K = np.multiply(policy.K, modifier)
             dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
             print(f"- Repeat simulation")
             s +=1
-        # dotmap.target = target
+            # if plot and len(dotmap.states)>0: plot_cp(dotmap.states, dotmap.actions)
+
+        if plot: plot_cp(dotmap.states, dotmap.actions)
+
         dotmap.K = np.array(policy.K).flatten()
         logs.append(dotmap)
         s+= 1
 
-    if plot:
-        import plotly.graph_objects as go
 
-        fig = go.Figure()
-
-        fig.update_layout(
-            width=1500,
-            height=800,
-            autosize=False,
-            scene=dict(
-                camera=dict(
-                    up=dict(
-                        x=0,
-                        y=0,
-                        z=1
-                    ),
-                    eye=dict(
-                        x=0,
-                        y=1.0707,
-                        z=1,
-                    )
-                ),
-                aspectratio=dict(x=1, y=1, z=0.7),
-                aspectmode='manual'
-            ),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
-        for d in logs:
-            states = d.states
-            actions = d.actions
-            plot_reacher(states, actions)
 
     return logs
 
@@ -240,8 +231,8 @@ def contpred(cfg):
     if not train:
         log.info(f"Collecting new trials")
 
-        exper_data = collect_data_lqr(cfg, plot=False)
-        test_data = collect_data_lqr(cfg, plot=False)
+        exper_data = collect_data_lqr(cfg, plot=cfg.plot)
+        test_data = collect_data_lqr(cfg, plot=cfg.plot)
 
         log.info("Saving new default data")
         torch.save((exper_data, test_data),

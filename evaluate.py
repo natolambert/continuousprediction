@@ -30,7 +30,7 @@ def forward_var(model, x):
     return torch.exp(variance)
 
 
-def test_models(test_data, models, verbose=False, env=None, compute_action=False, ret_var = False):
+def test_models(test_data, models, verbose=False, env=None, compute_action=False, ret_var = False, t_range=np.inf):
     """
     Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
     Note: this function uses Numpy arrays to handle multiple tests at once efficiently
@@ -177,6 +177,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         #     continue
 
         for i in range(1, T):
+            if i >= t_range:
+                continue
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]
                 if env == 'reacher' or env == 'lorenz' or env=='crazyflie':
@@ -221,7 +223,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
     variances = {key: np.stack(variances[key]).transpose([1,0,2]) for key in variances}
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
 
-    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
+    # MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
 
     MSEscaled = {}
     for key in predictions:
@@ -229,9 +231,13 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         if env == 'crazyflie':
             # ind_dict[key] = [0,1,3,4,5]
             ind_dict[key] = [0,1,3, 4]
-        min_states = np.min(states[:, :, ind_dict[key]], axis=(0, 1))
-        max_states = np.ptp(states[:, :, ind_dict[key]], axis=(0, 1))
-        scaled_states = (states[:, :, ind_dict[key]] - min_states) / max_states
+        if t_range < np.shape(states)[1]:
+            l = t_range
+        else:
+            l = np.shape(states)[1]
+        min_states = np.min(states[:, :l, ind_dict[key]], axis=(0, 1))
+        max_states = np.ptp(states[:, :l, ind_dict[key]], axis=(0, 1))
+        scaled_states = (states[:, :l, ind_dict[key]] - min_states) / max_states
         scaled_pred = (predictions[key][:,:,ind_dict[key]] - min_states) / max_states
         MSEscaled[key] = np.square(scaled_states - scaled_pred).mean(axis=2)[:, 1:]
 
@@ -412,7 +418,10 @@ def evaluate(cfg):
         else:
             model_types = cfg.plotting.models
         models = {}
-        f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/'
+        if cfg.data_mode_plot != 'stable':
+            f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/' + cfg.data_mode_plot +'/'
+        else:
+            f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/'
         if cfg.exper_dir:
             f = f + cfg.exper_dir + '/'
         for model_type in model_types:
@@ -436,6 +445,9 @@ def evaluate(cfg):
                 models[model_type] = load_model(f + model_type + ".dat")
             else:
                 models[model_type] = torch.load(f + model_type + ".dat")
+
+    if cfg.plotting.plot_states:
+        plot_states_dist(test_data)
 
     # Plot
     def plot_helper(data, num, graph_file):

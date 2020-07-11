@@ -34,6 +34,15 @@ def get_reward_cp(state, action):
     reward = state[0]**2 + state[2]**2
     return -reward
 
+def get_reward_cf(state, action):
+    # custom reward for sq error from x=0, theta = 0
+    # reward = np.cos(state[4])*np.cos(state[3])
+    # if (np.rad2deg(state[3]) < 5) and (np.rad2deg(state[4]) < 5):
+    #     reward = 1
+    # else:
+    #     reward = 0
+    reward = -state[3]**2 - state[4]**2
+    return reward
 
 def get_reward(predictions, actions, r_function):
     # takes in the predicted trajectory and returns the reward
@@ -53,13 +62,13 @@ def get_reward(predictions, actions, r_function):
 
     return rewards
 
-def pred_traj(test_data, models, control = None, env=None):
+def pred_traj(test_data, models, control = None, env=None, cfg = None, t_range=None):
     # for a one-step model, predicts a trajectory from initial state all in simulation
     log.info("Beginning testing of predictions")
 
     states, actions, initials = [], [], []
 
-    if env == 'reacher':
+    if env == 'reacher' or env == 'crazyflie':
         P, D, target = [], [], []
 
         # Compile the various trajectories into arrays
@@ -77,6 +86,17 @@ def pred_traj(test_data, models, control = None, env=None):
         D_param = D_param.reshape((len(test_data), -1))
         target = np.array(target)
         target = target.reshape((len(test_data), -1))
+
+        parameters = [[P[0], 0, D[0]],
+                      [P[1], 0, D[1]]]
+        if env == 'crazyflie':
+            from crazyflie_pd import PidPolicy
+            policy = PidPolicy(parameters, cfg.pid)
+            policies = []
+            for p,d in zip(P_param, D_param):
+                policies.append(PidPolicy([[p[0], 0, d[0]],[p[1], 0, d[1]]],cfg.pid))
+            # policies = [LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0]) for i in range(len(test_data))]
+
 
     elif env == 'cartpole':
         K = []
@@ -143,10 +163,15 @@ def pred_traj(test_data, models, control = None, env=None):
         ind_dict[key] = indices
 
         for i in range(1, T):
+            if i >= t_range:
+                continue
             # if control:
                 # policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
                 # act, t = control.act(obs2q(currents[key]))
-            acts = np.stack([[p.act(obs2q(currents[key][i,:]))[0]] for i,p in enumerate(policies)])
+            if env == 'crazyflie':
+                acts = np.stack([[p.get_action(currents[key][i,3:6])] for i,p in enumerate(policies)]).reshape(-1,4)
+            else:
+                acts = np.stack([[p.act(obs2q(currents[key][i,:]))[0]] for i,p in enumerate(policies)])
 
             prediction = model.predict(np.hstack((currents[key], acts)))
             prediction = np.array(prediction.detach())
@@ -155,10 +180,10 @@ def pred_traj(test_data, models, control = None, env=None):
             currents[key] = prediction.squeeze()
 
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
-    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
+    # MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
 
 
-    return MSEs, predictions
+    return 0, predictions
 
 def train_gp(data):
     class ExactGPModel(gpytorch.models.ExactGP):
@@ -252,7 +277,6 @@ def reward_rank(cfg):
     graph_file = 'Plots'
     os.mkdir(graph_file)
 
-
     trajectories = torch.load(hydra.utils.get_original_cwd()+'/trajectories/'+label+'/raw'+cfg.data_dir)
 
     # TODO Three test cases, different datasets
@@ -266,25 +290,29 @@ def reward_rank(cfg):
     model_traj = torch.load(f+cfg.traj_model+'.dat')
 
     # get rewards, control policy, etc for each type, and control parameters
-    data_train = trajectories[0] #+trajectories[1]
+    data_train = trajectories[0]#[::10] #+trajectories[1]
     reward = [t['rewards'] for t in data_train]
     states = [np.float32(t['states']) for t in data_train]
     actions = [np.float32(t['actions']) for t in data_train]
-
+    if cfg.model.training.t_range < np.shape(states)[1]:
+        states = [s[:cfg.model.training.t_range,:] for s in states]
+        actions = [a[:cfg.model.training.t_range,:] for a in actions]
 
     if label == 'reacher':
         control = [np.concatenate((t['D'],t['P'],t['target'])) for t in data_train]
         r_func = get_reward_reacher
-        reward = [np.sum([r_func(s,a) for s,a in zip(sta,act)]) for sta,act in zip(states,actions)]
-
-    else:
+    elif cfg.env.label == 'cartpole':
         for vec_s, vec_a in zip(states, actions):
             vec_s[0, 1] = vec_s[0, 1].item()
             vec_s[0, 3] = vec_s[0, 3].item()
             vec_a[1] = vec_a[1].item()
         control = [t['K'] for t in data_train]
         r_func = get_reward_cp
-        reward = [np.sum([r_func(s,a) for s,a in zip(sta,act)]) for sta,act in zip(states,actions)]
+    elif cfg.env.label=='crazyflie':
+        control = [np.concatenate((t['D'],t['P'],t['target'])) for t in data_train]
+        r_func = get_reward_cf
+
+    reward = [np.sum([r_func(s,a) for s,a in zip(sta,act)]) for sta,act in zip(states,actions)]
 
     from botorch.models import SingleTaskGP
     from botorch.fit import fit_gpytorch_model
@@ -297,6 +325,7 @@ def reward_rank(cfg):
     # train_Y = standardize(Y)
 
 
+
     # fit GP model to rewards
     split = int(len(data_train)*cfg.split)
     gp_x =  [torch.Tensor(np.concatenate((s[0], c))) for s,c in zip(states,control)]
@@ -304,7 +333,6 @@ def reward_rank(cfg):
     if label == 'reacher':
         # gp_y = torch.Tensor(np.sum(np.stack(reward),axis=1))
         gp_y = torch.Tensor(reward)
-
     else:
         gp_y = torch.Tensor(reward)
 
@@ -312,6 +340,7 @@ def reward_rank(cfg):
     gp_y_train = gp_y[:split]
     # model, likelihood = train_gp((torch.stack(gp_x_train), gp_y_train))
 
+    log.info(f"Training GP model (can be slow)")
     gp = SingleTaskGP(torch.stack(gp_x_train), gp_y_train.reshape(-1,1))
     mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
     fit_gpytorch_model(mll)
@@ -320,26 +349,37 @@ def reward_rank(cfg):
     # gp_y_test = gp_y[split:] # TRUE REWARD
     # gp_pred = predict_gp(torch.stack(gp_x_test), model, likelihood, train_x=torch.stack(gp_x_train), train_y=np.stack(gp_y_train))
 
+    # TODO neural network supervised learning
+    # from dynamics_model import Net
+    # supervised = Net(np.shape(gp_x)[1], np.shape(reward)[1], env=None)
+
     ## TEST SET WORK
-    data_test = trajectories[0] #[::5]
+    log.info("Testing models")
+    data_test = trajectories[0] #[::10]
     reward = [t['rewards'] for t in data_test]
     states = [np.float32(t['states']) for t in data_test]
     actions = [np.float32(t['actions']) for t in data_test]
+    if cfg.model.training.t_range < np.shape(states)[1]:
+        states = [s[:cfg.model.training.t_range,:] for s in states]
+        actions = [a[:cfg.model.training.t_range,:] for a in actions]
 
     if label == 'reacher':
         control = [np.concatenate((t['D'], t['P'], t['target'])) for t in data_test]
         r_func = get_reward_reacher
-        reward = [np.sum([r_func(s,a) for s,a in zip(sta,act)]) for sta,act in zip(states,actions)]
-
-    else:
+    elif cfg.env.label == 'cartpole':
         for vec_s, vec_a in zip(states, actions):
             vec_s[0, 1] = vec_s[0, 1].item()
             vec_s[0, 3] = vec_s[0, 3].item()
             vec_a[1] = vec_a[1].item()
         control = [t['K'] for t in data_test]
         r_func = get_reward_cp
-        reward = [np.sum([r_func(s, a) for s, a in zip(sta, act)]) for sta, act in zip(states, actions)]
+    elif cfg.env.label == 'crazyflie':
+        control = [np.concatenate((t['D'], t['P'], t['target'])) for t in data_test]
+        r_func = get_reward_cf
 
+    reward = [np.sum([r_func(s, a) for s, a in zip(sta, act)]) for sta, act in zip(states, actions)]
+
+    log.info("Evaluating GP")
     gp_x_test = [torch.Tensor(np.concatenate((s[0], c))) for s,c in zip(states,control)]
     # gp_pred_test = predict_gp(torch.stack(gp_x_test), model, likelihood)
     # gp_pred_test = gp.forward(torch.stack(gp_x_test))
@@ -349,7 +389,7 @@ def reward_rank(cfg):
         'p': model_one,
         't': model_traj,
     }
-    MSEs, predictions = test_models(data_test, models, env = cfg.env.label)
+    MSEs, predictions = test_models(data_test, models, env = cfg.env.label, t_range = cfg.model.training.t_range)
 
     # get dict of rewards for type of model
     pred_rewards = get_reward(predictions, actions, r_func)
@@ -359,12 +399,18 @@ def reward_rank(cfg):
         'p': model_one,
     }
 
-    _, pred_drift = pred_traj(data_test, models_step, env = cfg.env.label)
+    _, pred_drift = pred_traj(data_test, models_step, env = cfg.env.label, cfg=cfg, t_range = cfg.model.training.t_range)
 
     # get dict of rewards for type of model
+    if cfg.model.training.t_range < np.shape(states)[1]:
+        for key in pred_drift:
+            pred_drift[key] = pred_drift[key][:,:cfg.model.training.t_range,:]
+        actions = [a[:cfg.model.training.t_range,:] for a in actions]
+
     pred_rewards_true = get_reward(pred_drift, actions, r_func)
 
-    if label == 'reacher':
+
+    if label == 'reacher' or label == 'crazyflie':
         cum_reward = [np.sum(rew) for rew in reward]
     else:
         cum_reward = reward
@@ -374,18 +420,28 @@ def reward_rank(cfg):
     nn_step_drift = pred_rewards_true['p'][0]
     nn_traj = pred_rewards['t'][0]
     # Load test data
-    print(f"Mean GP reward err: {np.mean((gp_pr_test-cum_reward)**2)}")
+    print(f"Mean GP reward err: {np.mean((cum_reward-np.array(gp_pr_test))**2)}")
+    print(f" - std dev:{np.std(gp_pr_test-cum_reward)}")
     print(f"Mean one step oracle reward err: {np.mean((cum_reward-np.array(nn_step_oracle))**2)}")
+    print(f" - std dev:{np.std(np.array(nn_step_oracle)-cum_reward)}")
     print(f"Mean one step reward err: {np.mean((cum_reward-np.array(nn_step_drift))**2)}")
+    print(f" - std dev:{np.std(np.array(nn_step_drift)-cum_reward)}")
     print(f"Mean traj reward err: {np.mean((cum_reward-np.array(nn_traj))**2)}")
+    print(f" - std dev:{np.std(np.array(nn_traj)-cum_reward)}")
+
     arr = np.stack(sorted(zip(cum_reward, gp_pr_test, np.array(nn_step_oracle), np.array(nn_traj), np.array(nn_step_drift))))
     # arr = np.stack((cum_reward, gp_pr_test, nn_step, nn_traj))
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
-    ax.plot(arr[:, 0], label='True Predicted Reward',  clip_on = True, ms=14, markevery=16, marker='o' )
-    ax.plot(arr[:, 1], label='Gaussian Process',  clip_on = True, ms=14, markevery=19, marker='*' )
-    ax.plot(arr[:, 2], label='One-step Neural Network',  clip_on = True, ms=14, markevery=22, marker='+' )
-    ax.plot(arr[:, 3], label='Trajectory-based Model',  clip_on = True, ms=14, markevery=25, marker='d' )
+    ax.plot(cum_reward, label='True Predicted Reward',  clip_on = True, ms=14, markevery=16, marker='o' )
+    ax.plot(gp_pr_test, label='Gaussian Process',  clip_on = True, ms=14, markevery=19, marker='*' )
+    ax.plot(nn_step_oracle, label='One-step Neural Network',  clip_on = True, ms=14, markevery=22, marker='+' )
+    ax.plot(nn_traj, label='Trajectory-based Model',  clip_on = True, ms=14, markevery=25, marker='d' )
+
+    # ax.plot(arr[:, 0], label='True Predicted Reward',  clip_on = True, ms=14, markevery=16, marker='o' )
+    # ax.plot(arr[:, 1], label='Gaussian Process',  clip_on = True, ms=14, markevery=19, marker='*' )
+    # ax.plot(arr[:, 2], label='One-step Neural Network',  clip_on = True, ms=14, markevery=22, marker='+' )
+    # ax.plot(arr[:, 3], label='Trajectory-based Model',  clip_on = True, ms=14, markevery=25, marker='d' )
     # plt.plot(arr[:, 4], label='step-drift')
     import matplotlib
     ax.spines['right'].set_visible(False)
@@ -402,7 +458,8 @@ def reward_rank(cfg):
     ax.set_xlabel('Sorted Trajectory', fontdict=font_axes)
     ax.set_ylabel('Cumulative Episode Reward', fontdict=font_axes)
     ax.set_xlim([0,100])
-    ax.set_ylim([-900,0])
+    if cfg.env.label=='cartpole':
+        ax.set_ylim([-900,0])
     ax.legend()
     fig.tight_layout()
     fig.savefig("Reward_Predictions.pdf")
@@ -410,34 +467,8 @@ def reward_rank(cfg):
     del matplotlib.font_manager.weight_dict['roman']
     matplotlib.font_manager._rebuild()
 
-    plt.plot(arr[:, 0], label='gt')
-    plt.plot(arr[:, 1], label='gp')
-    plt.plot(arr[:, 2], label='step')
-    plt.plot(arr[:, 3], label='traj')
-    plt.xlabel('Sorted Trajectory')
-    plt.ylabel('Cumulative Episode reward')
-    plt.legend()
-    fig.savefig("Reward Predictions Error.png")
+    # fig.savefig("Reward Predictions Error.png")
 
-    quit()
-    log.info(f"Loading default data")
-
-    (train_data, test_data) = torch.load(
-        hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
-
-    # Load models
-    log.info("Loading models")
-    if cfg.plotting.copies:
-        model_types = list(itertools.product(cfg.plotting.models, np.arange(cfg.plotting.copies)))
-    else:
-        model_types = cfg.plotting.models
-    models = {}
-    f = hydra.utils.get_original_cwd() + '/models/reacher/'
-    if cfg.exper_dir:
-        f = f + cfg.exper_dir + '/'
-    for model_type in model_types:
-        model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
-        models[model_type] = torch.load(f + model_str + ".dat")
 
 
 if __name__ == '__main__':
