@@ -4,7 +4,7 @@ defaults:
 
 mode: collect # train or collect
 exper_dir: false # set to a name to save models within a subfolder in the models directory
-plot: false
+plot: true
 video: false
 PID_test: false # true means identical trajectories
 #determines whether target is part of input data

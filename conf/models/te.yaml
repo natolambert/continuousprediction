@@ -20,7 +20,7 @@ model:
     state_indices_lorenz: [0,1,2]
   optimizer:
     epochs: 30
-    batch: 32
+    batch: 64
     name: Adam
     split: .8
     lr: .0004

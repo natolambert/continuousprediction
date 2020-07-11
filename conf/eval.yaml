@@ -1,9 +1,10 @@
 defaults:
   - envs: ???
 
-model_dir: l500_t50_v5.dat
+#model_dir: l500_t50_v5.dat
 exper_dir: false # set to a name to load models from within a subfolder in the models directory
 plot: false
+data_mode_plot: unstable
 
 hydra:
   run:
@@ -20,12 +21,15 @@ hydra:
 
 plotting:
   models:
-#  - d
-#  - de
-  - p
+  - d
 #  - de
 #  - p
-  - tp
+#  - de
+#  - p
+  - t
+#  - te
+#  - tp
+#  - tpe
 #  - t_1
 #  - te
 #  - pe
@@ -51,8 +55,9 @@ plotting:
 #  - tp_0
 #  - tpe_0
   num_eval_train: 0
-  num_eval_test: 250
+  num_eval_test: 100
   train_set: false
+  plot_states: true
   all: false
   compute_action: false
   legend: true

@@ -17,7 +17,7 @@ model:
     num_traj: 50
   optimizer:
     epochs: 25
-    batch: 128
+    batch: 64
     name: Adam
     split: .8
     lr: .00001
