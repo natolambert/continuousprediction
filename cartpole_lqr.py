@@ -194,7 +194,7 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
             s +=1
             # if plot and len(dotmap.states)>0: plot_cp(dotmap.states, dotmap.actions)
 
-        if plot: plot_cp(dotmap.states, dotmap.actions)
+        if plot: plot_cp(dotmap.states, dotmap.actions, save=True)
 
         dotmap.K = np.array(policy.K).flatten()
         logs.append(dotmap)

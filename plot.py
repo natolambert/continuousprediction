@@ -86,7 +86,7 @@ def get_helper(dict1, dict2, key, default):
 ############
 # Plotters #
 ############
-def plot_cp(states, actions):
+def plot_ss(states, actions, save=False):
     ar = np.stack(states)
     l = np.shape(ar)[0]
     xs = np.arange(l)
@@ -97,27 +97,88 @@ def plot_cp(states, actions):
                                         vertical_spacing=.15)  # go.Figure()
     fig.add_trace(go.Scatter(x=xs, y=ar[:,0], name='state0',
                              line=dict(color='firebrick', width=4)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=xs, y=ar[:,1], name='state1',
-                             line=dict(color='royalblue', width=4)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=xs, y=ar[:, 2], name='state2',
+    fig.add_trace(go.Scatter(x=xs[::25], y=ar[:,0][::25], name='state0', mode='markers',
+                             marker=dict(color='firebrick', size=50, symbol="circle-open-dot")), row=1, col=1)
+    # fig.add_trace(go.Scatter(x=xs, y=ar[:,1], name='state1',
+    #                          line=dict(color='royalblue', width=4)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=xs, y=ar[:, 1], name='state1',
                              line=dict(color='green', width=4)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=xs, y=ar[:, 3], name='state3',
-                             line=dict(color='black', width=4)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=xs[::25], y=ar[:, 1][::25], name='state2', mode='markers',
+                             marker=dict(color='green', size=50, symbol="hourglass-open")), row=1, col=1)
 
-    fig.update_layout(title='Position of Cartpole Task',
+    fig.add_trace(go.Scatter(x=xs, y=ar[:, 2], name='state2',
+                             line=dict(color='black', width=4)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=xs[::25], y=ar[:, 2][::25], name='state2', mode='markers',
+                             marker=dict(color='black', size=50, symbol="x-open-dot")), row=1, col=1)
+
+    # fig.add_trace(go.Scatter(x=xs, y=ar[:, 3], name='state3', #
+    #                          line=dict(color='black', width=4)), row=1, col=1)
+
+    fig.update_layout(#title='Position of Cartpole Task',
                       xaxis_title='Timestep',
-                      yaxis_title='Angle (Degrees)',
+                      yaxis_title='Normalize State',
                       plot_bgcolor='white',
+                      showlegend=False,
+                      font=dict(family='Times New Roman', size=50, color='#000000'),
+                      height=800,
+                      width=1500,
+                      margin=dict(r=0, l=0, b=10, t=1),
                       xaxis=dict(
-                          showline=True,
+                          range=[0,200],
+                          showline=False,
                           showgrid=False,
                           showticklabels=True, ),
                       yaxis=dict(
-                          showline=True,
+                          showline=False,
                           showgrid=False,
                           showticklabels=True, ),
                       )
     fig.show()
+    if save: fig.write_image("traj.pdf")
+
+def plot_cp(states, actions, save=False):
+    ar = np.stack(states)
+    l = np.shape(ar)[0]
+    xs = np.arange(l)
+
+
+    fig = plotly.subplots.make_subplots(rows=1, cols=1,
+                                        # subplot_titles=("Position", "Action - Torques"),
+                                        vertical_spacing=.15)  # go.Figure()
+    fig.add_trace(go.Scatter(x=xs, y=ar[:,0], name='state0',
+                             line=dict(color='firebrick', width=4)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=xs[::25], y=ar[:,0][::25], name='state0', mode='markers',
+                             marker=dict(color='firebrick', size=50, symbol="circle-open-dot")), row=1, col=1)
+    # fig.add_trace(go.Scatter(x=xs, y=ar[:,1], name='state1',
+    #                          line=dict(color='royalblue', width=4)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=xs, y=ar[:, 2], name='state2',
+                             line=dict(color='green', width=4)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=xs[::25], y=ar[:, 2][::25], name='state2', mode='markers',
+                             marker=dict(color='green', size=50, symbol="hourglass-open")), row=1, col=1)
+    # fig.add_trace(go.Scatter(x=xs, y=ar[:, 3], name='state3', #
+    #                          line=dict(color='black', width=4)), row=1, col=1)
+
+    fig.update_layout(#title='Position of Cartpole Task',
+                      xaxis_title='Timestep',
+                      yaxis_title='Normalize State',
+                      plot_bgcolor='white',
+                      showlegend=False,
+                      font=dict(family='Times New Roman', size=50, color='#000000'),
+                      height=800,
+                      width=1500,
+                      margin=dict(r=0, l=0, b=10, t=1),
+                      xaxis=dict(
+                          range=[0,200],
+                          showline=False,
+                          showgrid=False,
+                          showticklabels=True, ),
+                      yaxis=dict(
+                          showline=False,
+                          showgrid=False,
+                          showticklabels=True, ),
+                      )
+    fig.show()
+    if save: fig.write_image("traj.pdf")
 
 def plot_cf(states, actions):
     ar = np.stack(states)

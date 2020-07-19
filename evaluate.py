@@ -103,6 +103,15 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
         states = np.stack(states)
 
+    elif env == 'ss':
+        for traj in test_data:
+            states.append(traj.states)
+            actions.append(traj.actions)
+            initials.append(traj.states[0, :])
+
+        states = np.stack(states)
+        actions = np.stack(actions)
+
     else:
         # Convert to numpy arrays
         states = np.stack(states)
@@ -524,6 +533,8 @@ def evaluate(cfg):
             y_min = .05
         elif name == 'cartpole':
             y_min = .0002
+        else:
+            y_min = .0001
 
 
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),

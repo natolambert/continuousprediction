@@ -23,5 +23,8 @@ register(
     # reward_threshold=-200,
 )
 
-
+register(
+    id='statespace-v0',
+    entry_point='envs.statespace:StateSpaceEnv'
+)
 
