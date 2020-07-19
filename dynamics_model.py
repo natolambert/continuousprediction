@@ -141,8 +141,12 @@ class Net(nn.Module):
 
             normStates = self.stateScaler.transform(inputStates)
             normIndex = self.indexScaler.transform(inputIndex)
-            normParams = self.paramScaler.transform(inputParams)
-            return np.hstack((normStates, normIndex, normParams))
+
+            if inputParams.shape[-1] == 0:
+                return np.hstack((normStates, normIndex))
+            else:
+                normParams = self.paramScaler.transform(inputParams)
+                return np.hstack((normStates, normIndex, normParams))
         else:
             inputStates = input[:, :len(self.state_indices)]
             normStates = self.stateScaler.transform(inputStates)
@@ -319,7 +323,7 @@ class DynamicsModel(object):
         self.control_params = cfg.model.training.control_params
         if env == "Reacher":
             self.state_indices = cfg.model.training.state_indices
-        elif env == "Lorenz":
+        elif env == "Lorenz" or env == "SS":
             self.state_indices = cfg.model.training.state_indices_lorenz
         self.cfg = cfg
 
@@ -351,7 +355,7 @@ class DynamicsModel(object):
                 self.nets = [GP(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
             else:
                 self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
-        elif env == "Lorenz":
+        elif env == "Lorenz" or env == "SS":
             self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="Lorenz") for i in range(self.E)]
 
     def predict(self, x):
