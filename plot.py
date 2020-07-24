@@ -189,7 +189,7 @@ def plot_cf(states, actions):
     p = np.rad2deg(ar[:, 4])
     y = ar[:, 5]
 
-    actions = np.stack(actions)
+    # actions = np.stack(actions)
 
     fig = plotly.subplots.make_subplots(rows=2, cols=1,
                                         subplot_titles=("Position", "Action - Torques"),
@@ -451,7 +451,8 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
             plt.plot(chopped, c=color_dict[key], label=key, #label_dict[key],
                      markersize=10, marker=marker_dict[key],
                      markevery=50)
-            chopped[0] = chopped[0].item()
+
+            # chopped[0] = chopped[0].item()
             if variances is not None:
                 err_every = 20
                 start = np.random.randint(10)

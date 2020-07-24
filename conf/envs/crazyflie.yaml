@@ -1,10 +1,10 @@
 env:
   name: Crazyflie-v0
   label: crazyflie
-  state_size: 9
+  state_size: 3 #9
   action_size: 4
-  param_size: 6 #include target
-  target_size: 2
+  param_size: 0 #6 #include target
+  target_size: 0 #2
 
 data_dir: l1000_t250_v1_stable.dat # l500_t50_v5.dat #
 num_trials: 250
@@ -29,7 +29,8 @@ pid:
 model:
   training:
     t_range: 500
-    state_indices: [0,1,2,3,4,5,6,7,8] # ,9,10,11
+    state_indices: [0,1,2] #[0,1,2,3,4,5,6,7,8] # ,9,10,11
+    state_indices_lorenz: [0,1,2] #[3,4,5] # ,9,10,11
   preprocess:
     state:
       class: sklearn.preprocessing.StandardScaler
