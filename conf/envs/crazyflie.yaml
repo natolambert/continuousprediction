@@ -6,9 +6,9 @@ env:
   param_size: 0 #6 #include target
   target_size: 0 #2
 
-data_dir: l1000_t250_v1_stable.dat # l500_t50_v5.dat #
-num_trials: 250
-trial_timesteps: 1000
+data_dir: l5000_t100_v1.dat # l500_t50_v5.dat #
+num_trials: 100
+trial_timesteps: 500
 
 pid:
   params:

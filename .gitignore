@@ -8,3 +8,4 @@ trajectories/
 venv/
 temp.txt
 models/reacher/efficiency
+trajectories/crazyflie/rawl1000_t250_v1_stable.dat
