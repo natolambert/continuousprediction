@@ -21,40 +21,16 @@ hydra:
 
 plotting:
   models:
-#  - d
+  - d
 #  - de
 #  - p
 #  - de
 #  - p
-  - pe
-#  - t
-#  - te
-#  - tp
-  - tpe
-#  - t_1
-#  - te
 #  - pe
+  - t
+#  - te
 #  - tp
 #  - tpe
-#  - d
-#  - de
-#  - t
-#  - te
-#  - tp
-#  - p
-#  - tp
-#  - de
-#  - pe
-#  - te
-#  - tpe
-#  - d_0
-#  - de_0
-#  - p_0
-#  - pe_0
-#  - t_0
-#  - te_0
-#  - tp_0
-#  - tpe_0
   num_eval_train: 0
   num_eval_test: 100
   train_set: false

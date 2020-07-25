@@ -397,7 +397,7 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
     if idx_plot is None:
         idx_plot = list(range(dx))
 
-    if plot_avg:
+    if False:
         fig, ax = plt.subplots()
         plt.title("Predictions Averaged")
         plt.xlabel("Timestep")
@@ -424,6 +424,7 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
         # plt.ylim(-.5, 1.5)
         plt.legend()
         if save_loc:
+            fig.set_size_inches(7.5, 4)
             plt.savefig(save_loc + "-avg_states.pdf")
         if show:
             plt.show()
@@ -446,7 +447,7 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
 
 
             # chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
-            chopped = [(x if abs(x) < 50 else np.nan) for x in pred]
+            chopped = [(x if abs(x) < 150 else np.nan) for x in pred]
             # chopped = pred
             plt.plot(chopped, c=color_dict[key], label=key, #label_dict[key],
                      markersize=10, marker=marker_dict[key],
@@ -457,8 +458,9 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
                 err_every = 20
                 start = np.random.randint(10)
                 chopped = np.array(chopped)
-                v = np.sqrt(np.array(variances[key][:, i]))
-                v = np.array([(x if abs(x) < 10 else 10) for x in v])
+                v = 2*np.sqrt(np.array(variances[key][:, i]))**2
+                # v = np.array([(x if abs(x) < 10 else 10) for x in v])
+                v = np.array([(x if abs(x) < 150 else 150) for x in v])
                 # v = np.array([(x if abs(x) < 10 else np.nan) for x in v])
                 # plt.errorbar(x=np.arange(len(chopped))[start+1::err_every], y=chopped[start+1::err_every],
                 #              yerr=v[start::err_every], c=color_dict[key])
@@ -472,6 +474,7 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
         #     plt.ylim(-1.5,1.5)
 
         if save_loc:
+            fig.set_size_inches(7.5, 4)
             plt.savefig(save_loc + "-state%d.pdf" % i, bbox_inches='tight')
         if show:
             plt.show()

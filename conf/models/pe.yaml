@@ -20,7 +20,7 @@ model:
     batch: 64
     name: Adam
     split: .8
-    lr: .00005
+    lr: .000025
     regularization: 0.001
     max_size: 0
 #  preprocess:

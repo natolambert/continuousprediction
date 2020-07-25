@@ -240,6 +240,13 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         if env == 'crazyflie':
             # ind_dict[key] = [0,1,3,4,5]
             ind_dict[key] = [0,1,3, 4]
+            pred_key = [0,1,3, 4]
+        elif env == 'reacher':
+            ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]
+            pred_key = np.arange(np.shape(prediction)[1])
+        else:
+            ind_dict[key] = np.arange(np.shape(prediction)[1])
+            pred_key = np.arange(np.shape(prediction)[1])
         if t_range < np.shape(states)[1]:
             l = t_range
         else:
@@ -247,7 +254,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         min_states = np.min(states[:, :l, ind_dict[key]], axis=(0, 1))
         max_states = np.ptp(states[:, :l, ind_dict[key]], axis=(0, 1))
         scaled_states = (states[:, :l, ind_dict[key]] - min_states) / max_states
-        scaled_pred = (predictions[key][:,:,ind_dict[key]] - min_states) / max_states
+        scaled_pred = (predictions[key][:,:,pred_key] - min_states) / max_states
         MSEscaled[key] = np.square(scaled_states - scaled_pred).mean(axis=2)[:, 1:]
 
 

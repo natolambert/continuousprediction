@@ -28,30 +28,10 @@ from plot import plot_ss, plot_loss, setup_plotting
 from dynamics_model import DynamicsModel
 from reacher_pd import run_controller
 
+
 ###########################################
 #                Datasets                 #
 ###########################################
-def unpack_cf_pwm(packed_pwm_data):
-  unpacked_pwm_data = np.zeros((len(packed_pwm_data), 4))
-
-  packed_pwm_data_int = np.zeros(packed_pwm_data.size, dtype=int)
-
-  for i, l in enumerate(packed_pwm_data):
-    packed_pwm_data_int[i] = int(l)
-
-  for i, packed_pwm in enumerate(packed_pwm_data_int):
-    #pwms = struct.upack('4H', packed_pwm);
-    #print("m1,2,3,4: ", pwms)
-    m1 = ( packed_pwm        & 0xFF) << 8
-    m2 = ((packed_pwm >> 8)  & 0xFF) << 8
-    m3 = ((packed_pwm >> 16) & 0xFF) << 8
-    m4 = ((packed_pwm >> 24) & 0xFF) << 8
-    unpacked_pwm_data[i][0] = m1
-    unpacked_pwm_data[i][1] = m2
-    unpacked_pwm_data[i][2] = m3
-    unpacked_pwm_data[i][3] = m4
-
-  return unpacked_pwm_data
 
 def convert_pwm(packed_pwm):
     packed_pwm = packed_pwm[0]
@@ -59,7 +39,7 @@ def convert_pwm(packed_pwm):
     m2 = ((packed_pwm >> 8) & 0xFF) << 8
     m3 = ((packed_pwm >> 16) & 0xFF) << 8
     m4 = ((packed_pwm >> 24) & 0xFF) << 8
-    ret = np.zeros((1,4)).squeeze()
+    ret = np.zeros((1, 4)).squeeze()
     ret[0] = m1
     ret[1] = m2
     ret[2] = m3
@@ -87,18 +67,12 @@ def create_dataset_traj(data, control_params=False, train_target=True, threshold
                 # This creates an entry for a given state concatenated
                 # with a number t of time steps as well as the PID parameters
 
-                # The randomely continuing is something I thought of to shrink
-                # the datasets while still having a large variety
-                # if np.random.random() < threshold:
-                #     continue
-                # print(f"i: {i}")
-                # print(f"j-i: {j-i}")
                 dat = [states[i], j - i]
                 # dat.append(K)
                 data_in.append(np.hstack(dat))
                 # data_in.append(np.hstack((states[i], j-i, target)))
                 if delta:
-                    data_out.append(states[j]-states[i])
+                    data_out.append(states[j] - states[i])
                 else:
                     data_out.append(states[j])
 
@@ -125,7 +99,6 @@ def create_dataset_step(data, delta=True, t_range=0):
         actions = sequence[1]
         targets = sequence[2]
         for i in range(states.shape[0] - 1):
-
             # if t_range:
             #     actions = actions[:t_range]
             data_in.append(np.hstack((states[i], actions[i])))
@@ -139,7 +112,6 @@ def create_dataset_step(data, delta=True, t_range=0):
     data_out = np.array(data_out)
 
     return data_in, data_out
-
 
 
 def log_hyperparams(cfg):
@@ -157,42 +129,10 @@ def log_hyperparams(cfg):
 ###########################################
 
 def get_datasets(df):
-    #split df into trajectories
-    '''
-    starts = (df['objective vals']== -1).to_numpy(dtype=np.int32)
-    idx = np.where(starts)[0]
-    idx_done = []
-    idx_do = []
-    for i in idx:
-        idx_done.append(i)
-        if (i-1) in idx_done:
-            continue
-        else:
-            idx_do.append(i)
-
-    idx_do.append(len(starts))
-
-    states = ['omegax_0tx','omegay_0tx','omegaz_0tx','pitch_0tx','roll_0tx', 'yaw_0tx','linax_0tx','linay_0tx','linyz_0tx'] #
-    actions = ['m1pwm_0tu', 'm2pwm_0tu',	'm3pwm_0tu',	'm4pwm_0tu']
-    targets = ['omegax_0dx','omegay_0dx','omegaz_0dx','pitch_0dx','roll_0dx', 'yaw_0dx','linax_0dx','linay_0dx','linyz_0dx']
-    trajs = []
-    for n in range(len(idx_do)-1):
-        s = df[idx_do[n]:idx_do[n+1]][states].to_numpy()
-        a = df[idx_do[n]:idx_do[n+1]][actions].to_numpy()
-        t = df[idx_do[n]:idx_do[n+1]][targets].to_numpy()
-        trajs.append((s,a,t))
-
-    import random
-    ls = [len(t[0]) for t in trajs]
-    short = np.where(np.array(ls) < 40)[0]
-    long = np.where(np.array(ls) >= 40)[0]
-    data_train = [trajs[l] for l in short]
-    data_test = [trajs[l] for l in long]
-    # shuffle = random.shuffle(trajs)
-    '''
-    states = ['omegax_0tx','omegay_0tx','omegaz_0tx','pitch_0tx','roll_0tx', 'yaw_0tx','linax_0tx','linay_0tx','linyz_0tx'] #
-    actions = ['m1pwm_0tu', 'm2pwm_0tu',	'm3pwm_0tu',	'm4pwm_0tu']
-
+    # split df into trajectories
+    states = ['omegax_0tx', 'omegay_0tx', 'omegaz_0tx', 'pitch_0tx', 'roll_0tx', 'yaw_0tx', 'linax_0tx', 'linay_0tx',
+              'linyz_0tx']  #
+    actions = ['m1pwm_0tu', 'm2pwm_0tu', 'm3pwm_0tu', 'm4pwm_0tu']
 
     states = df[['roll', 'pitch', 'yaw']].to_numpy()
     actions = df[['pwms']].to_numpy()
@@ -202,21 +142,20 @@ def get_datasets(df):
     l = 1000
     n = np.shape(states)[0]
     trajs = []
-    for i in range(int((n-start)/l)):
-        idx = i*l + start
-        s = states[idx:idx+l+1,:]
-        a = actions[idx:idx+l+1,:]
-        d = states[1+idx:idx+l+2,:] - states[idx:idx+l+1,:]
-        trajs.append((s,a,d))
+    for i in range(int((n - start) / l)):
+        idx = i * l + start
+        s = states[idx:idx + l + 1, :]
+        a = actions[idx:idx + l + 1, :]
+        d = states[1 + idx:idx + l + 2, :] - states[idx:idx + l + 1, :]
+        trajs.append((s, a, d))
     # deltas = []
-    data_train = trajs #trajs[1::3]+trajs[2::3]
-    data_test = [] #  trajs[::3]
+    data_train = trajs  # trajs[1::3]+trajs[2::3]
+    data_test = []  # trajs[::3]
     return data_train, data_test
 
 
 @hydra.main(config_path='conf/crazyflie_pd.yaml')
 def contpred(cfg):
-
     # Collect data
     if cfg.mode == 'collect':
         raise ValueError("This file is for validation only, not collection")
@@ -226,7 +165,8 @@ def contpred(cfg):
         # raise ValueError("Current Saved data old format")
         # Todo re-save data
         import pandas as pd
-        raw_data = pd.read_csv(hydra.utils.get_original_cwd() + '/trajectories/crazyflie/' + 'cf2.csv', error_bad_lines=False, delimiter=',') #'cf.csv')
+        raw_data = pd.read_csv(hydra.utils.get_original_cwd() + '/trajectories/crazyflie/' + 'cf2.csv',
+                               error_bad_lines=False, delimiter=',')  # 'cf.csv')
 
     # raw_data = raw_data[::2]
     # from plot import plot_cf
@@ -274,7 +214,8 @@ def contpred(cfg):
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
 
     if cfg.mode == 'eval':
-        model_types = ['d', 't'] #,'tp']
+        model_types = ['d', 't']  # ,'tp']
+        model_types = ['p', 'tp']  # ,'tp']
         models = {}
         f = hydra.utils.get_original_cwd() + '/models/crazyflie_exp/'
         for model_type in model_types:
@@ -282,30 +223,27 @@ def contpred(cfg):
 
         from plot import plot_mse_err, setup_plotting, plot_states
         setup_plotting(models)
-        MSEs, predictions = eval_exp(data_train, models)
+        MSEs, predictions, variances = eval_exp(data_train, models)
         mse_evald = []
         sh = MSEs[model_types[0]][0].shape
-        idx = np.arange(len(data_train)) #remember this line
+        idx = np.arange(len(data_train))  # remember this line
         for i, id in list(enumerate(idx)):
             gt = data_train[id][0]
             pred = {key: predictions[key][i] for key in predictions}
-            if False:
-                mse_all = {key: np.zeros((cfg.plotting.copies,) + sh) for key in cfg.plotting.models}
-                for type, j in MSEs:
-                    mse_all[type][j] = MSEs[(type, j)][i]
-                mse = {key: np.median(mse_all[key], axis=0) for key in mse_all}
-            else:
-                mse = {key: MSEs[key][i].squeeze() for key in MSEs}
+            var = {key: variances[key][i] for key in variances}
+            mse = {key: MSEs[key][i].squeeze() for key in MSEs}
+
             if True:
                 # if
-                plot_states(gt, pred, idx_plot=[0,1,2], save_loc=f"predictions_{i}_", show=False)
+                plot_states(gt, pred, variances=var, idx_plot=[0, 1, 2], save_loc=f"predictions_{i}_", show=False)
 
             mse_evald.append(mse)
 
         plot_mse_err(mse_evald, save_loc=("Err Bar MSE of Predictions"),
                      show=True, legend=False)
 
-def eval_exp(test_data, models, verbose=False, env=None,t_range=1000):
+
+def eval_exp(test_data, models, verbose=False, env=None, t_range=1000):
     """
     Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
     Note: this function uses Numpy arrays to handle multiple tests at once efficiently
@@ -330,8 +268,8 @@ def eval_exp(test_data, models, verbose=False, env=None,t_range=1000):
 
     # Compile the various trajectories into arrays
     for traj in test_data:
-        states.append(traj[0][:t_range,:])
-        actions.append(traj[1][:t_range,:])
+        states.append(traj[0][:t_range, :])
+        actions.append(traj[1][:t_range, :])
         initials.append(traj[0][0, :])
 
     states = np.stack(states)
@@ -345,6 +283,7 @@ def eval_exp(test_data, models, verbose=False, env=None,t_range=1000):
     predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
     currents = {key: states[:, 0, models[key].state_indices] for key in models}
 
+    from evaluate import forward_var
     variances = {key: [] for key in models}
     ind_dict = {}
     for i, key in list(enumerate(models)):
@@ -356,15 +295,12 @@ def eval_exp(test_data, models, verbose=False, env=None,t_range=1000):
 
         ind_dict[key] = indices
 
-
         for i in range(1, T):
             if i >= t_range:
                 continue
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]
                 prediction = np.array(model.predict(np.hstack(dat)).detach())
-
-
             else:
                 if env == 'lorenz':
                     prediction = model.predict(np.array(currents[key]))
@@ -373,10 +309,20 @@ def eval_exp(test_data, models, verbose=False, env=None,t_range=1000):
                     acts = actions[:, i - 1, :]
                     prediction = model.predict(np.hstack((currents[key], acts)))
                     prediction = np.array(prediction.detach())
+            if model.prob:
+                if traj:
+                    f = np.hstack(dat)
+                else:
+                    f = np.hstack((currents[key], acts))
+                var = forward_var(model, f).detach().numpy()
+            else:
+                var = np.zeros(np.shape(initials[:, indices]))
 
             predictions[key].append(prediction)
             currents[key] = prediction.squeeze()
+            variances[key].append(var)
 
+    variances = {key: np.stack(variances[key]).transpose([1, 0, 2]) for key in variances}
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
 
     # MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
@@ -397,14 +343,8 @@ def eval_exp(test_data, models, verbose=False, env=None,t_range=1000):
         scaled_pred = (predictions[key][:, :, :] - min_states) / max_states
         MSEscaled[key] = np.square(scaled_states - scaled_pred).mean(axis=2)[:, 1:]
 
-    # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
-    # if N > 1:
-    #     predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in predictions} # vectorized verion
-    # else:
-    #     predictions = {key: np.stack(predictions[key]).squeeze() for key in predictions}
 
-    # outcomes = {'mse': MSEs, 'predictions': predictions}
-    return MSEscaled, predictions
+    return MSEscaled, predictions, variances
 
 
 if __name__ == '__main__':
