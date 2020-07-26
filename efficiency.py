@@ -64,7 +64,7 @@ def train(cfg, exper_data):
     f = f + cfg.model.str
     if not os.path.exists(f):
         os.makedirs(f)
-    torch.save(model, '%s/n%d_t%d_%d.dat'%(f, n, t_range, copies))
+    torch.save(model, '%s/n%d_t%d_%d.dat' % (f, n, t_range, copies))
 
 
 def plot(cfg, train_data, test_data):
@@ -149,7 +149,6 @@ def plot(cfg, train_data, test_data):
             print('mse')
             eval_data_mse = num_eval(gt, predictions, models, setting='mse', T_range=cfg.plotting.eval_t_range)
 
-
         # Initialize dictionaries that will hold the data in 2d arrays that are better suited to plotting heatmaps,
         # then move the data into those dictionaries
         n_eval = gt.shape[0]
@@ -157,9 +156,11 @@ def plot(cfg, train_data, test_data):
         evals_gauss = {key: np.zeros((n_eval, len(ns), len(t_ranges), len(copies))) for key in model_keys}
         evals_mse = {key: np.zeros((n_eval, len(ns), len(t_ranges), len(copies))) for key in model_keys}
         for (model_type, (n, t, c)) in eval_data_dot:
-            evals_dot[model_type][:, ns.index(n), t_ranges.index(t), copies.index(c)] = np.nan_to_num(eval_data_dot[(model_type, (n, t, c))])
+            evals_dot[model_type][:, ns.index(n), t_ranges.index(t), copies.index(c)] = np.nan_to_num(
+                eval_data_dot[(model_type, (n, t, c))])
         for (model_type, (n, t, c)) in eval_data_gauss:
-            evals_gauss[model_type][:, ns.index(n), t_ranges.index(t), copies.index(c)] = eval_data_gauss[(model_type, (n, t, c))]
+            evals_gauss[model_type][:, ns.index(n), t_ranges.index(t), copies.index(c)] = eval_data_gauss[
+                (model_type, (n, t, c))]
         for (model_type, (n, t, c)) in eval_data_mse:
             dat = eval_data_mse[(model_type, (n, t, c))]
             evals_mse[model_type][:, ns.index(n), t_ranges.index(t), copies.index(c)] = np.minimum(dat, 100)
@@ -184,7 +185,7 @@ def plot(cfg, train_data, test_data):
                 if len(ns) > 1 and len(t_ranges) > 1:
                     plot_evaluations_3d(evals_dot_slice, t_ranges, ns, ylabel='# training trajectories',
                                         xlabel='training trajectory length', zlabel='Dot product similarity',
-                                        save_loc=file+'efficiency_dot', show=False)
+                                        save_loc=file + 'efficiency_dot', show=False)
                     plot_evaluations_3d(evals_gauss_slice, t_ranges, ns, ylabel='# training trajectories',
                                         xlabel='training trajectory length', zlabel='Gaussian similarity',
                                         save_loc=file + 'efficiency_gauss', show=False)
@@ -199,7 +200,7 @@ def plot(cfg, train_data, test_data):
                         x_values = t_ranges
                         xlabel = 'training trajectory length'
                     plot_evaluations(evals_dot_slice, x_values, ylabel='Dot product similarity', xlabel=xlabel,
-                                     save_loc=file+'/efficiency_dot.pdf', show=False)
+                                     save_loc=file + '/efficiency_dot.pdf', show=False)
                     plot_evaluations(evals_mse_slice, x_values, ylabel='MSE similarity', xlabel=xlabel,
                                      save_loc=file + '/efficiency_mse.pdf', show=False, log_scale=True)
 
@@ -246,8 +247,12 @@ def plot(cfg, train_data, test_data):
             os.mkdir(file)
 
             # MSE_avgs = {x: {key: np.mean(MSEs[(key, x)], axis=0) for key in model_keys} for x in x_values}
-            MSE_avgs = {key: {tup: np.average(MSEs[(key, tup)], axis=0) for tup in itertools.product(ns, t_ranges, copies)} for key in model_keys}
-            MSE_chopped = {key: {tup: [num if num < 1e5 else float('nan') for num in MSE_avgs[key][tup]] for tup in MSE_avgs[key]} for key in MSE_avgs}
+            MSE_avgs = {
+                key: {tup: np.average(MSEs[(key, tup)], axis=0) for tup in itertools.product(ns, t_ranges, copies)} for
+                key in model_keys}
+            MSE_chopped = {
+                key: {tup: [num if num < 1e5 else float('nan') for num in MSE_avgs[key][tup]] for tup in MSE_avgs[key]}
+                for key in MSE_avgs}
 
             for key in model_keys:
                 mses = MSE_chopped[key]
@@ -260,12 +265,9 @@ def plot(cfg, train_data, test_data):
                 tups.sort()
                 colors = {tups[i]: (r[i], g, b[i]) for i in range(len(mses))}
                 names = {tup: ('n: %d, t: %d, c: %d' % tup) for tup in tups}
-                plot_mse(mses, title='MSE efficiency for %s' % models[(key,tups[0])].cfg.model.plotting.label,
+                plot_mse(mses, title='MSE efficiency for %s' % models[(key, tups[0])].cfg.model.plotting.label,
                          custom_colors=colors, custom_labels=names, show=False,
-                         save_loc=file+'/%s.pdf' % models[(key, tups[0])].cfg.model.str)
-
-
-
+                         save_loc=file + '/%s.pdf' % models[(key, tups[0])].cfg.model.str)
 
             # for x in x_values:
             #     chopped = {key: [(num if num < 10 ** 5 else float("nan")) for num in MSE_avgs[x][key]] for key in MSE_avgs[x]}
@@ -286,10 +288,8 @@ def plot(cfg, train_data, test_data):
         plot_helper(test_data, cfg.plotting.num_eval_test, file)
 
 
-
 @hydra.main(config_path='conf/eff.yaml')
 def eff(cfg):
-
     log.info(f"Loading default data")
     (train_data, test_data) = torch.load(
         hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
@@ -298,8 +298,6 @@ def eff(cfg):
         train(cfg, train_data)
     elif cfg.mode == 'plot':
         plot(cfg, train_data, test_data)
-
-
 
 
 if __name__ == '__main__':

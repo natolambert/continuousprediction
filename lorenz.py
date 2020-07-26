@@ -129,7 +129,7 @@ def lorenz(cfg):
 
         graph_file = 'Plots'
         os.mkdir(graph_file)
-        setup_plotting(  models)
+        setup_plotting(models)
 
         # Select a random subset of training data
         # idx = np.random.randint(0, len(data), num)

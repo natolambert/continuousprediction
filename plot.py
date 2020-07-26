@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 setup = False
 label_dict, color_dict, color_dict_plotly, marker_dict, marker_dict_plotly = None, None, None, None, None
 
+
 ###########
 # Helpers #
 ###########
@@ -44,9 +45,11 @@ def setup_plotting(models):
 
     label_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.label for key in models}
     color_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color for key in models}
-    color_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color_plotly for key in models}
+    color_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.color_plotly for key in
+                         models}
     marker_dict = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.marker for key in models}
-    marker_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.marker_plotly for key in models}
+    marker_dict_plotly = {(key[0] if type(key) == tuple else key): models[key].cfg.model.plotting.marker_plotly for key
+                          in models}
 
     # label_dict['zero'] = 'Only Zeros'
     # color_dict['zero'] = '#db0b3f'
@@ -91,13 +94,12 @@ def plot_ss(states, actions, save=False):
     l = np.shape(ar)[0]
     xs = np.arange(l)
 
-
     fig = plotly.subplots.make_subplots(rows=1, cols=1,
                                         # subplot_titles=("Position", "Action - Torques"),
                                         vertical_spacing=.15)  # go.Figure()
-    fig.add_trace(go.Scatter(x=xs, y=ar[:,0], name='state0',
+    fig.add_trace(go.Scatter(x=xs, y=ar[:, 0], name='state0',
                              line=dict(color='firebrick', width=4)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=xs[::25], y=ar[:,0][::25], name='state0', mode='markers',
+    fig.add_trace(go.Scatter(x=xs[::25], y=ar[:, 0][::25], name='state0', mode='markers',
                              marker=dict(color='firebrick', size=50, symbol="circle-open-dot")), row=1, col=1)
     # fig.add_trace(go.Scatter(x=xs, y=ar[:,1], name='state1',
     #                          line=dict(color='royalblue', width=4)), row=1, col=1)
@@ -114,40 +116,40 @@ def plot_ss(states, actions, save=False):
     # fig.add_trace(go.Scatter(x=xs, y=ar[:, 3], name='state3', #
     #                          line=dict(color='black', width=4)), row=1, col=1)
 
-    fig.update_layout(#title='Position of Cartpole Task',
-                      xaxis_title='Timestep',
-                      yaxis_title='Normalize State',
-                      plot_bgcolor='white',
-                      showlegend=False,
-                      font=dict(family='Times New Roman', size=50, color='#000000'),
-                      height=800,
-                      width=1500,
-                      margin=dict(r=0, l=0, b=10, t=1),
-                      xaxis=dict(
-                          range=[0,200],
-                          showline=False,
-                          showgrid=False,
-                          showticklabels=True, ),
-                      yaxis=dict(
-                          showline=False,
-                          showgrid=False,
-                          showticklabels=True, ),
-                      )
+    fig.update_layout(  # title='Position of Cartpole Task',
+        xaxis_title='Timestep',
+        yaxis_title='Normalize State',
+        plot_bgcolor='white',
+        showlegend=False,
+        font=dict(family='Times New Roman', size=50, color='#000000'),
+        height=800,
+        width=1500,
+        margin=dict(r=0, l=0, b=10, t=1),
+        xaxis=dict(
+            range=[0, 200],
+            showline=False,
+            showgrid=False,
+            showticklabels=True, ),
+        yaxis=dict(
+            showline=False,
+            showgrid=False,
+            showticklabels=True, ),
+    )
     fig.show()
     if save: fig.write_image("traj.pdf")
+
 
 def plot_cp(states, actions, save=False):
     ar = np.stack(states)
     l = np.shape(ar)[0]
     xs = np.arange(l)
 
-
     fig = plotly.subplots.make_subplots(rows=1, cols=1,
                                         # subplot_titles=("Position", "Action - Torques"),
                                         vertical_spacing=.15)  # go.Figure()
-    fig.add_trace(go.Scatter(x=xs, y=ar[:,0], name='state0',
+    fig.add_trace(go.Scatter(x=xs, y=ar[:, 0], name='state0',
                              line=dict(color='firebrick', width=4)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=xs[::25], y=ar[:,0][::25], name='state0', mode='markers',
+    fig.add_trace(go.Scatter(x=xs[::25], y=ar[:, 0][::25], name='state0', mode='markers',
                              marker=dict(color='firebrick', size=50, symbol="circle-open-dot")), row=1, col=1)
     # fig.add_trace(go.Scatter(x=xs, y=ar[:,1], name='state1',
     #                          line=dict(color='royalblue', width=4)), row=1, col=1)
@@ -158,27 +160,28 @@ def plot_cp(states, actions, save=False):
     # fig.add_trace(go.Scatter(x=xs, y=ar[:, 3], name='state3', #
     #                          line=dict(color='black', width=4)), row=1, col=1)
 
-    fig.update_layout(#title='Position of Cartpole Task',
-                      xaxis_title='Timestep',
-                      yaxis_title='Normalize State',
-                      plot_bgcolor='white',
-                      showlegend=False,
-                      font=dict(family='Times New Roman', size=50, color='#000000'),
-                      height=800,
-                      width=1500,
-                      margin=dict(r=0, l=0, b=10, t=1),
-                      xaxis=dict(
-                          range=[0,200],
-                          showline=False,
-                          showgrid=False,
-                          showticklabels=True, ),
-                      yaxis=dict(
-                          showline=False,
-                          showgrid=False,
-                          showticklabels=True, ),
-                      )
+    fig.update_layout(  # title='Position of Cartpole Task',
+        xaxis_title='Timestep',
+        yaxis_title='Normalize State',
+        plot_bgcolor='white',
+        showlegend=False,
+        font=dict(family='Times New Roman', size=50, color='#000000'),
+        height=800,
+        width=1500,
+        margin=dict(r=0, l=0, b=10, t=1),
+        xaxis=dict(
+            range=[0, 200],
+            showline=False,
+            showgrid=False,
+            showticklabels=True, ),
+        yaxis=dict(
+            showline=False,
+            showgrid=False,
+            showticklabels=True, ),
+    )
     fig.show()
     if save: fig.write_image("traj.pdf")
+
 
 def plot_cf(states, actions):
     ar = np.stack(states)
@@ -275,6 +278,7 @@ def plot_reacher(states, actions):
                       )
     fig.show()
 
+
 def plot_states_dist(data):
     states = []
     for seq in data:
@@ -283,13 +287,13 @@ def plot_states_dist(data):
 
     traces = []
     for i in range(np.shape(state_data)[-1]):
-        s = state_data[:,:,i]
-        s_mean = np.mean(s,axis=0)
+        s = state_data[:, :, i]
+        s_mean = np.mean(s, axis=0)
         trc, x, y = generate_errorbar_traces(s)
 
         layout = dict(  # title=title if title else f"Average Error over Run",
             xaxis={'title': 'Prediction Step'},  # 2e-9, 5
-            yaxis={'title': f"State distribution {i}"}, # 'range': [np.log10(20e-6), np.log10(5)]},
+            yaxis={'title': f"State distribution {i}"},  # 'range': [np.log10(20e-6), np.log10(5)]},
             xaxis_showgrid=False, yaxis_showgrid=False,
             font=dict(family='Times New Roman', size=50, color='#000000'),
             height=800,
@@ -352,7 +356,7 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
         dict(x=xs[0], y=ymed.tolist(), mode='lines', name=name, type='scatter', legendgroup=f"group-{name}",
              line=dict(color=color, width=4))]
 
-    intensity =  .3# .15 #
+    intensity = .3  # .15 #
     ''' 
     interval = scipy.stats.norm.interval(percentile/100, loc=y, scale=np.sqrt(variance))
     interval = np.nan_to_num(interval)  # Fix stupid case of norm.interval(0) returning nan
@@ -379,7 +383,7 @@ def generate_errorbar_traces(ys, xs=None, percentiles='66+95', color=None, name=
     return err_traces, xs, ys
 
 
-def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot_avg=True, save_loc=None, show=True):
+def plot_states(ground_truth, predictions, variances=None, idx_plot=None, plot_avg=True, save_loc=None, show=True):
     """
     Plots the states given in predictions against the groundtruth. Predictions
     is a dictionary mapping model types to predictions
@@ -391,7 +395,7 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
     import matplotlib
 
     # font = {'size': 18, 'family': 'serif', 'serif': ['Times']}
-    font = {'size': 18, 'family': 'Times New Roman'}#, 'serif': ['Times']}
+    font = {'size': 18, 'family': 'Times New Roman'}  # , 'serif': ['Times']}
     matplotlib.rc('font', **font)
 
     if idx_plot is None:
@@ -445,11 +449,10 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
             # print(key)
             pred = predictions[key][:, i]
 
-
             # chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
             chopped = [(x if abs(x) < 150 else np.nan) for x in pred]
             # chopped = pred
-            plt.plot(chopped, c=color_dict[key], label=key, #label_dict[key],
+            plt.plot(chopped, c=color_dict[key], label=key,  # label_dict[key],
                      markersize=10, marker=marker_dict[key],
                      markevery=50)
 
@@ -458,7 +461,7 @@ def plot_states(ground_truth, predictions, variances = None, idx_plot=None, plot
                 err_every = 20
                 start = np.random.randint(10)
                 chopped = np.array(chopped)
-                v = 2*np.sqrt(np.array(variances[key][:, i]))**2
+                v = 2 * np.sqrt(np.array(variances[key][:, i])) ** 2
                 # v = np.array([(x if abs(x) < 10 else 10) for x in v])
                 v = np.array([(x if abs(x) < 150 else 150) for x in v])
                 # v = np.array([(x if abs(x) < 10 else np.nan) for x in v])
@@ -580,12 +583,12 @@ def add_marker(err_traces, color=[], symbol=None, skip=None):
     mark_every = 50
     size = 50
     l = len(err_traces[0]['x'])
-    skip = np.random.randint(mark_every-10)+15
+    skip = np.random.randint(mark_every - 10) + 15
     # skip = np.random.randint(mark_every)
     if skip is not None:
         size_list = [0] * skip + [size] + [0] * (mark_every - skip)
     else:
-        size_list = [size] + [0] * (mark_every )
+        size_list = [size] + [0] * (mark_every)
     repeat = int(l / mark_every)
     size_list = size_list * repeat
     line = err_traces[0]
@@ -601,7 +604,7 @@ def add_marker(err_traces, color=[], symbol=None, skip=None):
     return err_traces
 
 
-def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_min = .05, y_max=1e4, legend=False):
+def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_min=.05, y_max=1e4, legend=False):
     assert setup, "Must run setup_plotting before this function"
 
     arrays = []
@@ -617,7 +620,8 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         # temp
         # if n > 1:
         #     continue
-        tr, xs, ys = generate_errorbar_traces(ar, xs=[np.arange(1,np.shape(ar)[1]+1).tolist()], percentiles='66+90', color=color_dict_plotly[k],
+        tr, xs, ys = generate_errorbar_traces(ar, xs=[np.arange(1, np.shape(ar)[1] + 1).tolist()], percentiles='66+90',
+                                              color=color_dict_plotly[k],
                                               name=label_dict[k])
         w_marker = []
         # for t in tr:
@@ -625,21 +629,22 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         # w_marker.append(m)
         [traces_plot.append(t) for t in m]
 
-    layout = dict(#title=title if title else f"Average Error over Run",
-                  xaxis={'title': 'Prediction Step'}, #2e-9, 5
-                  yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(5)]},# [np.log10(y_min), np.log10(y_max)]},
-                  yaxis_type="log",
-                  xaxis_showgrid=False, yaxis_showgrid=False,
-                  font=dict(family='Times New Roman', size=50, color='#000000'),
-                  height=800,
-                  width=1500,
-                  plot_bgcolor='white',
-                  showlegend=legend,
-                  margin=dict(r=0, l=0, b=10, t=1),
+    layout = dict(  # title=title if title else f"Average Error over Run",
+        xaxis={'title': 'Prediction Step'},  # 2e-9, 5
+        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(5)]},
+        # [np.log10(y_min), np.log10(y_max)]},
+        yaxis_type="log",
+        xaxis_showgrid=False, yaxis_showgrid=False,
+        font=dict(family='Times New Roman', size=50, color='#000000'),
+        height=800,
+        width=1500,
+        plot_bgcolor='white',
+        showlegend=legend,
+        margin=dict(r=0, l=0, b=10, t=1),
 
-                  legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
-                          'font': dict(family='Times New Roman', size=30, color='#000000')}
-                  )
+        legend={'x': .01, 'y': .98, 'bgcolor': 'rgba(50, 50, 50, .03)',
+                'font': dict(family='Times New Roman', size=30, color='#000000')}
+    )
 
     fig = {
         'data': traces_plot,
@@ -715,18 +720,18 @@ def plot_lorenz(data, cfg, predictions=None):
         ))
 
     color_scales_dict = {'t': 'Inferno',
-                     'd': 'Magma',
-                     'p': 'Plasma',
-                     'tp': 'Blackbody',
-                     'te': 'Electric',
-                     'de': 'Hot',
-                     'pe': 'Jet',
-                     'tpe': 'Plotly3'}
+                         'd': 'Magma',
+                         'p': 'Plasma',
+                         'tp': 'Blackbody',
+                         'te': 'Electric',
+                         'de': 'Hot',
+                         'pe': 'Jet',
+                         'tpe': 'Plotly3'}
 
     if predictions is not None:
         for key, p in predictions.items():
             if len(np.shape(p)) == 3:
-                fig.add_trace(go.Scatter3d(x=p[0,:, 0], y=p[0,:, 1], z=p[0,:, 2],
+                fig.add_trace(go.Scatter3d(x=p[0, :, 0], y=p[0, :, 1], z=p[0, :, 2],
                                            name=label_dict[key], legendgroup=key,
                                            marker=dict(
                                                size=1,
@@ -740,18 +745,17 @@ def plot_lorenz(data, cfg, predictions=None):
                                            ))
             else:
                 fig.add_trace(go.Scatter3d(x=p[:, 0], y=p[:, 1], z=p[:, 2],
-                                       name=label_dict[key], legendgroup=key,
-                                       marker=dict(
-                                           size=1,
-                                           color=np.arange(len(x)),
-                                           colorscale=color_scales_dict[key],
-                                       ),
-                                       line=dict(
-                                           color=color_dict_plotly[key],
-                                           width=1
-                                       ),
-                                       ))
-
+                                           name=label_dict[key], legendgroup=key,
+                                           marker=dict(
+                                               size=1,
+                                               color=np.arange(len(x)),
+                                               colorscale=color_scales_dict[key],
+                                           ),
+                                           line=dict(
+                                               color=color_dict_plotly[key],
+                                               width=1
+                                           ),
+                                           ))
 
     fig.update_layout(
         width=1500,
@@ -835,7 +839,7 @@ def plot_sorted(deltas_gt, deltas_pred, idx_plot=None, save_loc=None, show=True)
             #                 label=label_dict[key], marker=marker_dict[key], s=3)
             plt.scatter(np.arange(len(pred_plot)), pred_plot, c=color_dict[key], marker=marker_dict[key], s=3)
 
-            plt.ylim(min(np.min(gt)*.8, np.min(gt)*1.2), max(np.max(gt)*.8, np.max(gt)*1.2))
+            plt.ylim(min(np.min(gt) * .8, np.min(gt) * 1.2), max(np.max(gt) * .8, np.max(gt) * 1.2))
             plt.legend()
 
             if save_loc:
@@ -860,7 +864,7 @@ def plot_sorted(deltas_gt, deltas_pred, idx_plot=None, save_loc=None, show=True)
             plt.plot(gt, c='k', label='Groundtruth')
             plt.plot(pred, label=label_dict[key], c=color_dict[key])
 
-            plt.ylim(min(np.min(gt)*.8, np.min(gt)*1.2), max(np.max(gt)*.8, np.max(gt)*1.2))
+            plt.ylim(min(np.min(gt) * .8, np.min(gt) * 1.2), max(np.max(gt) * .8, np.max(gt) * 1.2))
             plt.legend()
 
             if save_loc:
@@ -900,7 +904,8 @@ def plot_evaluations(data, x, ylabel=None, xlabel=None, title=None, log_scale=Fa
         plt.close()
 
 
-def plot_evaluations_3d(data, x, y, ylabel=None, xlabel=None, zlabel=None, title=None, log_scale=False, save_loc=None, show=True):
+def plot_evaluations_3d(data, x, y, ylabel=None, xlabel=None, zlabel=None, title=None, log_scale=False, save_loc=None,
+                        show=True):
     """
     Plots the data using a heatmap, which is a nice way of doing 3D plots
 
@@ -921,7 +926,7 @@ def plot_evaluations_3d(data, x, y, ylabel=None, xlabel=None, zlabel=None, title
 
     images = []
     dats = []
-    fig, axs = plt.subplots(1, len(data), figsize=(10,5))
+    fig, axs = plt.subplots(1, len(data), figsize=(10, 5))
     for i, key in list(enumerate(data)):
         axs[i].set_title(label_dict[key])
 

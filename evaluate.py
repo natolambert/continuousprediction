@@ -30,7 +30,7 @@ def forward_var(model, x):
     return torch.exp(variance)
 
 
-def test_models(test_data, models, verbose=False, env=None, compute_action=False, ret_var = False, t_range=np.inf):
+def test_models(test_data, models, verbose=False, env=None, compute_action=False, ret_var=False, t_range=np.inf):
     """
     Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
     Note: this function uses Numpy arrays to handle multiple tests at once efficiently
@@ -190,7 +190,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                 continue
             if traj:
                 dat = [initials[:, indices], i * np.ones((N, 1))]
-                if env == 'reacher' or env == 'lorenz' or env=='crazyflie':
+                if env == 'reacher' or env == 'lorenz' or env == 'crazyflie':
                     if model.control_params:
                         dat.extend([P_param, D_param])
                     if model.train_target:
@@ -223,13 +223,13 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                     f = np.hstack((currents[key], acts))
                 var = forward_var(model, f).detach().numpy()
             else:
-                var = np.zeros(np.shape(initials[:,indices]))
+                var = np.zeros(np.shape(initials[:, indices]))
 
             predictions[key].append(prediction)
             currents[key] = prediction.squeeze()
             variances[key].append(var)
 
-    variances = {key: np.stack(variances[key]).transpose([1,0,2]) for key in variances}
+    variances = {key: np.stack(variances[key]).transpose([1, 0, 2]) for key in variances}
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
 
     # MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
@@ -239,8 +239,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         # scaling of error
         if env == 'crazyflie':
             # ind_dict[key] = [0,1,3,4,5]
-            ind_dict[key] = [0,1,3, 4]
-            pred_key = [0,1,3, 4]
+            ind_dict[key] = [0, 1, 3, 4]
+            pred_key = [0, 1, 3, 4]
         elif env == 'reacher':
             ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]
             pred_key = np.arange(np.shape(prediction)[1])
@@ -254,9 +254,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         min_states = np.min(states[:, :l, ind_dict[key]], axis=(0, 1))
         max_states = np.ptp(states[:, :l, ind_dict[key]], axis=(0, 1))
         scaled_states = (states[:, :l, ind_dict[key]] - min_states) / max_states
-        scaled_pred = (predictions[key][:,:,pred_key] - min_states) / max_states
+        scaled_pred = (predictions[key][:, :, pred_key] - min_states) / max_states
         MSEscaled[key] = np.square(scaled_states - scaled_pred).mean(axis=2)[:, 1:]
-
 
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
@@ -435,7 +434,7 @@ def evaluate(cfg):
             model_types = cfg.plotting.models
         models = {}
         if cfg.data_mode_plot != 'stable':
-            f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/' + cfg.data_mode_plot +'/'
+            f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/' + cfg.data_mode_plot + '/'
         else:
             f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/'
         if cfg.exper_dir:
@@ -482,7 +481,8 @@ def evaluate(cfg):
             entry.rewards = entry.rewards[0:cfg.plotting.t_range]
             entry.actions = entry.actions[0:cfg.plotting.t_range]
 
-        MSEs, predictions, variances = test_models(dat, models, env=name, compute_action=cfg.plotting.compute_action, ret_var=True)
+        MSEs, predictions, variances = test_models(dat, models, env=name, compute_action=cfg.plotting.compute_action,
+                                                   ret_var=True)
 
         setup_plotting(models)
         mse_evald = []
@@ -536,13 +536,12 @@ def evaluate(cfg):
             deltas_gt, deltas_pred = find_deltas(dat, models)
             plot_sorted(deltas_gt, deltas_pred, idx_plot=[0, 1, 2, 3], save_loc='%s/sorted' % graph_file, show=False)
 
-        if name == 'reacher'or name =='crazyflie':
+        if name == 'reacher' or name == 'crazyflie':
             y_min = .05
         elif name == 'cartpole':
             y_min = .0002
         else:
             y_min = .0001
-
 
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
                      show=True, y_min=y_min, y_max=cfg.plotting.mse_y_max, legend=cfg.plotting.legend)

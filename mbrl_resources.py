@@ -29,6 +29,7 @@ def obs2q(obs):
     else:
         return obs[0:5]
 
+
 class Net(nn.Module):
     """
     Deterministic Neural Network
@@ -49,14 +50,15 @@ class Net(nn.Module):
         self.linears = nn.ModuleList(fc)
         self.tf = tf
         self._onGPU = False
+
     def testPreprocess(self, input):
-        if(input.shape[1] == 26):
+        if (input.shape[1] == 26):
             inputStates = input[:, :21]
             inputActions = input[:, 21:]
             normStates = self.stateScaler.transform(inputStates)
             normActions = self.actionScaler.transform(inputActions)
             return np.hstack((normStates, normActions))
-        elif(input.shape[1] == 37):
+        elif (input.shape[1] == 37):
             inputStates = input[:, :21]
             inputIndex = input[:, 21]
             inputP = input[:, 22:27]
@@ -71,6 +73,7 @@ class Net(nn.Module):
         else:
             print("Incorrect dataset length, no normalization performed")
             return input
+
     def testPostprocess(self, output):
         return self.outputScaler.inverse_transform(output)
 
@@ -81,7 +84,7 @@ class Net(nn.Module):
         # StandardScaler, MinMaxScaler
         # TODO: Instead of hardcoding, include in config, trajectory vs. one-step, length of different inputs, etc.
         # 26 -> one-step, 37 -> trajectory
-        if(input.shape[1] == 26):
+        if (input.shape[1] == 26):
             self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
             self.actionScaler = hydra.utils.instantiate(cfg.model.preprocess.action)
             self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
@@ -98,7 +101,7 @@ class Net(nn.Module):
             normOutput = self.outputScaler.transform(output)
 
             return np.hstack((normStates, normActions)), normOutput
-        elif(input.shape[1] == 37):
+        elif (input.shape[1] == 37):
             self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
             self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
             self.PScaler = hydra.utils.instantiate(cfg.model.preprocess.P)

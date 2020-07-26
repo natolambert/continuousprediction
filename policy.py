@@ -203,7 +203,7 @@ class jointsTrajectoryTrackingPID(PID):
             self.trajectory = trajectory
         assert self.trajectory.shape[1] == self.n_dof, \
             'Number of DOF in the trajectory does not match the number of DOF specified: %d != %d' % (
-            self.trajectory.shape[1], self.n_dof)
+                self.trajectory.shape[1], self.n_dof)
         self.n_timestep = self.trajectory.shape[0]
         self.id_states = id_states
         self.verbosity = verbosity
@@ -222,13 +222,13 @@ class jointsTrajectoryTrackingPID(PID):
 
 
 class LQR(Policy):
-    def __init__(self, A, B, Q, R, actionBounds=None,  horizon=10):
+    def __init__(self, A, B, Q, R, actionBounds=None, horizon=10):
         '''
         :param n_dof:
         :param trajectory:
         :param horizon: Horizon
         '''
-        Policy.__init__(self, dX = np.shape(A)[1], dU=np.shape(B)[1], actionBounds=actionBounds)
+        Policy.__init__(self, dX=np.shape(A)[1], dU=np.shape(B)[1], actionBounds=actionBounds)
         from control import lqr
         # from scipy.linalg import solve_continuous_are, solve_discrete_are
         self.T = horizon

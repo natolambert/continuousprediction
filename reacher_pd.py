@@ -53,7 +53,7 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
     for id, sequence in enumerate(data):
         if id % 5 == 0: print(f"- processing seq {id}")
         states = sequence.states
-        if t_range>0:
+        if t_range > 0:
             states = states[:t_range]
         if id > 99:
             continue
@@ -78,7 +78,7 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
                 data_in.append(np.hstack(dat))
                 # data_in.append(np.hstack((states[i], j-i, target)))
                 if delta:
-                    data_out.append(states[j]-states[i])
+                    data_out.append(states[j] - states[i])
                 else:
                     data_out.append(states[j])
 
@@ -124,7 +124,7 @@ def create_dataset_step(data, delta=True, t_range=0):
     return data_in, data_out
 
 
-def run_controller(env, horizon, policy, video = False):
+def run_controller(env, horizon, policy, video=False):
     """
     Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
 
@@ -149,7 +149,7 @@ def run_controller(env, horizon, policy, video = False):
 
     observation = env.reset()
     for i in range(horizon):
-        if(video):
+        if (video):
             env.render()
         state = observation
         action, t = policy.act(obs2q(state))
@@ -185,9 +185,9 @@ def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
 
     env_model = cfg.env.name
     env = gym.make(env_model)
-    #if (cfg.video):
-        #env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
-         #video_callable = lambda episode_id: episode_id==1,force=True)
+    # if (cfg.video):
+    # env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
+    # video_callable = lambda episode_id: episode_id==1,force=True)
     log.info('Initializing env: %s' % env_model)
 
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
@@ -215,7 +215,7 @@ def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
 
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         # print(type(env))
-        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
+        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
 
         dotmap.target = target
         dotmap.P = P / 5
@@ -280,7 +280,6 @@ def log_hyperparams(cfg):
 
 @hydra.main(config_path='conf/reacher_pd.yaml')
 def contpred(cfg):
-
     print(cfg.pretty())
 
     train = cfg.mode == 'train'
@@ -347,7 +346,6 @@ def contpred(cfg):
             f = f + cfg.model.str + copystr + '.dat'
             torch.save(model, f)
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
-
 
 
 if __name__ == '__main__':

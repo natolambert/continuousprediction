@@ -28,6 +28,7 @@ from plot import plot_ss, plot_loss, setup_plotting
 from dynamics_model import DynamicsModel
 from reacher_pd import run_controller
 
+
 ###########################################
 #                Datasets                 #
 ###########################################
@@ -63,7 +64,7 @@ def create_dataset_traj(data, control_params=False, train_target=True, threshold
                 data_in.append(np.hstack(dat))
                 # data_in.append(np.hstack((states[i], j-i, target)))
                 if delta:
-                    data_out.append(states[j]-states[i])
+                    data_out.append(states[j] - states[i])
                 else:
                     data_out.append(states[j])
 
@@ -108,6 +109,7 @@ def create_dataset_step(data, delta=True, t_range=0):
 
     return data_in, data_out
 
+
 def collect_data_ss(cfg, plot=False):  # Creates horizon^2/2 points
     """
     Collect data for environment model
@@ -120,36 +122,33 @@ def collect_data_ss(cfg, plot=False):  # Creates horizon^2/2 points
     env = gym.make(env_model)
     env.setup(cfg)
 
-    #if (cfg.video):
-        #env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
-         #video_callable = lambda episode_id: episode_id==1,force=True)
+    # if (cfg.video):
+    # env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
+    # video_callable = lambda episode_id: episode_id==1,force=True)
     log.info('Initializing env: %s' % env_model)
 
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
     # about <horizon> steps with actions, rewards and states
     logs = []
 
-    s = np.random.randint(0,100)
+    s = np.random.randint(0, 100)
     for i in range(cfg.num_trials):
         log.info('Trial %d' % i)
         if (cfg.PID_test):
             env.seed(0)
         else:
-            env.seed(s+i)
+            env.seed(s + i)
         s0 = env.reset()
-
 
         n_dof = env.dx
 
         policy = randomPolicy(dX=env.dx, dU=env.du, variance=cfg.env.params.variance)
-        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
+        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
         if plot: plot_ss(dotmap.states, dotmap.actions, save=True)
 
         # dotmap.K = np.array(policy.K).flatten()
         logs.append(dotmap)
-        s+= 1
-
-
+        s += 1
 
     return logs
 
@@ -175,7 +174,6 @@ def log_hyperparams(cfg):
 
 @hydra.main(config_path='conf/stable_sys.yaml')
 def contpred(cfg):
-
     # Collect data
     if cfg.mode == 'collect':
         log.info(f"Collecting new trials")
@@ -241,6 +239,7 @@ def contpred(cfg):
 
     if cfg.mode == 'eval':
         print("todo")
+
 
 if __name__ == '__main__':
     sys.exit(contpred())

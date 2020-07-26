@@ -28,6 +28,7 @@ from plot import plot_cp, plot_loss, setup_plotting
 from dynamics_model import DynamicsModel
 from reacher_pd import run_controller
 
+
 ###########################################
 #                Datasets                 #
 ###########################################
@@ -63,7 +64,7 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
                 data_in.append(np.hstack(dat))
                 # data_in.append(np.hstack((states[i], j-i, target)))
                 if delta:
-                    data_out.append(states[j]-states[i])
+                    data_out.append(states[j] - states[i])
                 else:
                     data_out.append(states[j])
 
@@ -108,6 +109,7 @@ def create_dataset_step(data, delta=True, t_range=0):
 
     return data_in, data_out
 
+
 def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
     """
     Collect data for environment model
@@ -118,9 +120,9 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
 
     env_model = cfg.env.name
     env = gym.make(env_model)
-    #if (cfg.video):
-        #env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
-         #video_callable = lambda episode_id: episode_id==1,force=True)
+    # if (cfg.video):
+    # env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
+    # video_callable = lambda episode_id: episode_id==1,force=True)
     log.info('Initializing env: %s' % env_model)
 
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
@@ -129,29 +131,29 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
     if (cfg.PID_test):
         target = np.random.rand(5) * 2 - 1
 
-    s = np.random.randint(0,100)
+    s = np.random.randint(0, 100)
     for i in range(cfg.num_trials):
         log.info('Trial %d' % i)
         if (cfg.PID_test):
             env.seed(0)
         else:
-            env.seed(s+i)
+            env.seed(s + i)
         s0 = env.reset()
 
         m_c = env.masscart
         m_p = env.masspole
-        m_t = m_c+m_p
+        m_t = m_c + m_p
         g = env.gravity
         l = env.length
         A = np.array([
             [0, 1, 0, 0],
-            [0, g*m_p/m_c, 0, 0],
+            [0, g * m_p / m_c, 0, 0],
             [0, 0, 0, 1],
-            [0, 0, g*m_t/(l*m_c), 0],
+            [0, 0, g * m_t / (l * m_c), 0],
         ])
 
         B = np.array([
-            [0, 1/m_c, 0, -1/(l*m_c)],
+            [0, 1 / m_c, 0, -1 / (l * m_c)],
         ])
 
         Q = np.diag([.5, .05, 1, .05])
@@ -162,24 +164,24 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
         if cfg.data_mode == 'chaotic':
             modifier = .75 * np.random.random(4)
             lim = cfg.trial_timesteps
-        elif cfg.data_mode =='unstable':
-            modifier =1.5 * np.random.random(4) - .75
+        elif cfg.data_mode == 'unstable':
+            modifier = 1.5 * np.random.random(4) - .75
             env.theta_threshold_radians = 2 * env.theta_threshold_radians
             # default 2.4
-            env.x_threshold = 2*env.x_threshold
+            env.x_threshold = 2 * env.x_threshold
             lim = cfg.trial_timesteps
         else:
             modifier = .5 * np.random.random(4) + 1
             lim = cfg.trial_timesteps
-        policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0,1.0])
-        policy.K = np.multiply(policy.K,modifier)
+        policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
+        policy.K = np.multiply(policy.K, modifier)
         # print(type(env))
-        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
+        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
         while len(dotmap.states) < lim:
             env.seed(s)
             env.reset()
             if cfg.data_mode == 'chaotic':
-                modifier =  .75 * np.random.random(4)
+                modifier = .75 * np.random.random(4)
             elif cfg.data_mode == 'unstable':
                 modifier = 1.5 * np.random.random(4) - .75
                 env.theta_threshold_radians = 2 * env.theta_threshold_radians
@@ -189,18 +191,16 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
                 modifier = .5 * np.random.random(4) + 1
             policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
             policy.K = np.multiply(policy.K, modifier)
-            dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video = cfg.video)
+            dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
             print(f"- Repeat simulation")
-            s +=1
+            s += 1
             # if plot and len(dotmap.states)>0: plot_cp(dotmap.states, dotmap.actions)
 
         if plot: plot_cp(dotmap.states, dotmap.actions, save=True)
 
         dotmap.K = np.array(policy.K).flatten()
         logs.append(dotmap)
-        s+= 1
-
-
+        s += 1
 
     return logs
 
@@ -289,7 +289,6 @@ def contpred(cfg):
             f = f + cfg.model.str + copystr + '.dat'
             torch.save(model, f)
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
-
 
 
 if __name__ == '__main__':

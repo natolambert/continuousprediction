@@ -12,8 +12,9 @@ import hydra
 import math
 import GPy
 
+
 class GP(object):
-    def __init__(self, n_in, n_out, cfg, loss_fn, env = "Reacher", tf=nn.ReLU()):
+    def __init__(self, n_in, n_out, cfg, loss_fn, env="Reacher", tf=nn.ReLU()):
         self.name = 'GP'  # Default value
         self.probabilistic = True  # Default value
         # self.verbosity = parameters.get('verbosity', 3)
@@ -32,7 +33,7 @@ class GP(object):
         self._logs = []
         self._startTime = None
 
-    def optimize(self,  dataset, cfg):
+    def optimize(self, dataset, cfg):
         # logging.info('Training GP')
         # self._startTime = timer()
 
@@ -43,32 +44,32 @@ class GP(object):
         # logging.info('Dataset %d -> %d with %d data' % (self.n_inputs, self.n_outputs, train_set.get_n_data()))
 
         if 0 < cfg.model.optimizer.max_size < len(dataset[0]):
-            use = np.random.randint(0,len(dataset[0]), cfg.model.optimizer.max_size)
+            use = np.random.randint(0, len(dataset[0]), cfg.model.optimizer.max_size)
             d = []
             d.append(dataset[0][use])
             d.append(dataset[1][use])
 
         for i in range(self.n_outputs):
             # logging.info('Training covariate %d (of %d)' % (i+1, self.n_outputs))
-            print('Training covariate %d (of %d)' % (i+1, self.n_outputs))
+            print('Training covariate %d (of %d)' % (i + 1, self.n_outputs))
             if self.kernel == 'Matern52':
                 self._kernel.append(GPy.kern.Matern52(input_dim=self.n_inputs, ARD=self.ARD))
             if self.kernel == 'Linear':
                 self._kernel.append(GPy.kern.Linear(input_dim=self.n_inputs, ARD=self.ARD))
 
             # TODO check this line
-            self._model.append(GPy.models.GPRegression(d[0], d[1][:,1].reshape(-1,1), kernel=self._kernel[i]))
+            self._model.append(GPy.models.GPRegression(d[0], d[1][:, 1].reshape(-1, 1), kernel=self._kernel[i]))
             if self.fixNoise is not None:
                 self._model[i].likelihood.variance.fix(self.fixNoise)
             self._model[i].optimize_restarts(num_restarts=10, verbose=False)  # , parallel=True, num_processes=5
 
-        return 0,0
+        return 0, 0
         #
         # end = timer()
         # logging.info('Training completed in %f[s]' % (end - self._startTime))
 
     def forward(self, x):
-        n_data =np.shape(x)[0]
+        n_data = np.shape(x)[0]
         mean = np.zeros((n_data, self.n_outputs))
         var = np.zeros((n_data, self.n_outputs))
         for i in range(self.n_outputs):
@@ -80,16 +81,16 @@ class GP(object):
             var[var < 0] = 0  # Make sure that variance is always positive
         return np.concatenate((mean, var))
 
-
     def get_hyperparameters(self):
         return self._model._param_array_
+
 
 class Net(nn.Module):
     """
     General Neural Network
     """
 
-    def __init__(self, n_in, n_out, cfg, loss_fn, env = "Reacher", tf=nn.ReLU()):
+    def __init__(self, n_in, n_out, cfg, loss_fn, env="Reacher", tf=nn.ReLU()):
         """
         :param structure: layer sizes
         :param tf: nonlinearity function
@@ -172,8 +173,8 @@ class Net(nn.Module):
         input = dataset[0]
         output = dataset[1]
         if cfg.model.traj:
-            #no control params (state + time index)
-            if np.shape(dataset[0])[1] == len(self.state_indices)+1:
+            # no control params (state + time index)
+            if np.shape(dataset[0])[1] == len(self.state_indices) + 1:
                 self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
                 self.indexScaler = hydra.utils.instantiate(cfg.model.preprocess.index)
                 self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
@@ -393,9 +394,9 @@ class DynamicsModel(object):
                        dataset[1][:, self.state_indices])
         else:
             dataset = (np.hstack((dataset[0][:, self.state_indices],
-                              # dataset[0][:, (self.cfg.env.state_size - len(self.state_indices)):])),
-                              dataset[0][:, self.cfg.env.state_size:])),
-                   dataset[1][:, self.state_indices])
+                                  # dataset[0][:, (self.cfg.env.state_size - len(self.state_indices)):])),
+                                  dataset[0][:, self.cfg.env.state_size:])),
+                       dataset[1][:, self.state_indices])
 
         if self.ens:
             from sklearn.model_selection import KFold  # for dataset

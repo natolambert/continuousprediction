@@ -343,7 +343,6 @@ def eval_exp(test_data, models, verbose=False, env=None, t_range=1000):
         scaled_pred = (predictions[key][:, :, :] - min_states) / max_states
         MSEscaled[key] = np.square(scaled_states - scaled_pred).mean(axis=2)[:, 1:]
 
-
     return MSEscaled, predictions, variances
 
 

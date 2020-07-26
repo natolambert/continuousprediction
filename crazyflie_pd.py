@@ -39,13 +39,13 @@ class PidPolicy:
     """
     Setup to run with a PID operating on pitch, then roll, then yaw.
     """
+
     def __init__(self, parameters, cfg):
         # super(PidPolicy, self).__init__(cfg)
         # cfg = cfg[cfg.policy.mode]
         self.pids = []
         self.cfg = cfg
         self.mode = self.cfg.params.mode
-
 
         self.random = False
         # assert len(cfg.params.min_pwm) == len(cfg.params.equil)
@@ -117,8 +117,7 @@ class PidPolicy:
         actions = []
         for i, pid in enumerate(self.pids):
             # pid.update(state[self.pry[i]])
-            actions.append(pid._action(state[self.pry[i]], 0,0,0))
-
+            actions.append(pid._action(state[self.pry[i]], 0, 0, 0))
 
         def limit_thrust(pwm):  # Limits the thrust
             return np.clip(pwm, self.min_pwm, self.max_pwm)
@@ -139,8 +138,7 @@ class PidPolicy:
             raise NotImplementedError("Other PID Modes not updated")
 
         self.last_action = np.array(output)
-        return np.array(output) #, True
-
+        return np.array(output)  # , True
 
     def reset(self):
         self.interal = 0
@@ -166,7 +164,7 @@ class PidPolicy:
     #             self.pids[i + 3].update(EulerOut[i])
 
 
-def run_controller(env, horizon, policy, video = False):
+def run_controller(env, horizon, policy, video=False):
     logs = DotMap()
     logs.states = []
     logs.actions = []
@@ -176,7 +174,7 @@ def run_controller(env, horizon, policy, video = False):
     observation = env.reset()
     print(f"Initial RPY {observation[3:6]}")
     for i in range(horizon):
-        if(video):
+        if (video):
             env.render()
         state = observation
         action = policy.get_action(state[3:6])
@@ -216,9 +214,9 @@ def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
 
     env_model = cfg.env.name
     env = gym.make(env_model)
-    #if (cfg.video):
-        #env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
-         #video_callable = lambda episode_id: episode_id==1,force=True)
+    # if (cfg.video):
+    # env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
+    # video_callable = lambda episode_id: episode_id==1,force=True)
     log.info('Initializing env: %s' % env_model)
 
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
@@ -231,9 +229,9 @@ def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
         log.info('Trial %d' % i)
         env.seed(s + i)
 
-        P = 100+np.random.rand(2) * 10000
+        P = 100 + np.random.rand(2) * 10000
         I = np.zeros(2)
-        D = 10+np.random.rand(2) * 50000
+        D = 10 + np.random.rand(2) * 50000
 
         # Samples target uniformely from [-1, 1]
         if (not cfg.PID_test):
@@ -252,9 +250,9 @@ def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
             print(f"- Repeat simulation")
             env.seed(s)
             s0 = env.reset()
-            P = 100+np.random.rand(2) * 10000
+            P = 100 + np.random.rand(2) * 10000
             I = np.zeros(2)
-            D = 10+np.random.rand(2) * 50000
+            D = 10 + np.random.rand(2) * 50000
 
             # Samples target uniformely from [-1, 1]
             if (not cfg.PID_test):
@@ -271,7 +269,6 @@ def collect_data(cfg, plot=True):  # Creates horizon^2/2 points
             s += 1
 
         if plot: plot_cf(dotmap.states, dotmap.actions)
-
 
         # policy = PID(dX=2, dU=2, P=P, I=I, D=D, target=target)
         # print(type(env))
@@ -305,7 +302,6 @@ def log_hyperparams(cfg):
 
 @hydra.main(config_path='conf/crazyflie_pd.yaml')
 def contpred(cfg):
-
     train = cfg.mode == 'train'
 
     # Collect data
@@ -366,6 +362,7 @@ def contpred(cfg):
                 model._save_model(f)
             else:
                 torch.save(model, f)
+
 
 if __name__ == '__main__':
     sys.exit(contpred())
