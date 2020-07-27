@@ -11,7 +11,7 @@ class CrazyFlieEnv(gym.Env):
     Description:
        A flying robot with 4 thrusters moves through space
     Source:
-        This file is created by Nathan Lambert, adapted from a model from Somil Bansal
+
     Observation:
         Type: Box(12)
         Num	Observation                 Min         Max

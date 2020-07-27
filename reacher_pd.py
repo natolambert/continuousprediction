@@ -134,7 +134,6 @@ def run_controller(env, horizon, policy, video=False):
     """
 
     # WHat is going on here?
-    # nol 29 feb - action only acts on first 5 variables
     def obs2q(obs):
         if len(obs) < 5:
             return obs

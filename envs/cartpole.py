@@ -5,7 +5,6 @@ import joblib
 
 """
 Classic cart-pole system implemented by Rich Sutton et al. 
--> Modified by Nathan Lambert to be a continuous environment
 
 Changes:
 1. actions:

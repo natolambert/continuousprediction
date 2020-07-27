@@ -487,8 +487,6 @@ def plot_states(ground_truth, predictions, variances=None, idx_plot=None, plot_a
 
 def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None):
     """
-    Plots the loss against the epoch number, designed to work with Nathan's DynamicsModel
-    TODO: only integers on x-axis
 
     Parameters:
         logs: a list of lists of loss values, one list for each net in the model
