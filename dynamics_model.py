@@ -105,6 +105,7 @@ class Net(nn.Module):
         self.n_out = n_out
         self.hidden_w = cfg.model.training.hid_width
         self.cfg = cfg
+        self.is_lstm =  cfg.model.lstm
         if env == "Reacher":
             self.state_indices = cfg.model.training.state_indices
         elif env == "Lorenz":
@@ -113,23 +114,42 @@ class Net(nn.Module):
             self.state_indices = np.arange(n_in)
 
         # create object nicely
-        layers = []
-        layers.append(('dynm_input_lin', nn.Linear(self.n_in, self.hidden_w)))
-        layers.append(('dynm_input_act', self.activation))
-        for d in range(cfg.model.training.hid_depth):
-            layers.append(('dynm_lin_' + str(d), nn.Linear(self.hidden_w, self.hidden_w)))
-            layers.append(('dynm_act_' + str(d), self.activation))
+        if self.is_lstm:
+            # The LSTM takes word embeddings as inputs, and outputs hidden states
+            # with dimensionality hidden_dim.
+            self.lstm = nn.LSTM(n_in, self.hidden_w)
 
-        layers.append(('dynm_out_lin', nn.Linear(self.hidden_w, self.n_out)))
-        self.features = nn.Sequential(OrderedDict([*layers]))
+            # The linear layer that maps from hidden state space to tag space
+            self.hidden2tag = nn.Linear(self.hidden_w, n_out)
+
+            for name, param in self.named_parameters():
+                if 'bias' in name:
+                    nn.init.uniform_(-.08, 0.08)
+                elif 'weight' in name:
+                    nn.init.uniform_(-.08, 0.08)
+
+        else:
+            layers = []
+            layers.append(('dynm_input_lin', nn.Linear(self.n_in, self.hidden_w)))
+            layers.append(('dynm_input_act', self.activation))
+            for d in range(cfg.model.training.hid_depth):
+                layers.append(('dynm_lin_' + str(d), nn.Linear(self.hidden_w, self.hidden_w)))
+                layers.append(('dynm_act_' + str(d), self.activation))
+
+            layers.append(('dynm_out_lin', nn.Linear(self.hidden_w, self.n_out)))
+            self.features = nn.Sequential(OrderedDict([*layers]))
 
     def forward(self, x):
         """
         Runs a forward pass of x through this network
         """
         if type(x) == np.ndarray:
-            x = torch.from_numpy(x)
-        x = self.features(x.float())
+            x = torch.from_numpy(x).float()
+        if self.is_lstm:
+            lstm_out, _ = self.lstm(x.view(len(x), 1, -1))
+            x = self.hidden2pred(lstm_out.view(len(x), -1))
+        else:
+            x = self.features(x)
         return x
 
     def testPreprocess(self, input, cfg):
@@ -261,7 +281,10 @@ class Net(nn.Module):
 
         # Set up the optimizer and scheduler
         # TODO: the scheduler is currently unused. Should it be doing something it isn't or removed?
-        optimizer = torch.optim.Adam(self.features.parameters(), lr=lr, weight_decay=cfg.model.optimizer.regularization)
+        if self.is_lstm:
+            optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=cfg.model.optimizer.regularization)
+        else:
+            optimizer = torch.optim.Adam(self.features.parameters(), lr=lr, weight_decay=cfg.model.optimizer.regularization)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.7)
 
         # data preprocessing for normalization
@@ -272,8 +295,13 @@ class Net(nn.Module):
             dataset = random.sample(dataset, cfg.model.optimizer.max_size)
 
         # Puts it in PyTorch dataset form and then converts to DataLoader
-        trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=bs, shuffle=True)
-        testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=bs, shuffle=True)
+        if self.is_lstm:
+            raise ValueError("dataset is multiple of seq len")
+            trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=self.seq_l, shuffle=False)
+            testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=self.seq_l, shuffle=False)
+        else:
+            trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=bs, shuffle=True)
+            testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=bs, shuffle=True)
 
         # Optimization loop
         train_errors = []
