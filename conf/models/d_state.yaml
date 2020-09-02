@@ -4,6 +4,7 @@ model:
   ensemble: false
   traj: false
   delta: false
+  lstm: false
   training:
     hid_width: 250
     hid_depth: 2

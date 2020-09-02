@@ -82,8 +82,8 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
                 else:
                     data_out.append(states[j])
 
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
+    data_in = np.array(data_in, dtype=np.float32)
+    data_out = np.array(data_out, dtype=np.float32)
 
     return data_in, data_out
 
@@ -118,8 +118,8 @@ def create_dataset_step(data, delta=True, t_range=0):
                     data_out.append(states[i + 1] - states[i])
                 else:
                     data_out.append(states[i + 1])
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
+    data_in = np.array(data_in, dtype=np.float32)
+    data_out = np.array(data_out, dtype=np.float32)
 
     return data_in, data_out
 
