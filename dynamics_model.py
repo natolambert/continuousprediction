@@ -124,9 +124,9 @@ class Net(nn.Module):
 
             for name, param in self.named_parameters():
                 if 'bias' in name:
-                    nn.init.uniform_(-.08, 0.08)
+                    nn.init.uniform_(param, -.08, 0.08)
                 elif 'weight' in name:
-                    nn.init.uniform_(-.08, 0.08)
+                    nn.init.uniform_(param, -.08, 0.08)
 
         else:
             layers = []
@@ -147,7 +147,7 @@ class Net(nn.Module):
             x = torch.from_numpy(x).float()
         if self.is_lstm:
             lstm_out, _ = self.lstm(x.view(len(x), 1, -1))
-            x = self.hidden2pred(lstm_out.view(len(x), -1))
+            x = self.hidden2tag(lstm_out.view(len(x), -1))
         else:
             x = self.features(x)
         return x
@@ -278,6 +278,8 @@ class Net(nn.Module):
         bs = cfg.model.optimizer.batch
         split = cfg.model.optimizer.split
         epochs = cfg.model.optimizer.epochs
+        t_range = cfg.model.training.t_range
+        sequence_length = t_range*(t_range-1)/2
 
         # Set up the optimizer and scheduler
         # TODO: the scheduler is currently unused. Should it be doing something it isn't or removed?
@@ -290,15 +292,16 @@ class Net(nn.Module):
         # data preprocessing for normalization
         dataset = self.preprocess(dataset, cfg)
 
-        if 0 < cfg.model.optimizer.max_size < len(dataset):
+        if 0 < cfg.model.optimizer.max_size < len(dataset) and not self.is_lstm:
             import random
             dataset = random.sample(dataset, cfg.model.optimizer.max_size)
 
         # Puts it in PyTorch dataset form and then converts to DataLoader
         if self.is_lstm:
-            raise ValueError("dataset is multiple of seq len")
-            trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=self.seq_l, shuffle=False)
-            testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=self.seq_l, shuffle=False)
+            num_sequences = int(len(dataset)/sequence_length)
+            sequence_split = int(split*num_sequences)
+            trainLoader = DataLoader(dataset[:int(sequence_split * sequence_length)], batch_size=int(sequence_length), shuffle=False)
+            testLoader = DataLoader(dataset[int(sequence_split * sequence_length):], batch_size=int(sequence_length), shuffle=False)
         else:
             trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=bs, shuffle=True)
             testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=bs, shuffle=True)
@@ -313,6 +316,7 @@ class Net(nn.Module):
 
             # Iterate through dataset and take gradient descent steps
             for i, (inputs, targets) in enumerate(trainLoader):
+                print(i)
                 optimizer.zero_grad()
                 outputs = self.forward(inputs)
                 loss = self.loss_fn(outputs.float(), targets.float())
@@ -324,6 +328,7 @@ class Net(nn.Module):
             # Iterate through dataset to calculate test set accuracy
             # test_error = torch.zeros(1)
             for i, (inputs, targets) in enumerate(testLoader):
+                print(i)
                 outputs = self.forward(inputs)
                 loss = self.loss_fn(outputs.float(), targets.float())
                 test_error += loss.item() / (len(testLoader))
