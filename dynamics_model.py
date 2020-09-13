@@ -300,10 +300,6 @@ class Net(nn.Module):
         if self.is_lstm:
             num_sequences = int(len(dataset)/bs)
             sequence_split = int(split*num_sequences)
-            print(len(dataset))
-            print(bs)
-            print(num_sequences)
-            print(sequence_split)
             trainLoader = DataLoader(dataset[:int(sequence_split * bs)], batch_size=bs, shuffle=False)
             testLoader = DataLoader(dataset[int(sequence_split * bs):], batch_size=bs, shuffle=False)
         else:
