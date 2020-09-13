@@ -13,12 +13,12 @@ model:
     # Note: these do nothing for non trajectory based models
     train_target: true
     control_params: true
-    filter_rate: .98
+    filter_rate: .95
 #    t_range: 500
     num_traj: 50
   optimizer:
     epochs: 22
-    batch: 64 #32
+    batch: 100 #32
     name: Adam
     split: .5
     lr: .0008 # 4

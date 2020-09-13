@@ -279,7 +279,6 @@ class Net(nn.Module):
         split = cfg.model.optimizer.split
         epochs = cfg.model.optimizer.epochs
         t_range = cfg.model.training.t_range
-        sequence_length = t_range*(t_range-1)/2
 
         # Set up the optimizer and scheduler
         # TODO: the scheduler is currently unused. Should it be doing something it isn't or removed?
@@ -298,10 +297,14 @@ class Net(nn.Module):
 
         # Puts it in PyTorch dataset form and then converts to DataLoader
         if self.is_lstm:
-            num_sequences = int(len(dataset)/sequence_length)
+            num_sequences = int(len(dataset)/bs)
             sequence_split = int(split*num_sequences)
-            trainLoader = DataLoader(dataset[:int(sequence_split * sequence_length)], batch_size=int(sequence_length), shuffle=False)
-            testLoader = DataLoader(dataset[int(sequence_split * sequence_length):], batch_size=int(sequence_length), shuffle=False)
+            print(len(dataset))
+            print(bs)
+            print(num_sequences)
+            print(sequence_split)
+            trainLoader = DataLoader(dataset[:int(sequence_split * bs)], batch_size=bs, shuffle=False)
+            testLoader = DataLoader(dataset[int(sequence_split * bs):], batch_size=bs, shuffle=False)
         else:
             trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=bs, shuffle=True)
             testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=bs, shuffle=True)
@@ -316,7 +319,6 @@ class Net(nn.Module):
 
             # Iterate through dataset and take gradient descent steps
             for i, (inputs, targets) in enumerate(trainLoader):
-                print(i)
                 optimizer.zero_grad()
                 outputs = self.forward(inputs)
                 loss = self.loss_fn(outputs.float(), targets.float())
