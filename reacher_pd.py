@@ -39,7 +39,7 @@ from dynamics_model import DynamicsModel
 #                Datasets                 #
 ###########################################
 
-def create_dataset_traj(data, control_params=True, train_target=True, threshold=0.0, delta=False, t_range=0):
+def create_dataset_traj(data, control_params=True, train_target=True, threshold=0.0, delta=False, t_range=0, is_lstm=False):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -55,8 +55,12 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
         states = sequence.states
         if t_range > 0:
             states = states[:t_range]
-        if id > 99:
-            continue
+        if not is_lstm:
+            if id > 99:
+                continue
+        else:
+            if id > 100-int(threshold*100):
+                continue
         P = sequence.P
         D = sequence.D
         target = sequence.target
@@ -68,7 +72,8 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
 
                 # The randomely continuing is something I thought of to shrink
                 # the datasets while still having a large variety
-                if np.random.random() < threshold:
+
+                if np.random.random() < threshold and not is_lstm:
                     continue
                 dat = [states[i], j - i]
                 if control_params:
@@ -81,9 +86,8 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
                     data_out.append(states[j] - states[i])
                 else:
                     data_out.append(states[j])
-
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
+    data_in = np.array(data_in, dtype=np.float32)
+    data_out = np.array(data_out, dtype=np.float32)
 
     return data_in, data_out
 
@@ -118,8 +122,8 @@ def create_dataset_step(data, delta=True, t_range=0):
                     data_out.append(states[i + 1] - states[i])
                 else:
                     data_out.append(states[i + 1])
-    data_in = np.array(data_in)
-    data_out = np.array(data_out)
+    data_in = np.array(data_in, dtype=np.float32)
+    data_out = np.array(data_out, dtype=np.float32)
 
     return data_in, data_out
 
@@ -308,6 +312,7 @@ def contpred(cfg):
         traj = cfg.model.traj
         ens = cfg.model.ensemble
         delta = cfg.model.delta
+        is_lstm = cfg.model.lstm
 
         log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
 
@@ -325,7 +330,8 @@ def contpred(cfg):
                 dataset = create_dataset_traj(exper_data, control_params=cfg.model.training.control_params,
                                               train_target=cfg.model.training.train_target,
                                               threshold=cfg.model.training.filter_rate,
-                                              t_range=cfg.model.training.t_range)
+                                              t_range=cfg.model.training.t_range,
+                                              is_lstm = is_lstm)
             else:
                 dataset = create_dataset_step(train_data, delta=delta)
 

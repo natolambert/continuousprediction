@@ -5,6 +5,7 @@ model:
   traj: false
   delta: true
   gp: false
+  lstm: false
   training:
     hid_width: 250
     hid_depth: 2
