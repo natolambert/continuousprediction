@@ -39,7 +39,7 @@ from dynamics_model import DynamicsModel
 #                Datasets                 #
 ###########################################
 
-def create_dataset_traj(data, control_params=True, train_target=True, threshold=0.0, delta=False, t_range=0, is_lstm=False):
+def create_dataset_traj(data, control_params=True, train_target=True, threshold=0.0, delta=False, t_range=0, is_lstm=False, lstm_batch=0):
     """
     Creates a dataset with entries for PID parameters and number of
     timesteps in the future
@@ -55,37 +55,51 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
         states = sequence.states
         if t_range > 0:
             states = states[:t_range]
-        if not is_lstm:
-            if id > 99:
-                continue
-        else:
-            if id > 100-int(threshold*100):
-                continue
+        if id > 99:
+            continue
         P = sequence.P
         D = sequence.D
         target = sequence.target
         n = states.shape[0]
-        for i in range(n):  # From one state p
-            for j in range(i + 1, n):
-                # This creates an entry for a given state concatenated
-                # with a number t of time steps as well as the PID parameters
 
-                # The randomely continuing is something I thought of to shrink
-                # the datasets while still having a large variety
+        if not is_lstm:
+            for i in range(n):  # From one state p
+                for j in range(i + 1, n):
+                    # This creates an entry for a given state concatenated
+                    # with a number t of time steps as well as the PID parameters
 
-                if np.random.random() < threshold and not is_lstm:
+                    # The randomely continuing is something I thought of to shrink
+                    # the datasets while still having a large variety
+
+                    if np.random.random() < threshold:
+                        continue
+                    dat = [states[i], j - i]
+                    if control_params:
+                        dat.extend([P, D])
+                    if train_target:
+                        dat.append(target)
+                    data_in.append(np.hstack(dat))
+                    # data_in.append(np.hstack((states[i], j-i, target)))
+                    if delta:
+                        data_out.append(states[j] - states[i])
+                    else:
+                        data_out.append(states[j])
+        else:
+            for i in range(n-lstm_batch):
+                if np.random.random() < threshold:
                     continue
-                dat = [states[i], j - i]
-                if control_params:
-                    dat.extend([P, D])
-                if train_target:
-                    dat.append(target)
-                data_in.append(np.hstack(dat))
-                # data_in.append(np.hstack((states[i], j-i, target)))
-                if delta:
-                    data_out.append(states[j] - states[i])
-                else:
-                    data_out.append(states[j])
+                for j in range(i, i+lstm_batch):
+                    dat = [states[j], lstm_batch-j]
+                    if control_params:
+                        dat.extend([P, D])
+                    if train_target:
+                        dat.append(target)
+                    data_in.append(np.hstack(dat))
+                    # data_in.append(np.hstack((states[i], j-i, target)))
+                    if delta:
+                        data_out.append(states[i+lstm_batch] - states[j])
+                    else:
+                        data_out.append(states[i+lstm_batch])
     data_in = np.array(data_in, dtype=np.float32)
     data_out = np.array(data_out, dtype=np.float32)
 
@@ -331,7 +345,8 @@ def contpred(cfg):
                                               train_target=cfg.model.training.train_target,
                                               threshold=cfg.model.training.filter_rate,
                                               t_range=cfg.model.training.t_range,
-                                              is_lstm = is_lstm)
+                                              is_lstm = is_lstm,
+                                              lstm_batch = cfg.model.optimizer.batch)
             else:
                 dataset = create_dataset_step(train_data, delta=delta)
 
