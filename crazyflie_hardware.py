@@ -154,7 +154,7 @@ def get_datasets(df):
     return data_train, data_test
 
 
-@hydra.main(config_path='conf/crazyflie_pd.yaml')
+@hydra.main(config_path='conf/crazyflie_pd.yaml', strict=False)
 def contpred(cfg):
     # Collect data
     if cfg.mode == 'collect':
@@ -214,8 +214,9 @@ def contpred(cfg):
         # torch.save(model, "%s_backup.dat" % cfg.model.str) # save backup regardless
 
     if cfg.mode == 'eval':
-        model_types = ['d', 't']  # ,'tp']
-        model_types = ['p', 'tp']  # ,'tp']
+        model_types = ['t']  # ,'tp']
+        # model_types = ['d', 'pe', 't']  # ,'tp']
+        # model_types = ['p', 'tp']  # ,'tp']
         models = {}
         f = hydra.utils.get_original_cwd() + '/models/crazyflie_exp/'
         for model_type in model_types:
@@ -240,7 +241,7 @@ def contpred(cfg):
             mse_evald.append(mse)
 
         plot_mse_err(mse_evald, save_loc=("Err Bar MSE of Predictions"),
-                     show=True, legend=False)
+                     show=True, legend=True)
 
 
 def eval_exp(test_data, models, verbose=False, env=None, t_range=1000):

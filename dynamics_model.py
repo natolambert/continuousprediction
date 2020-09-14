@@ -11,7 +11,7 @@ from collections import OrderedDict
 import hydra
 import math
 import GPy
-
+from omegaconf import OmegaConf
 
 class GP(object):
     def __init__(self, n_in, n_out, cfg, loss_fn, env="Reacher", tf=nn.ReLU()):
@@ -105,7 +105,13 @@ class Net(nn.Module):
         self.n_out = n_out
         self.hidden_w = cfg.model.training.hid_width
         self.cfg = cfg
-        self.is_lstm =  cfg.model.lstm
+        if cfg.model.lstm is not None:
+            if cfg.model.lstm:
+                self.is_lstm =  True
+            else:
+                self.is_lstm = False
+        else:
+            self.is_lstm = False
         if env == "Reacher":
             self.state_indices = cfg.model.training.state_indices
         elif env == "Lorenz":
@@ -114,7 +120,7 @@ class Net(nn.Module):
             self.state_indices = np.arange(n_in)
 
         # create object nicely
-        if self.is_lstm:
+        if cfg.model.lstm is not None: #self.is_lstm:
             # The LSTM takes word embeddings as inputs, and outputs hidden states
             # with dimensionality hidden_dim.
             # https://ieeexplore-ieee-org.libproxy.berkeley.edu/stamp/stamp.jsp?tp=&arnumber=8461076
@@ -146,11 +152,15 @@ class Net(nn.Module):
         """
         if type(x) == np.ndarray:
             x = torch.from_numpy(x).float()
-        if self.is_lstm:
-            lstm_out, _ = self.lstm(x.view(len(x), 1, -1))
-            x = self.hidden2tag(lstm_out.view(len(x), -1))
+        OmegaConf.set_struct(self.cfg.model, False)
+        if self.cfg.model.lstm is not None:
+            if self.cfg.model.lstm:
+                lstm_out, _ = self.lstm(x.view(len(x), 1, -1))
+                x = self.hidden2tag(lstm_out.view(len(x), -1))
+            else:
+                x = self.features(x.float())
         else:
-            x = self.features(x)
+            x = self.features(x.float())
         return x
 
     def testPreprocess(self, input, cfg):
@@ -317,7 +327,6 @@ class Net(nn.Module):
 
             # Iterate through dataset and take gradient descent steps
             for i, (inputs, targets) in enumerate(trainLoader):
-                print(i)
                 optimizer.zero_grad()
                 outputs = self.forward(inputs)
                 loss = self.loss_fn(outputs.float(), targets.float())
@@ -329,7 +338,6 @@ class Net(nn.Module):
             # Iterate through dataset to calculate test set accuracy
             # test_error = torch.zeros(1)
             for i, (inputs, targets) in enumerate(testLoader):
-                print(i)
                 outputs = self.forward(inputs)
                 loss = self.loss_fn(outputs.float(), targets.float())
                 test_error += loss.item() / (len(testLoader))
