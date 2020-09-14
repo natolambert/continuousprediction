@@ -124,7 +124,10 @@ class Net(nn.Module):
             # The LSTM takes word embeddings as inputs, and outputs hidden states
             # with dimensionality hidden_dim.
             # https://ieeexplore-ieee-org.libproxy.berkeley.edu/stamp/stamp.jsp?tp=&arnumber=8461076
-            self.lstm = nn.LSTM(n_in, self.hidden_w)
+            if cfg.model.str == "rnn":
+                self.lstm = nn.RNN(n_in, self.hidden_w)
+            else:
+                self.lstm = nn.LSTM(n_in, self.hidden_w)
 
             # The linear layer that maps from hidden state space to tag space
             self.hidden2tag = nn.Linear(self.hidden_w, n_out)

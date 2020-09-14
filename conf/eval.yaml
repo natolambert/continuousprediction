@@ -22,7 +22,7 @@ hydra:
 plotting:
   models:
   - d
-  - pe
+#  - pe
 #  - de
 #  - p
 #  - de
@@ -33,6 +33,8 @@ plotting:
 #  - tp
 #  - tpe
   - lstm
+  - lstm_d
+  - rnn
   num_eval_train: 0
   num_eval_test: 100
   train_set: false

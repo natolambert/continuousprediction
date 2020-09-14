@@ -106,7 +106,7 @@ def create_dataset_traj(data, control_params=True, train_target=True, threshold=
     return data_in, data_out
 
 
-def create_dataset_step(data, delta=True, t_range=0):
+def create_dataset_step(data, delta=True, t_range=0, is_lstm = False, lstm_batch = 0):
     """
     Creates a dataset for learning how one state progresses to the next
 
@@ -136,6 +136,11 @@ def create_dataset_step(data, delta=True, t_range=0):
                     data_out.append(states[i + 1] - states[i])
                 else:
                     data_out.append(states[i + 1])
+        if is_lstm:
+            remainder = len(data_out)%lstm_batch
+            if remainder:
+                data_out = data_out[:len(data_out)-remainder]
+                data_in = data_in[:len(data_in)-remainder]
     data_in = np.array(data_in, dtype=np.float32)
     data_out = np.array(data_out, dtype=np.float32)
 
@@ -348,7 +353,7 @@ def contpred(cfg):
                                               is_lstm = is_lstm,
                                               lstm_batch = cfg.model.optimizer.batch)
             else:
-                dataset = create_dataset_step(train_data, delta=delta)
+                dataset = create_dataset_step(train_data, delta=delta, is_lstm = is_lstm, lstm_batch = cfg.model.optimizer.batch)
 
             model = DynamicsModel(cfg)
             train_logs, test_logs = model.train(dataset, cfg)
