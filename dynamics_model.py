@@ -292,9 +292,14 @@ class Net(nn.Module):
         # data preprocessing for normalization
         dataset = self.preprocess(dataset, cfg)
 
-        if 0 < cfg.model.optimizer.max_size < len(dataset) and not self.is_lstm:
+        if 0 < cfg.model.optimizer.max_size < len(dataset):
             import random
-            dataset = random.sample(dataset, cfg.model.optimizer.max_size)
+            if not self.is_lstm:
+                dataset = random.sample(dataset, cfg.model.optimizer.max_size)
+            else:
+                #lstm must be batched by sequence length
+                divisible_max_size = int((len(dataset)-cfg.model.optimizer.max_size)/bs)*bs
+                dataset = dataset[:divisible_max_size]
 
         # Puts it in PyTorch dataset form and then converts to DataLoader
         if self.is_lstm:
@@ -327,7 +332,6 @@ class Net(nn.Module):
             # Iterate through dataset to calculate test set accuracy
             # test_error = torch.zeros(1)
             for i, (inputs, targets) in enumerate(testLoader):
-                print(i)
                 outputs = self.forward(inputs)
                 loss = self.loss_fn(outputs.float(), targets.float())
                 test_error += loss.item() / (len(testLoader))

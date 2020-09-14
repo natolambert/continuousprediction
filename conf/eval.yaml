@@ -31,6 +31,7 @@ plotting:
 #  - te
 #  - tp
 #  - tpe
+  - lstm
   num_eval_train: 0
   num_eval_test: 100
   train_set: false
