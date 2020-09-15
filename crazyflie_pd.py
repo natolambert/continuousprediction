@@ -329,6 +329,7 @@ def contpred(cfg):
         traj = cfg.model.traj
         ens = cfg.model.ensemble
         delta = cfg.model.delta
+        is_lstm = cfg.model.lstm
 
         log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
 
@@ -342,7 +343,7 @@ def contpred(cfg):
                                               threshold=cfg.model.training.filter_rate,
                                               t_range=cfg.model.training.t_range)
             else:
-                dataset = create_dataset_step(exper_data, delta=delta, t_range=cfg.model.training.t_range)
+                dataset = create_dataset_step(exper_data, delta=delta, t_range=cfg.model.training.t_range, is_lstm = is_lstm, lstm_batch = cfg.model.optimizer.batch)
 
             model = DynamicsModel(cfg)
             train_logs, test_logs = model.train(dataset, cfg)

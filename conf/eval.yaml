@@ -21,20 +21,20 @@ hydra:
 
 plotting:
   models:
-  - d
+#  - d
 #  - pe
 #  - de
 #  - p
 #  - de
 #  - p
 #  - pe
-  - t
+ # - t
 #  - te
 #  - tp
 #  - tpe
-  - lstm
+#  - lstm
   - lstm_d
-  - rnn
+#  - rnn
   num_eval_train: 0
   num_eval_test: 100
   train_set: false
