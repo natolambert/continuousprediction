@@ -25,7 +25,7 @@ model:
     regularization: 0
     max_size: 100000
   plotting:
-    label: LSTM
+    label: LSTM Traj.
     color: '#ffffff'
     color_plotly: rgb(100,100,100)
     marker: s

@@ -13,6 +13,7 @@ import math
 import GPy
 from omegaconf import OmegaConf
 
+
 class GP(object):
     def __init__(self, n_in, n_out, cfg, loss_fn, env="Reacher", tf=nn.ReLU()):
         self.name = 'GP'  # Default value
@@ -107,7 +108,7 @@ class Net(nn.Module):
         self.cfg = cfg
         if cfg.model.lstm is not None:
             if cfg.model.lstm:
-                self.is_lstm =  True
+                self.is_lstm = True
             else:
                 self.is_lstm = False
         else:
@@ -120,7 +121,7 @@ class Net(nn.Module):
             self.state_indices = np.arange(n_in)
 
         # create object nicely
-        if cfg.model.lstm is not None: #self.is_lstm:
+        if cfg.model.lstm is not None:  # self.is_lstm:
             # The LSTM takes word embeddings as inputs, and outputs hidden states
             # with dimensionality hidden_dim.
             # https://ieeexplore-ieee-org.libproxy.berkeley.edu/stamp/stamp.jsp?tp=&arnumber=8461076
@@ -159,7 +160,7 @@ class Net(nn.Module):
             layers.append(('dynm_out_lin', nn.Linear(self.hidden_w, self.n_out)))
             self.features = nn.Sequential(OrderedDict([*layers]))
 
-    def forward(self, x):
+    def forward(self, x, num_traj=1):
         """
         Runs a forward pass of x through this network
         """
@@ -170,8 +171,8 @@ class Net(nn.Module):
         OmegaConf.set_struct(self.cfg.model, False)
         if self.cfg.model.lstm is not None:
             if self.cfg.model.lstm:
-                lstm_out, _ = self.lstm(x.view(len(x), 1, -1))
-                x = self.hidden2tag(lstm_out.view(len(x), -1))
+                lstm_out, _ = self.lstm(x.view(len(x), num_traj, -1))
+                x = self.hidden2tag(lstm_out.view(len(x), num_traj, -1))
             else:
                 x = self.features(x.float())
         else:
@@ -311,7 +312,8 @@ class Net(nn.Module):
         if self.is_lstm:
             optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=cfg.model.optimizer.regularization)
         else:
-            optimizer = torch.optim.Adam(self.features.parameters(), lr=lr, weight_decay=cfg.model.optimizer.regularization)
+            optimizer = torch.optim.Adam(self.features.parameters(), lr=lr,
+                                         weight_decay=cfg.model.optimizer.regularization)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=6, gamma=0.7)
 
         # data preprocessing for normalization
@@ -322,14 +324,14 @@ class Net(nn.Module):
             if not self.is_lstm:
                 dataset = random.sample(dataset, cfg.model.optimizer.max_size)
             else:
-                #lstm must be batched by sequence length
-                divisible_max_size = int((len(dataset)-cfg.model.optimizer.max_size)/bs)*bs
+                # lstm must be batched by sequence length
+                divisible_max_size = int((len(dataset) - cfg.model.optimizer.max_size) / bs) * bs
                 dataset = dataset[:divisible_max_size]
 
         # Puts it in PyTorch dataset form and then converts to DataLoader
         if self.is_lstm:
-            num_sequences = int(len(dataset)/bs)
-            sequence_split = int(split*num_sequences)
+            num_sequences = int(len(dataset) / bs)
+            sequence_split = int(split * num_sequences)
             trainLoader = DataLoader(dataset[:int(sequence_split * bs)], batch_size=bs, shuffle=False)
             testLoader = DataLoader(dataset[int(sequence_split * bs):], batch_size=bs, shuffle=False)
         else:
@@ -419,6 +421,22 @@ class DynamicsModel(object):
                 self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
         elif env == "Lorenz" or env == "SS":
             self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="Lorenz") for i in range(self.E)]
+
+    def predict_lstm(self, x, num_traj=1):
+        # LSTM takes in a variable length object and predicts the next in the future.
+        if type(x) == np.ndarray:
+            x = torch.from_numpy(np.float64(x))
+        prediction = torch.zeros((x.shape[0], num_traj, len(self.state_indices)))
+        assert np.ndim(x) == 3, "Not correct num of dim for LSTM (seq_len, batch, input_size)"
+
+        for n in self.nets:
+            x = np.stack([n.testPreprocess(sub, self.cfg) for sub in x])
+            scaledInput = x
+            out = n.forward(scaledInput, num_traj=num_traj)
+            out = np.stack([n.testPostprocess(o) for o in out])
+            prediction += out / len(self.nets)
+
+        return prediction[:, :, :]
 
     def predict(self, x):
         """

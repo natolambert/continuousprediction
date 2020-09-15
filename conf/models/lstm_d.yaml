@@ -25,8 +25,8 @@ model:
     regularization: 0
     max_size: 100000
   plotting:
-    label: LSTM One-Step
+    label: LSTM
     color: '#000000'
-    color_plotly: rgb(0,0,0)
+    color_plotly: rgb(100,100,100)
     marker: s
-    marker_plotly: cross-open-dot
+    marker_plotly: square-open-dot
