@@ -162,6 +162,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
     initials = np.array(initials)
     N, T, D = states.shape
+    A = actions.shape[-1]
     if len(np.shape(actions)) == 2:
         actions = np.expand_dims(actions, axis=2)
     # Iterate through each type of model for evaluation
@@ -176,6 +177,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         model = models[key]
         indices = model.state_indices
         traj = model.traj
+        lstm = "lstm" in key or "rnn" in key #model.cfg.model.lstm
 
         ind_dict[key] = indices
 
@@ -186,48 +188,97 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         #     continue
 
         for i in range(1, T):
+            # print(i)
             if i >= t_range:
                 continue
-            if traj:
-                dat = [initials[:, indices], i * np.ones((N, 1))]
-                if env == 'reacher' or env == 'lorenz' or env == 'crazyflie':
-                    if model.control_params:
-                        dat.extend([P_param, D_param])
-                    if model.train_target:
-                        dat.append(target)
-                elif env == 'cartpole':
-                    dat.append(K_param)
-                prediction = np.array(model.predict(np.hstack(dat)).detach())
-
-
-            else:
-                if env == 'lorenz':
-                    prediction = model.predict(np.array(currents[key]))
-                    prediction = np.array(prediction.detach())
-                else:
-                    if compute_action:
-                        if env == 'cartpole':
-                            acts = np.stack([[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
-                        else:
-                            acts = np.stack([[p.act(obs2q(currents[key][i, :]))[0]][0] for i, p in enumerate(policies)])
-                    else:
-                        acts = actions[:, i - 1, :]
-                    prediction = model.predict(np.hstack((currents[key], acts)))
-                    prediction = np.array(prediction.detach())
-
-            # get variances if applicable
-            if model.prob:
+            if lstm:
+                # TODO translate to lstm code
                 if traj:
-                    f = np.hstack(dat)
-                else:
-                    f = np.hstack((currents[key], acts))
-                var = forward_var(model, f).detach().numpy()
-            else:
-                var = np.zeros(np.shape(initials[:, indices]))
+                    raise NotImplementedError("Not supporting traj lstm yet")
+                    dat = [initials[:, indices], i * np.ones((N, 1))]
+                    if env == 'reacher' or env == 'lorenz' or env == 'crazyflie':
+                        if model.control_params:
+                            dat.extend([P_param, D_param])
+                        if model.train_target:
+                            dat.append(target)
+                    elif env == 'cartpole':
+                        dat.append(K_param)
+                    prediction = np.array(model.predict(np.hstack(dat)).detach())
 
-            predictions[key].append(prediction)
-            currents[key] = prediction.squeeze()
-            variances[key].append(var)
+                else:
+                    if i == 1:
+                        actions_lstm = actions[:, i - 1, :].reshape(1, N, A)
+                        states_lstm = currents[key].reshape(1, N, len(models[key].state_indices))
+                    else:
+                        actions_lstm = actions[:, :i, :].transpose(1, 0, 2)
+                        states_lstm = np.concatenate((states_lstm, prediction), axis=0)
+                        if True:
+                            train_len = model.cfg.model.optimizer.batch
+                            if np.shape(actions_lstm)[0]>train_len:
+                                actions_lstm = actions_lstm[-train_len:]
+                                states_lstm = states_lstm[-train_len:]
+                    # input of shape (seq_len, batch, input_size)
+                    # output of shape (seq_len, batch, input_size)
+                    if env == 'lorenz':
+                        raise NotImplementedError("TODO")
+                        prediction = model.predict(np.array(currents[key]))
+                        prediction = np.array(prediction.detach())
+                    else:
+                        prediction = model.predict_lstm(np.concatenate((states_lstm, actions_lstm), axis=2), num_traj=N)
+                        prediction = np.array(prediction.detach())[-1, :, :].reshape(1, N,
+                                                                                      len(models[key].state_indices))
+
+                # included for not erroring (hacky, not used)
+                var = np.zeros(np.shape(initials[:, indices]))
+                variances[key].append(var)
+
+                # Note - no probablistic LSTM models for now
+                predictions[key].append(prediction[0])
+                currents[key] = prediction.squeeze()
+            else:
+
+                if traj:
+                    dat = [initials[:, indices], i * np.ones((N, 1))]
+                    if env == 'reacher' or env == 'lorenz' or env == 'crazyflie':
+                        if model.control_params:
+                            dat.extend([P_param, D_param])
+                        if model.train_target:
+                            dat.append(target)
+                    elif env == 'cartpole':
+                        dat.append(K_param)
+                    prediction = np.array(model.predict(np.hstack(dat)).detach())
+
+
+                else:
+                    if env == 'lorenz':
+                        prediction = model.predict(np.array(currents[key]))
+                        prediction = np.array(prediction.detach())
+                    else:
+                        if compute_action:
+                            if env == 'cartpole':
+                                acts = np.stack(
+                                    [[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
+                            else:
+                                acts = np.stack(
+                                    [[p.act(obs2q(currents[key][i, :]))[0]][0] for i, p in enumerate(policies)])
+                        else:
+                            acts = actions[:, i - 1, :]
+                        prediction = model.predict(np.hstack((currents[key], acts)))
+                        prediction = np.array(prediction.detach())
+
+                # get variances if applicable
+                if model.prob:
+                    if traj:
+                        f = np.hstack(dat)
+                    else:
+                        f = np.hstack((currents[key], acts))
+                    var = forward_var(model, f).detach().numpy()
+                else:
+                    var = np.zeros(np.shape(initials[:, indices]))
+
+                predictions[key].append(prediction)
+                currents[key] = prediction.squeeze()
+                variances[key].append(var)
 
     variances = {key: np.stack(variances[key]).transpose([1, 0, 2]) for key in variances}
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
@@ -243,10 +294,10 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
             pred_key = [0, 1, 3, 4]
         elif env == 'reacher':
             ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]
-            pred_key = np.arange(np.shape(prediction)[1])
+            pred_key = np.arange(np.shape(predictions[key][0])[1])
         else:
             ind_dict[key] = np.arange(np.shape(prediction)[1])
-            pred_key = np.arange(np.shape(prediction)[1])
+            pred_key = np.arange(np.shape(predictions[key][0])[1])  # changed from np.arange(np.shape(prediction)[1])
         if t_range < np.shape(states)[1]:
             l = t_range
         else:
