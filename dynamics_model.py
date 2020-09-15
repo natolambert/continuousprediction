@@ -124,20 +124,30 @@ class Net(nn.Module):
             # The LSTM takes word embeddings as inputs, and outputs hidden states
             # with dimensionality hidden_dim.
             # https://ieeexplore-ieee-org.libproxy.berkeley.edu/stamp/stamp.jsp?tp=&arnumber=8461076
-            if cfg.model.str == "rnn":
-                self.lstm = nn.RNN(n_in, self.hidden_w)
+            if self.is_lstm:
+                if cfg.model.str == "rnn":
+                    self.lstm = nn.RNN(n_in, self.hidden_w)
+                else:
+                    self.lstm = nn.LSTM(n_in, self.hidden_w)
+
+                # The linear layer that maps from hidden state space to tag space
+                self.hidden2tag = nn.Linear(self.hidden_w, n_out)
+
+                for name, param in self.named_parameters():
+                    if 'bias' in name:
+                        nn.init.uniform_(param, -.08, 0.08)
+                    elif 'weight' in name:
+                        nn.init.uniform_(param, -.08, 0.08)
             else:
-                self.lstm = nn.LSTM(n_in, self.hidden_w)
+                layers = []
+                layers.append(('dynm_input_lin', nn.Linear(self.n_in, self.hidden_w)))
+                layers.append(('dynm_input_act', self.activation))
+                for d in range(cfg.model.training.hid_depth):
+                    layers.append(('dynm_lin_' + str(d), nn.Linear(self.hidden_w, self.hidden_w)))
+                    layers.append(('dynm_act_' + str(d), self.activation))
 
-            # The linear layer that maps from hidden state space to tag space
-            self.hidden2tag = nn.Linear(self.hidden_w, n_out)
-
-            for name, param in self.named_parameters():
-                if 'bias' in name:
-                    nn.init.uniform_(param, -.08, 0.08)
-                elif 'weight' in name:
-                    nn.init.uniform_(param, -.08, 0.08)
-
+                layers.append(('dynm_out_lin', nn.Linear(self.hidden_w, self.n_out)))
+                self.features = nn.Sequential(OrderedDict([*layers]))
         else:
             layers = []
             layers.append(('dynm_input_lin', nn.Linear(self.n_in, self.hidden_w)))
