@@ -1,0 +1,32 @@
+model:
+  str: lstm_d
+  prob: false
+  ensemble: false
+  traj: false
+  delta: false
+  gp: false
+  lstm: true
+  training:
+    hid_width: 250
+    hid_depth: 2
+    E: 1
+    # Note: these do nothing for non trajectory based models
+    train_target: true
+    control_params: true
+    filter_rate: .95
+#    t_range: 500
+    num_traj: 50
+  optimizer:
+    epochs: 22
+    batch: 100 #32
+    name: Adam
+    split: .5
+    lr: .0008 # 4
+    regularization: 0
+    max_size: 100000
+  plotting:
+    label: LSTM One-Step
+    color: '#000000'
+    color_plotly: rgb(0,0,0)
+    marker: s
+    marker_plotly: cross-open-dot
