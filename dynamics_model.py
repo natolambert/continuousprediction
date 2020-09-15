@@ -125,6 +125,7 @@ class Net(nn.Module):
             # with dimensionality hidden_dim.
             # https://ieeexplore-ieee-org.libproxy.berkeley.edu/stamp/stamp.jsp?tp=&arnumber=8461076
             self.lstm = nn.LSTM(n_in, self.hidden_w)
+            # TODO REPLACE THIS with LSTM and comapre
 
             # The linear layer that maps from hidden state space to tag space
             self.hidden2tag = nn.Linear(self.hidden_w, n_out)
