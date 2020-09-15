@@ -22,7 +22,7 @@ hydra:
 plotting:
   models:
   - d
-  - pe
+#  - pe
 #  - de
 #  - p
 #  - de
@@ -34,15 +34,15 @@ plotting:
 #  - tpe
 #  - lstm
   - lstm_d
-#  - rnn
+  - rnn
   num_eval_train: 0
-  num_eval_test: 20
+  num_eval_test: 23
   train_set: false
   plot_states: false
   all: false
   compute_action: false
   legend: true
-  t_range: 1000
+  t_range: 200
   mse_y_max: 2 #5
   copies: 0
   states: true
