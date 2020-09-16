@@ -613,6 +613,10 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
             temp.append(data[k])
         arrays.append(np.stack(temp))
 
+
+    colors_temp = ['rgb(12, 7, 134)', 'rgb(64, 3, 156)', 'rgb(106, 0, 167)',
+                   'rgb(143, 13, 163)', 'rgb(176, 42, 143)', 'rgb(203, 71, 119)', 'rgb(224, 100, 97)',
+                   'rgb(242, 132, 75)', 'rgb(252, 166, 53)', 'rgb(252, 206, 37)']
     traces_plot = []
     for n, (ar, k) in enumerate(zip(arrays, keys)):
         # temp
@@ -620,7 +624,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         #     continue
         tr, xs, ys = generate_errorbar_traces(ar, xs=[np.arange(1, np.shape(ar)[1] + 1).tolist()], percentiles='66+90',
                                               color=color_dict_plotly[k],
-                                              name=label_dict[k])
+                                              name=label_dict[k]+str(n))
         w_marker = []
         # for t in tr:
         m = add_marker(tr, color=color_dict_plotly[k], symbol=marker_dict_plotly[k], skip=30)
@@ -629,7 +633,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     layout = dict(  # title=title if title else f"Average Error over Run",
         xaxis={'title': 'Prediction Step'},  # 2e-9, 5
-        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(5)]},
+        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(2e-3), np.log10(.07)]}, #[np.log10(20e-6), np.log10(5)]},
         # [np.log10(y_min), np.log10(y_max)]},
         yaxis_type="log",
         xaxis_showgrid=False, yaxis_showgrid=False,

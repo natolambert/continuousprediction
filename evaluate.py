@@ -207,6 +207,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
                 else:
                     if i == 1:
+                        if env == 'cartpole': A=1
                         actions_lstm = actions[:, i - 1, :].reshape(1, N, A)
                         states_lstm = currents[key].reshape(1, N, len(models[key].state_indices))
                     else:
@@ -296,8 +297,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
             ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]
             pred_key = np.arange(np.shape(predictions[key][0])[1])
         else:
-            ind_dict[key] = np.arange(np.shape(prediction)[1])
-            pred_key = np.arange(np.shape(predictions[key][0])[1])  # changed from np.arange(np.shape(prediction)[1])
+            ind_dict[key] = np.arange(D) #np.shape(prediction)[1])
+            pred_key = np.arange(D) #np.shape(predictions[key][0])[1])  # changed from np.arange(np.shape(prediction)[1])
         if t_range < np.shape(states)[1]:
             l = t_range
         else:
@@ -307,7 +308,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         scaled_states = (states[:, :l, ind_dict[key]] - min_states) / max_states
         scaled_pred = (predictions[key][:, :, pred_key] - min_states) / max_states
         MSEscaled[key] = np.square(scaled_states - scaled_pred).mean(axis=2)[:, 1:]
-
+        # print(key)
+        # print(np.sum(np.sum(MSEscaled[key])))
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
     #     predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in predictions} # vectorized verion

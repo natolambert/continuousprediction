@@ -17,7 +17,7 @@ model:
 #    t_range: 500
     num_traj: 50
   optimizer:
-    epochs: 22
+    epochs: 8  # 22
     batch: 64 #32
     name: Adam
     split: .8
