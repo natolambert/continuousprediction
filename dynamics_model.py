@@ -169,7 +169,7 @@ class Net(nn.Module):
         OmegaConf.set_struct(self.cfg.model, False)
         if self.cfg.model.lstm is not None:
             if self.cfg.model.lstm:
-                lstm_out, _ = self.lstm(x.view(len(x), num_traj, -1))
+                lstm_out, _ = self.lstm(x.view(len(x), num_traj, -1).float())
                 x = self.hidden2tag(lstm_out.view(len(x), num_traj, -1))
             else:
                 x = self.features(x.float())

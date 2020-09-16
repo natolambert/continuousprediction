@@ -17,11 +17,16 @@ model:
 #    t_range: 500
     num_traj: 50
   optimizer:
-    epochs: 22
-    batch: 100 #32
+    epochs: 6
+    batch: 999 #32
     name: Adam
     split: .5
-    lr: .0008 # 4
+    lr: .01 # .000
+#    epochs: 22
+#    batch: 100 #32
+#    name: Adam
+#    split: .5
+#    lr: .0008 # 4
     regularization: 0
     max_size: 100000
   plotting:

@@ -82,7 +82,7 @@ def create_dataset_traj(data, control_params=False, train_target=True, threshold
     return data_in, data_out
 
 
-def create_dataset_step(data, delta=True, t_range=0):
+def create_dataset_step(data, delta=True, t_range=0, is_lstm=False, lstm_batch=0):
     """
     Creates a dataset for learning how one state progresses to the next
 
@@ -108,6 +108,11 @@ def create_dataset_step(data, delta=True, t_range=0):
             #     data_out.append(states[i + 1] - states[i])
             # else:
             #     data_out.append(states[i + 1])
+        if is_lstm:
+            remainder = len(data_out) % lstm_batch
+            if remainder:
+                data_out = data_out[:len(data_out) - remainder]
+                data_in = data_in[:len(data_in) - remainder]
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
@@ -192,7 +197,7 @@ def contpred(cfg):
                                               threshold=cfg.model.training.filter_rate,
                                               t_range=cfg.model.training.t_range)
             else:
-                dataset = create_dataset_step(data_train, delta=delta)
+                dataset = create_dataset_step(data_train, delta=delta, is_lstm = cfg.model.lstm, lstm_batch = cfg.model.optimizer.batch)
 
             cfg.env.param_size = 0
             cfg.env.target_size = 0
@@ -215,6 +220,7 @@ def contpred(cfg):
 
     if cfg.mode == 'eval':
         model_types = ['t']  # ,'tp']
+        model_types = ['d','pe', 't','lstm_d']  # ,'tp']
         # model_types = ['d', 'pe', 't']  # ,'tp']
         # model_types = ['p', 'tp']  # ,'tp']
         models = {}
@@ -241,7 +247,7 @@ def contpred(cfg):
             mse_evald.append(mse)
 
         plot_mse_err(mse_evald, save_loc=("Err Bar MSE of Predictions"),
-                     show=True, legend=True)
+                     show=True, legend=False)
 
 
 def eval_exp(test_data, models, verbose=False, env=None, t_range=1000):
@@ -287,41 +293,91 @@ def eval_exp(test_data, models, verbose=False, env=None, t_range=1000):
     from evaluate import forward_var
     variances = {key: [] for key in models}
     ind_dict = {}
+    N, T, D = states.shape
+    A = actions.shape[-1]
+
     for i, key in list(enumerate(models)):
         if verbose and (i + 1) % 10 == 0:
             print("    " + str(i + 1))
         model = models[key]
         indices = model.state_indices
         traj = model.traj
+        lstm = "lstm" in key or "rnn" in key #model.cfg.model.lstm
 
         ind_dict[key] = indices
 
         for i in range(1, T):
             if i >= t_range:
                 continue
-            if traj:
-                dat = [initials[:, indices], i * np.ones((N, 1))]
-                prediction = np.array(model.predict(np.hstack(dat)).detach())
-            else:
-                if env == 'lorenz':
-                    prediction = model.predict(np.array(currents[key]))
-                    prediction = np.array(prediction.detach())
-                else:
-                    acts = actions[:, i - 1, :]
-                    prediction = model.predict(np.hstack((currents[key], acts)))
-                    prediction = np.array(prediction.detach())
-            if model.prob:
+            if lstm:
+                # TODO translate to lstm code
                 if traj:
-                    f = np.hstack(dat)
-                else:
-                    f = np.hstack((currents[key], acts))
-                var = forward_var(model, f).detach().numpy()
-            else:
-                var = np.zeros(np.shape(initials[:, indices]))
+                    raise NotImplementedError("Not supporting traj lstm yet")
+                    dat = [initials[:, indices], i * np.ones((N, 1))]
+                    if env == 'reacher' or env == 'lorenz' or env == 'crazyflie':
+                        if model.control_params:
+                            dat.extend([P_param, D_param])
+                        if model.train_target:
+                            dat.append(target)
+                    elif env == 'cartpole':
+                        dat.append(K_param)
+                    prediction = np.array(model.predict(np.hstack(dat)).detach())
 
-            predictions[key].append(prediction)
-            currents[key] = prediction.squeeze()
-            variances[key].append(var)
+                else:
+                    if i == 1:
+                        actions_lstm = actions[:, i - 1, :].reshape(1, N, A)
+                        states_lstm = currents[key].reshape(1, N, len(models[key].state_indices))
+                    else:
+                        actions_lstm = actions[:, :i, :].transpose(1, 0, 2)
+                        states_lstm = np.concatenate((states_lstm, prediction), axis=0)
+                        if True:
+                            train_len = model.cfg.model.optimizer.batch
+                            if np.shape(actions_lstm)[0] > train_len:
+                                actions_lstm = actions_lstm[-train_len:]
+                                states_lstm = states_lstm[-train_len:]
+                    # input of shape (seq_len, batch, input_size)
+                    # output of shape (seq_len, batch, input_size)
+                    if env == 'lorenz':
+                        raise NotImplementedError("TODO")
+                        prediction = model.predict(np.array(currents[key]))
+                        prediction = np.array(prediction.detach())
+                    else:
+                        prediction = model.predict_lstm(np.concatenate((states_lstm, actions_lstm), axis=2),
+                                                        num_traj=N)
+                        prediction = np.array(prediction.detach())[-1, :, :].reshape(1, N,
+                                                                                     len(models[key].state_indices))
+
+                # included for not erroring (hacky, not used)
+                var = np.zeros(np.shape(initials[:, indices]))
+                variances[key].append(var)
+
+                # Note - no probablistic LSTM models for now
+                predictions[key].append(prediction[0])
+                currents[key] = prediction.squeeze()
+            else:
+                if traj:
+                    dat = [initials[:, indices], i * np.ones((N, 1))]
+                    prediction = np.array(model.predict(np.hstack(dat)).detach())
+                else:
+                    if env == 'lorenz':
+                        prediction = model.predict(np.array(currents[key]))
+                        prediction = np.array(prediction.detach())
+                    else:
+                        acts = actions[:, i - 1, :]
+                        prediction = model.predict(np.hstack((currents[key], acts)))
+                        prediction = np.array(prediction.detach())
+                if model.prob:
+                    if traj:
+                        f = np.hstack(dat)
+                    else:
+                        f = np.hstack((currents[key], acts))
+                    var = forward_var(model, f).detach().numpy()
+                else:
+                    var = np.zeros(np.shape(initials[:, indices]))
+
+                predictions[key].append(prediction)
+                currents[key] = prediction.squeeze()
+                variances[key].append(var)
 
     variances = {key: np.stack(variances[key]).transpose([1, 0, 2]) for key in variances}
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
