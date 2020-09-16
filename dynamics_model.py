@@ -166,6 +166,8 @@ class Net(nn.Module):
         """
         if type(x) == np.ndarray:
             x = torch.from_numpy(x).float()
+        if x.dtype == torch.double:
+            x = x.float()
         OmegaConf.set_struct(self.cfg.model, False)
         if self.cfg.model.lstm is not None:
             if self.cfg.model.lstm:
