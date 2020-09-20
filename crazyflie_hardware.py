@@ -8,9 +8,7 @@ warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 import numpy as np
-from dotmap import DotMap
 
-import mujoco_py
 import torch
 
 import gym

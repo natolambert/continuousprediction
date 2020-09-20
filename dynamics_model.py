@@ -106,6 +106,7 @@ class Net(nn.Module):
         self.n_out = n_out
         self.hidden_w = cfg.model.training.hid_width
         self.cfg = cfg
+        self.trained = False
         if cfg.model.lstm is not None:
             if cfg.model.lstm:
                 self.is_lstm = True
@@ -171,7 +172,9 @@ class Net(nn.Module):
         OmegaConf.set_struct(self.cfg.model, False)
         if self.cfg.model.lstm is not None:
             if self.cfg.model.lstm:
+                # if self.trained:
                 lstm_out, _ = self.lstm(x.view(len(x), num_traj, -1).float())
+                # else:
                 x = self.hidden2tag(lstm_out.view(len(x), num_traj, -1))
             else:
                 x = self.features(x.float())
@@ -366,6 +369,8 @@ class Net(nn.Module):
             print(f"    Epoch {epoch + 1}, Train err: {train_error}, Test err: {test_error}")
             train_errors.append(train_error)
             test_errors.append(test_error)
+
+        self.trained = True
 
         return train_errors, test_errors
 

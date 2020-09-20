@@ -18,9 +18,9 @@ model:
     num_traj: 50
   optimizer:
     epochs: 10
-    batch: 499 #32
+    batch: 999 #32
     name: Adam
-    split: .5
+    split: .8
     lr: .01 # .0008
     regularization: 0
     max_size: 100000

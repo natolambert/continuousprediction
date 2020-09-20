@@ -449,6 +449,10 @@ def plot_states(ground_truth, predictions, variances=None, idx_plot=None, plot_a
             # print(key)
             pred = predictions[key][:, i]
 
+            if key == 'lstm_d':
+                color_dict[key] = '#800080'
+                marker_dict[key] = "*"
+
             # chopped = np.maximum(np.minimum(pred, 3), -3)  # to keep it from messing up graphs when it diverges
             chopped = [(x if abs(x) < 150 else np.nan) for x in pred]
             # chopped = pred
@@ -633,7 +637,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     layout = dict(  # title=title if title else f"Average Error over Run",
         xaxis={'title': 'Prediction Step'},  # 2e-9, 5
-        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(2e-3), np.log10(.07)]}, #[np.log10(20e-6), np.log10(5)]},
+        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(5)]},
         # [np.log10(y_min), np.log10(y_max)]},
         yaxis_type="log",
         xaxis_showgrid=False, yaxis_showgrid=False,
