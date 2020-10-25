@@ -462,6 +462,18 @@ def num_eval(gt, predictions, models, setting='gaussian', T_range=10000, verbose
             raise ValueError("Invalid setting: " + setting)
     return out
 
+def plot_control_test(control_test_dataset_in, model):
+    # uhhhh i'm not sure if this line is right, hopefully it is?
+    # u might wanna do stuff to control_test_dataset_in, like hstack or something... i dunno man good luck lol
+    predictions = np.array(model.predict(control_test_dataset_in).detach())
+    # now use prediction and control_test_dataset_in to make the graph
+    # look at create_dataset_traj_control_test in reacher_pd.py to see what it looks like
+    # first dimension is number of points, second dimension is initial state, time index, target, pd parameters, etc..
+
+    # maybe its easier if u just do it point by point with a for loop like this?
+    for i in range(control_test_dataset_in.shape[0]):
+        prediction = np.array(model.predict(control_test_dataset_in[i]).detach())
+
 
 @hydra.main(config_path='conf/eval.yaml')
 def evaluate(cfg):
@@ -473,8 +485,12 @@ def evaluate(cfg):
     if not name == 'lorenz':
         # Load test data
         log.info(f"Loading default data")
-        (train_data, test_data) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + 'raw' + cfg.data_dir)
+        if cfg.plotting.control_test:
+            (train_data, test_data, control_test_data) = torch.load(
+                hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + 'raw' + cfg.data_dir)
+        else:
+            (train_data, test_data) = torch.load(
+                hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + 'raw' + cfg.data_dir)
 
         if cfg.plotting.train_set:
             test_data = train_data
@@ -624,6 +640,15 @@ def evaluate(cfg):
 
         plot_helper(test_data, cfg.plotting.num_eval_test, file)
 
+    if cfg.plotting.control_test:
+        # VISHNU THIS IS THE FUNCTION U HAVE TO WRITE
+        # import this function from reacher_pd to turn the data into an input into the network
+        # in control_test_dataset, the initial state, time index, and target should all be the same
+        from reacher_pd.py import create_dataset_traj_control_test
+        control_test_dataset_in, control_test_dataset_out = create_dataset_traj_control_test(control_test_data)
+        # this function is partially written up top somewhere
+        plot_control_test(control_test_dataset_in, models['t'])
+        # DAVID WHEN U TEST THIS MAKE SURE SET eval.yml, control_test: true and reacher_pd.yaml PID_test: true
 
 if __name__ == '__main__':
     sys.exit(evaluate())

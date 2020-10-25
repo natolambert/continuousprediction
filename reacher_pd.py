@@ -39,6 +39,34 @@ from dynamics_model import DynamicsModel
 #                Datasets                 #
 ###########################################
 
+def create_dataset_traj_control_test(data, t_range=0):
+    data_in, data_out = [], []
+    for id, sequence in enumerate(data):
+        if id % 5 == 0: print(f"- processing seq {id}")
+        states = sequence.states
+        if t_range > 0:
+            states = states[:t_range]
+        P = sequence.P
+        D = sequence.D
+        target = sequence.target
+        n = states.shape[0]
+
+        # you can use print statements to verify these lengths, especially states[0]
+        # states[0]: 15 length for reacher environment
+        # n: 1 length
+        # P: 5 length
+        # D: 5 length
+        # target: 5 length
+        dat = [states[0], n, P, D, target]
+        data_in.append(np.hstack(dat))
+        data_out.append(states[n])
+
+        data_in = np.array(data_in, dtype=np.float32)
+        data_out = np.array(data_out, dtype=np.float32)
+
+    return data_in, data_out
+
+
 def create_dataset_traj(data, control_params=True, train_target=True, threshold=0.0, delta=False, t_range=0, is_lstm=False, lstm_batch=0):
     """
     Creates a dataset with entries for PID parameters and number of
@@ -197,7 +225,7 @@ def run_controller(env, horizon, policy, video=False):
     return logs
 
 
-def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
+def collect_data(cfg, plot=False, PID_test = False):  # Creates horizon^2/2 points
     """
     Collect data for environment model
     :param nTrials:
@@ -215,7 +243,7 @@ def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
     # about <horizon> steps with actions, rewards and states
     logs = []
-    if (cfg.PID_test):
+    if (PID_test):
         target = np.random.rand(5) * 2 - 1
     for i in range(cfg.num_trials):
         log.info('Trial %d' % i)
@@ -232,7 +260,7 @@ def collect_data(cfg, plot=False):  # Creates horizon^2/2 points
         D = np.random.rand(5)
 
         # Samples target uniformely from [-1, 1]
-        if (not cfg.PID_test):
+        if (not PID_test):
             target = np.random.rand(5) * 2 - 1
 
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
@@ -312,10 +340,16 @@ def contpred(cfg):
 
         exper_data = collect_data(cfg)
         test_data = collect_data(cfg)
+        if (cfg.PID_test):
+            PID_test_data = collect_data(cfg, PID_test = True)
 
         log.info("Saving new default data")
-        torch.save((exper_data, test_data),
-                   hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+        if (cfg.PID_test):
+            torch.save((exper_data, test_data, PID_test_data),
+                       hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+        else:
+            torch.save((exper_data, test_data),
+                       hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
         log.info(f"Saved trajectories to {'/trajectories/reacher/' + 'raw' + cfg.data_dir}")
     # Load data
     else:

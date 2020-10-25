@@ -8,7 +8,7 @@ mode: collect # train or collect
 exper_dir: false # set to a name to save models within a subfolder in the models directory
 plot: false
 video: false
-PID_test: false # true means identical trajectories
+PID_test: true # true means identical trajectories, only varying the PD parameters
 #determines whether target is part of input data
 train_target: false
 control_params: true
