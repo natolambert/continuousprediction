@@ -465,7 +465,10 @@ def num_eval(gt, predictions, models, setting='gaussian', T_range=10000, verbose
 def plot_control_test(control_test_dataset_in, model):
     # uhhhh i'm not sure if this line is right, hopefully it is?
     # u might wanna do stuff to control_test_dataset_in, like hstack or something... i dunno man good luck lol
+    import pdb ; pdb.set_trace()
+    model_out = model.predict(control_test_dataset_in)
     predictions = np.array(model.predict(control_test_dataset_in).detach())
+
     # now use prediction and control_test_dataset_in to make the graph
     # look at create_dataset_traj_control_test in reacher_pd.py to see what it looks like
     # first dimension is number of points, second dimension is initial state, time index, target, pd parameters, etc..
@@ -612,20 +615,23 @@ def evaluate(cfg):
         else:
             y_min = .0001
 
-        plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
-                     show=True, y_min=y_min, y_max=cfg.plotting.mse_y_max, legend=cfg.plotting.legend)
+
+        # Commented out so the code runs bug-free on WSL
+        # plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
+        #              show=True, y_min=y_min, y_max=cfg.plotting.mse_y_max, legend=cfg.plotting.legend)
         # turn show off here
 
-        mse_all = {key: [] for key in cfg.plotting.models}
-        if cfg.plotting.copies:
-            for key, copy in MSEs:
-                mse_all[key].append(MSEs[(key, copy)])
-            mse_all = {key: np.stack(mse_all[key]) for key in mse_all}
-        mse_all = {key: np.mean(mse_all[key], axis=(1 if cfg.plotting.copies else 0)) for key in mse_all}
-        if cfg.plotting.copies:
-            mse_all = {key: np.median(mse_all[key], axis=0) for key in mse_all}
-        plot_mse(mse_all, log_scale=True, title="Average MSE", save_loc=graph_file + '/mse.pdf', show=False)
+        # mse_all = {key: [] for key in cfg.plotting.models}
+        # if cfg.plotting.copies:
+        #     for key, copy in MSEs:
+        #         mse_all[key].append(MSEs[(key, copy)])
+        #     mse_all = {key: np.stack(mse_all[key]) for key in mse_all}
+        # mse_all = {key: np.mean(mse_all[key], axis=(1 if cfg.plotting.copies else 0)) for key in mse_all}
+        # if cfg.plotting.copies:
+        #     mse_all = {key: np.median(mse_all[key], axis=0) for key in mse_all}
+        # plot_mse(mse_all, log_scale=True, title="Average MSE", save_loc=graph_file + '/mse.pdf', show=False)
 
+    # This code is in the scope of evaluate()
     if cfg.plotting.num_eval_train:
         log.info("Plotting train data")
 
@@ -644,7 +650,7 @@ def evaluate(cfg):
         # VISHNU THIS IS THE FUNCTION U HAVE TO WRITE
         # import this function from reacher_pd to turn the data into an input into the network
         # in control_test_dataset, the initial state, time index, and target should all be the same
-        from reacher_pd.py import create_dataset_traj_control_test
+        from reacher_pd import create_dataset_traj_control_test
         control_test_dataset_in, control_test_dataset_out = create_dataset_traj_control_test(control_test_data)
         # this function is partially written up top somewhere
         plot_control_test(control_test_dataset_in, models['t'])

@@ -59,10 +59,11 @@ def create_dataset_traj_control_test(data, t_range=0):
         # target: 5 length
         dat = [states[0], n, P, D, target]
         data_in.append(np.hstack(dat))
-        data_out.append(states[n])
+        data_out.append(states[-1])
+        # data_out.append(states[n])
 
-        data_in = np.array(data_in, dtype=np.float32)
-        data_out = np.array(data_out, dtype=np.float32)
+    data_in = np.array(data_in, dtype=np.float32)
+    data_out = np.array(data_out, dtype=np.float32)
 
     return data_in, data_out
 
@@ -335,13 +336,14 @@ def contpred(cfg):
     train = cfg.mode == 'train'
 
     # Collect data
+    # import pdb ; pdb.set_trace()
     if not train:
         log.info(f"Collecting new trials")
 
         exper_data = collect_data(cfg)
         test_data = collect_data(cfg)
         if (cfg.PID_test):
-            PID_test_data = collect_data(cfg, PID_test = True)
+            PID_test_data = collect_data(cfg, PID_test=True)
 
         log.info("Saving new default data")
         if (cfg.PID_test):
@@ -408,4 +410,5 @@ def contpred(cfg):
 
 
 if __name__ == '__main__':
-    sys.exit(contpred())
+    contpred()
+    # sys.exit(contpred())
