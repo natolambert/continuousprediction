@@ -59,10 +59,10 @@ def create_dataset_traj_control_test(data, t_range=0):
         # target: 5 length
         dat = [states[0], n, P, D, target]
         data_in.append(np.hstack(dat))
-        data_out.append(states[n])
+        data_out.append(states[-1])
 
-        data_in = np.array(data_in, dtype=np.float32)
-        data_out = np.array(data_out, dtype=np.float32)
+    data_in = np.array(data_in, dtype=np.float32)
+    data_out = np.array(data_out, dtype=np.float32)
 
     return data_in, data_out
 
@@ -356,8 +356,12 @@ def contpred(cfg):
         log.info(f"Loading default data")
         # raise ValueError("Current Saved data old format")
         # Todo re-save data
-        (exper_data, test_data) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+        if (cfg.PID_test):
+            (exper_data, test_data, _) = torch.load(
+                hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
+        else:
+            (exper_data, test_data) = torch.load(
+                hydra.utils.get_original_cwd() + '/trajectories/reacher/' + 'raw' + cfg.data_dir)
 
     if train:
         it = range(cfg.copies) if cfg.copies else [0]
@@ -392,8 +396,9 @@ def contpred(cfg):
             model = DynamicsModel(cfg)
             train_logs, test_logs = model.train(dataset, cfg)
 
-            setup_plotting({cfg.model.str: model})
-            plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
+            # Commented out since linux subsystem has no gui
+            #setup_plotting({cfg.model.str: model})
+            #plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
 
             log.info("Saving new default models")
             f = hydra.utils.get_original_cwd() + '/models/reacher/'
