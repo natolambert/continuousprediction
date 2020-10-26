@@ -462,20 +462,14 @@ def num_eval(gt, predictions, models, setting='gaussian', T_range=10000, verbose
             raise ValueError("Invalid setting: " + setting)
     return out
 
-def plot_control_test(control_test_dataset_in, model):
+def plot_control_test(dataset, model):
     # uhhhh i'm not sure if this line is right, hopefully it is?
     # u might wanna do stuff to control_test_dataset_in, like hstack or something... i dunno man good luck lol
-    import pdb ; pdb.set_trace()
-    model_out = model.predict(control_test_dataset_in)
-    predictions = np.array(model.predict(control_test_dataset_in).detach())
-
+    dataset = np.hstack((dataset[:, model.state_indices], dataset[:, model.cfg.env.state_size:]))
+    predictions = np.array(model.predict(dataset).detach())
     # now use prediction and control_test_dataset_in to make the graph
     # look at create_dataset_traj_control_test in reacher_pd.py to see what it looks like
     # first dimension is number of points, second dimension is initial state, time index, target, pd parameters, etc..
-
-    # maybe its easier if u just do it point by point with a for loop like this?
-    for i in range(control_test_dataset_in.shape[0]):
-        prediction = np.array(model.predict(control_test_dataset_in[i]).detach())
 
 
 @hydra.main(config_path='conf/eval.yaml')
