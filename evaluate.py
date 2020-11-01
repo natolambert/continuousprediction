@@ -10,6 +10,9 @@ import itertools
 
 import torch
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 from plot import *
 from mbrl_resources import obs2q
@@ -467,6 +470,26 @@ def plot_control_test(dataset, model):
     # u might wanna do stuff to control_test_dataset_in, like hstack or something... i dunno man good luck lol
     dataset = np.hstack((dataset[:, model.state_indices], dataset[:, model.cfg.env.state_size:]))
     predictions = np.array(model.predict(dataset).detach())
+    num_to_graph = 10
+    x_coords = [i+1 for i in range(10)]
+    
+    # Graph 1
+    bar_heights = np.random.permutation(predictions)[:num_to_graph][:, 0]
+    plt.bar(x_coords, bar_heights)
+    plt.savefig("test1.png")
+    plt.close()
+
+    # Graph 2
+    bar_heights = np.random.permutation(predictions)[:num_to_graph][:, 0]
+    plt.bar(x_coords, bar_heights)
+    plt.savefig("test2.png")
+    plt.close()
+
+    # Graph 3
+    bar_heights = np.random.permutation(predictions)[:num_to_graph][:, 0]
+    plt.bar(x_coords, bar_heights)
+    plt.savefig("test3.png")
+    plt.close()
     # now use prediction and control_test_dataset_in to make the graph
     # look at create_dataset_traj_control_test in reacher_pd.py to see what it looks like
     # first dimension is number of points, second dimension is initial state, time index, target, pd parameters, etc..
@@ -647,6 +670,7 @@ def evaluate(cfg):
         from reacher_pd import create_dataset_traj_control_test
         control_test_dataset_in, control_test_dataset_out = create_dataset_traj_control_test(control_test_data)
         # this function is partially written up top somewhere
+        # import pdb ; pdb.set_trace()
         plot_control_test(control_test_dataset_in, models['t'])
         # DAVID WHEN U TEST THIS MAKE SURE SET eval.yml, control_test: true and reacher_pd.yaml PID_test: true
 

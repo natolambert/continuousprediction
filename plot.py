@@ -436,6 +436,7 @@ def plot_states(ground_truth, predictions, variances=None, idx_plot=None, plot_a
             plt.close()
 
     for i in idx_plot:
+        import pdb ; pdb.set_trace()
         fig, ax = plt.subplots()
         gt = ground_truth[:, i]
         # plt.title("Predictions on one dimension")
