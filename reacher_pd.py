@@ -335,13 +335,14 @@ def contpred(cfg):
     train = cfg.mode == 'train'
 
     # Collect data
+    # import pdb ; pdb.set_trace()
     if not train:
         log.info(f"Collecting new trials")
 
         exper_data = collect_data(cfg)
         test_data = collect_data(cfg)
         if (cfg.PID_test):
-            PID_test_data = collect_data(cfg, PID_test = True)
+            PID_test_data = collect_data(cfg, PID_test=True)
 
         log.info("Saving new default data")
         if (cfg.PID_test):
@@ -413,4 +414,5 @@ def contpred(cfg):
 
 
 if __name__ == '__main__':
-    sys.exit(contpred())
+    contpred()
+    # sys.exit(contpred())
