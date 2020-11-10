@@ -1,14 +1,6 @@
-''' Questions:
-    1. What are we adding to the dataset each training step, just a one step forward data point, or one whole trajectory with the planned policy?
-    So are we adding (initial -> output), or (output-1 -> output) or both?
-    2. How do we calculate the reward at each time step without the environment?
-    3. What happens when we pass the end of the environment simulation (the model will not be accurate anymore) when using MPC? Is the way I am calculating this correct?
-    4. Are we using the same target every iteration?
-'''
-
 ''' TODO:
-    1. get_reward function
-    2. what to add to the dataset at each planning
+    1. adding to the dataset - is run_controller correct?
+    2. figure out get_reward - no actual action if using dynamics model, cannot use reward function in reacher3d.py
     3. Figure out how to evaluate the model at each iteration (for both dynamics model accuracy and control policy)
 '''
 
@@ -145,6 +137,13 @@ def collect_initial_data(cfg, env):
 
     return logs
 
+def get_reward(output_state, target):
+    '''
+    Calculates the reward given output_state and target
+    Uses simple np.linalg.norm between joint positions
+    '''
+    return np.linal.norm(np.arccos(output_state[:5]), target)
+
 def cum_reward(policy, model, target, obs, horizon):
     '''
     Calculates the cumulative reward of a run with a given policy and target
@@ -176,7 +175,7 @@ def random_shooting_mpc(cfg, target, model, obs):
     :param target: target to aim for
     :param model: model to use to predict dynamics
     :param obs: observation to start calculating from
-    :return: the PID policy that has the best cumulative reward
+    :return: the PID policy that has the best cumulative reward, and the best cumulative reward (for evaluation)
     '''
     num_random_configs = cfg.num_random_configs
     policies = []
@@ -188,7 +187,7 @@ def random_shooting_mpc(cfg, target, model, obs):
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         policies.append(policy)
         rewards = np.append(rewards, cum_reward(policy, model, target, obs, cfg.horizon))
-    return policies[np.argmax(rewards)]
+    return policies[np.argmax(rewards)], np.max(rewards)
 
 @hydra.main(config_path='conf/plan.yaml')
 def plan(cfg):
@@ -224,15 +223,24 @@ def plan(cfg):
         obs = env.reset()
         for j in range(cfg.trial_timesteps-cfg.horizon-1):
             # Step 3: Plan
-            policy = random_shooting_mpc(cfg, target, model, obs)
+            obs = next_obs
+            policy, policy_reward = random_shooting_mpc(cfg, target, model, obs)
             action, _ = policy.act(obs)
-            observation, reward, done, info = env.step(action)
+            next_obs, reward, done, info = env.step(action)
             if done:
                 break
             '''
             TODO: What to add to the dataset here?
             Running policy for multiple steps?
+            For now, just append one step (transition dynamics)
             '''
+            dat = [obs.squeeze(), 1]
+            dat.extend([policy.get_P(), policy.get_D())
+            dat.append(target)
+            data_in.append(dataset[0], np.hstack(dat))
+            data_out.append(states[j])
+            dataset = (np.append(dataset[0],np.hstack(dat)), np.append(dataset[1],next_obs))
+        log.info(f"Final MPC cumulative reward in iteration {i}: {policy_reward}")
 
 if __name__ == '__main__':
     sys.exit(plan())
