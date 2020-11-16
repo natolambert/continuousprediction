@@ -214,7 +214,6 @@ class Net(nn.Module):
         return torch.from_numpy(self.outputScaler.inverse_transform(output.detach().numpy()))
 
     def preprocess(self, dataset, cfg):
-
         # Select scaling, minmax vs standard (fits to a gaussian with unit variance and 0 mean)
         # TODO: Selection should be in config
         # StandardScaler, MinMaxScaler
@@ -452,6 +451,13 @@ class DynamicsModel(object):
         if type(x) == np.ndarray:
             x = torch.from_numpy(np.float64(x))
         prediction = torch.zeros((x.shape[0], len(self.state_indices)))
+
+        # The purpose of this line is to reform the dataset to use only the state indices requested
+        if not self.train_target and not self.control_params:
+            x = np.hstack((x[:, self.state_indices], x[:, [self.cfg.env.state_size]]))
+        else:
+            x = np.hstack((x[:, self.state_indices], x[:, self.cfg.env.state_size:]))
+
         for n in self.nets:
             scaledInput = n.testPreprocess(x, self.cfg)
             if self.prob:

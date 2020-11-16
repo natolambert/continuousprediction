@@ -1,7 +1,12 @@
 ''' TODO:
-    1. adding to the dataset - is run_controller correct?
-    2. figure out get_reward - no actual action if using dynamics model, cannot use reward function in reacher3d.py
-    3. Figure out how to evaluate the model at each iteration (for both dynamics model accuracy and control policy)
+    1. get_reward uses arccos(), but output state is sometimes out of the domain
+        sign of inaccurate predictions? or postprocessing scaling?
+        min: -1.7, max: 1.4 -> right now, i've just clipped the values to 1 and -1
+    2. does having the target remain the same through all MPC runs make sense?
+    3. evaluate, have some results to look at
+        does using the MPC rewards as a way to evaluate make sense?
+        maybe also include prediction error using test_data? (it's commented out right now)
+        what does hw 4 cs285 use for eval_return?
 '''
 import sys
 import hydra
@@ -59,6 +64,17 @@ def create_dataset_traj(data, threshold=0.0, t_range=0):
 
     return data_in, data_out
 
+def obs2q(obs):
+    """
+    Helper function that returns the first five values in obs
+    :param obs: the 21 length observation array
+    :returns: the first 5 values (the cosine of joint positions)
+    """
+    if len(obs) < 5:
+        return obs
+    else:
+        return obs[0:5]
+
 def run_controller(env, horizon, policy):
     """
     Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
@@ -67,13 +83,6 @@ def run_controller(env, horizon, policy):
     :param horizon: The number of states forward to look
     :param policy: A policy object (see other python file)
     """
-
-    # WHat is going on here?
-    def obs2q(obs):
-        if len(obs) < 5:
-            return obs
-        else:
-            return obs[0:5]
 
     logs = DotMap()
     logs.states = []
@@ -85,8 +94,6 @@ def run_controller(env, horizon, policy):
     for i in range(horizon):
         state = observation
         action, t = policy.act(obs2q(state))
-
-        # print(action)
 
         observation, reward, done, info = env.step(action)
 
@@ -127,7 +134,7 @@ def collect_initial_data(cfg, env):
 
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
 
-        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy)
+        dotmap = run_controller(env, horizon=cfg.plan_trial_timesteps, policy=policy)
 
         dotmap.target = target
         dotmap.P = P / 5
@@ -137,12 +144,19 @@ def collect_initial_data(cfg, env):
 
     return logs
 
-def get_reward(output_state, target):
+def get_reward(output_state, target, action):
     '''
     Calculates the reward given output_state and target
     Uses simple np.linalg.norm between joint positions
     '''
-    return np.linal.norm(np.arccos(output_state[:5]), target)
+    reward_ctrl = - np.square(action).sum() * 0.01
+    joint_pos_cos = output_state[:5]
+    joint_pos_cos[joint_pos_cos < -1] = -1
+    joint_pos_cos[joint_pos_cos > 1] = 1
+    joint_pos = np.arccos(joint_pos_cos)
+    reward_dist = - np.linalg.norm(joint_pos - target)
+    reward = reward_dist + reward_ctrl
+    return reward
 
 def cum_reward(policy, model, target, obs, horizon):
     '''
@@ -158,13 +172,9 @@ def cum_reward(policy, model, target, obs, horizon):
         dat = [obs, i+1]
         dat.extend([policy.get_P(), policy.get_D()])
         dat.append(target)
-        output_state = model.predict(dat)
-        '''
-        TODO: get_reward() NOT WRITTEN
-        probably dependent on output_state and target
-        simple np.linalg.norm distance?
-        '''
-        reward_sum += get_reward(output_state, target)
+        action, _ = policy.act(obs2q(obs))
+        output_state = model.predict(np.array([np.hstack(dat)]))[0].numpy()
+        reward_sum += get_reward(output_state, target, action)
     return reward_sum
 
 
@@ -189,141 +199,6 @@ def random_shooting_mpc(cfg, target, model, obs):
         rewards = np.append(rewards, cum_reward(policy, model, target, obs, cfg.horizon))
     return policies[np.argmax(rewards)], np.max(rewards)
 
-
-def run_controller(env, horizon, policy, video=False):
-    """
-    VD: Added for collect_data.py
-    Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
-
-    :param env: A gym object
-    :param horizon: The number of states forward to look
-    :param policy: A policy object (see other python file)
-    """
-
-    # WHat is going on here?
-    def obs2q(obs):
-        if len(obs) < 5:
-            return obs
-        else:
-            return obs[0:5]
-
-    logs = DotMap()
-    logs.states = []
-    logs.actions = []
-    logs.rewards = []
-    logs.times = []
-
-    observation = env.reset()
-    for i in range(horizon):
-        if (video):
-            env.render()
-        state = observation
-        action, t = policy.act(obs2q(state))
-
-        # print(action)
-
-        observation, reward, done, info = env.step(action)
-
-        if done:
-            return logs
-
-        # Log
-        # logs.times.append()
-        logs.actions.append(action)
-        logs.rewards.append(reward)
-        logs.states.append(observation.squeeze())
-
-    # Cluster state
-    # print(f"Rollout completed, cumulative reward: {np.sum(logs.rewards)}")
-    logs.actions = np.array(logs.actions)
-    logs.rewards = np.array(logs.rewards)
-    logs.states = np.array(logs.states)
-    return logs
-
-
-def collect_data(cfg, env, plot=False):  # Creates horizon^2/2 points
-    """
-    VD: Added because collect_data function was missing from this file
-    Copied from reacher_pd.py, removed PID_test parameter
-
-    Collect data for environment model
-    :param nTrials:
-    :param horizon:
-    :return: an array of DotMaps, where each DotMap contains info about a trajectory
-    """
-
-    # env_model = cfg.env.name
-    # env = gym.make(env_model)
-    # log.info('Initializing env: %s' % env_model)
-
-    # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
-    # about <horizon> steps with actions, rewards and states
-    logs = []
-    # if (PID_test):
-    #     target = np.random.rand(5) * 2 - 1
-    for i in range(cfg.num_trials):
-        log.info('Trial %d' % i)
-        # if (cfg.PID_test):
-        #     env.seed(0)
-        # else:
-        #     env.seed(i)
-        env.seed(i)
-        s0 = env.reset()
-
-        P = np.random.rand(5) * 5
-        I = np.zeros(5)
-        D = np.random.rand(5)
-
-        # Samples target uniformely from [-1, 1]
-        # if (not PID_test):
-        #     target = np.random.rand(5) * 2 - 1
-        target = np.random.rand(5) * 2 - 1
-
-        policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
-        dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
-
-        dotmap.target = target
-        dotmap.P = P / 5
-        dotmap.I = I
-        dotmap.D = D
-        logs.append(dotmap)
-
-    # if plot:
-    #     import plotly.graph_objects as go
-
-    #     fig = go.Figure()
-
-    #     fig.update_layout(
-    #         width=1500,
-    #         height=800,
-    #         autosize=False,
-    #         scene=dict(
-    #             camera=dict(
-    #                 up=dict(
-    #                     x=0,
-    #                     y=0,
-    #                     z=1
-    #                 ),
-    #                 eye=dict(
-    #                     x=0,
-    #                     y=1.0707,
-    #                     z=1,
-    #                 )
-    #             ),
-    #             aspectratio=dict(x=1, y=1, z=0.7),
-    #             aspectmode='manual'
-    #         ),
-    #         paper_bgcolor='rgba(0,0,0,0)',
-    #         plot_bgcolor='rgba(0,0,0,0)'
-    #     )
-    #     for d in logs:
-    #         states = d.states
-    #         actions = d.actions
-    #         plot_reacher(states, actions)
-
-    return logs
-
-
 @hydra.main(config_path='conf/plan.yaml')
 def plan(cfg):
     # Following http://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-11.pdf
@@ -342,8 +217,8 @@ def plan(cfg):
     env_model = cfg.env.name
     env = gym.make(env_model)
     log.info('Initializing env: %s' % env_model)
-    exper_data = collect_data(cfg, env)
-    test_data = collect_data(cfg, env)
+    exper_data = collect_initial_data(cfg, env)
+    #test_data = collect_initial_data(cfg, env)
 
     # Step 2: Learn dynamics model
     # probabilistic model, ensemble training booleans
@@ -357,14 +232,16 @@ def plan(cfg):
     # create and train model
     model = DynamicsModel(cfg)
     for i in range(cfg.n_iter):
+        log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
         train_logs, test_logs = model.train(dataset, cfg)
         obs = env.reset()
-        for j in range(cfg.trial_timesteps-cfg.horizon-1):
+        for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
+            log.info(f"Trial timestep: {j}")
             # Step 3: Plan
-            # Moved obs assignment to the end of the loop    
+            # Moved obs assignment to the end of the loop
             policy, policy_reward = random_shooting_mpc(cfg, target, model, obs)
-            action, _ = policy.act(obs)
+            action, _ = policy.act(obs2q(obs))
             next_obs, reward, done, info = env.step(action)
             if done:
                 break
@@ -376,9 +253,7 @@ def plan(cfg):
             dat = [obs.squeeze(), 1]
             dat.extend([policy.get_P(), policy.get_D()])
             dat.append(target)
-            data_in.append(dataset[0], np.hstack(dat))
-            data_out.append(states[j])
-            dataset = (np.append(dataset[0],np.hstack(dat)), np.append(dataset[1],next_obs))
+            dataset = (np.append(dataset[0],np.hstack(dat).reshape(1,-1), axis=0), np.append(dataset[1],next_obs.reshape(1,-1), axis=0))
             obs = next_obs
         log.info(f"Final MPC cumulative reward in iteration {i}: {policy_reward}")
 
