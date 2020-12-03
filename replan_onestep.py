@@ -1,19 +1,3 @@
-''' TODO:
-    1. get_reward uses arccos(), but output state is sometimes out of the domain
-        sign of inaccurate predictions? or postprocessing scaling?
-        min: -1.7, max: 1.4 -> right now, i've just clipped the values to 1 and -1
-
-        Changed to just use the target (might make more sense because of obs2q()->
-        PID parameters work on first five values of obs, which means target is cosine of joint positions)
-
-        Added PID policy action to the reward calculation, but cannot match the reward in environment file perfectly,
-        since we cannot get the 3d vector of fingertip
-    2. does having the target remain the same through all MPC runs make sense?
-    3. evaluate, have some results to look at
-        does using the MPC rewards as a way to evaluate make sense?
-        maybe also include prediction error using test_data? (it's commented out right now)
-        what does hw 4 cs285 use for eval_return?
-'''
 import sys
 import hydra
 import logging
@@ -27,48 +11,46 @@ from dynamics_model import DynamicsModel
 
 log = logging.getLogger(__name__)
 
-def create_dataset_traj(data, threshold=0.0, t_range=0):
+def create_dataset_step(data, delta=True, t_range=0, is_lstm = False, lstm_batch = 0):
     """
-    Creates a dataset with entries for PID parameters and number of
-    timesteps in the future
+    Creates a dataset for learning how one state progresses to the next
 
     Parameters:
     -----------
-    data: An array of dotmaps where each dotmap has info about a trajectory
-    threshold: the probability of dropping a given data entry
-    t_range: how far into a sequence to train for
+    data: A 2d np array. Each row is a state
     """
-    data_in, data_out = [], []
-    for id, sequence in enumerate(data):
-        if id % 5 == 0: log.info(f"- processing seq {id}")
+    data_in = []
+    data_out = []
+    for sequence in data:
         states = sequence.states
         if t_range > 0:
             states = states[:t_range]
-        if id > 99:
-            continue
-        P = sequence.P
-        D = sequence.D
-        target = sequence.target
-        n = states.shape[0]
-        for i in range(n):  # From one state p
-            for j in range(i + 1, n):
-                # This creates an entry for a given state concatenated
-                # with a number t of time steps as well as the PID parameters
-
-                # The randomely continuing is something I thought of to shrink
-                # the datasets while still having a large variety
-
-                if np.random.random() < threshold:
-                    continue
-                dat = [states[i], j - i]
-                dat.extend([P, D])
-                dat.append(target)
-                data_in.append(np.hstack(dat))
-                data_out.append(states[j])
+        for i in range(states.shape[0] - 1):
+            if 'actions' in sequence.keys():
+                actions = sequence.actions
+                if t_range:
+                    actions = actions[:t_range]
+                data_in.append(np.hstack((states[i], actions[i])))
+                if delta:
+                    data_out.append(states[i + 1] - states[i])
+                else:
+                    data_out.append(states[i + 1])
+            else:
+                data_in.append(np.array(states[i]))
+                if delta:
+                    data_out.append(states[i + 1] - states[i])
+                else:
+                    data_out.append(states[i + 1])
+        if is_lstm:
+            remainder = len(data_out)%lstm_batch
+            if remainder:
+                data_out = data_out[:len(data_out)-remainder]
+                data_in = data_in[:len(data_in)-remainder]
     data_in = np.array(data_in, dtype=np.float32)
     data_out = np.array(data_out, dtype=np.float32)
 
     return data_in, data_out
+
 
 def obs2q(obs):
     """
@@ -160,23 +142,21 @@ def get_reward(output_state, target, action):
     reward = reward_dist + reward_ctrl
     return reward
 
-def cum_reward(policy, model, target, obs, horizon):
+def cum_reward(action_seq, model, target, obs, horizon):
     '''
     Calculates the cumulative reward of a run with a given policy and target
-    :param policy: policy used to get actions
+    :param action_seq: sequence of actions, length: horizon
     :param model: model used to estimate dynamics
-    :param target: target used to estimate the reward
     :param obs: observation to start calculating from
     :param horizon: number of time steps to calculate for
     '''
     reward_sum = 0
     for i in range(horizon):
-        dat = [obs, i+1]
-        dat.extend([policy.get_P(), policy.get_D()])
-        dat.append(target)
-        action, _ = policy.act(obs2q(obs))
-        output_state = model.predict(np.array([np.hstack(dat)]))[0].numpy()
+        data_in.append(np.hstack((obs, action_seq[i])))
+        delta = model.predict(np.array(data_in))[0].numpy()
+        output_state = obs + delta
         reward_sum += get_reward(output_state, target, action)
+        obs = output_state
     return reward_sum
 
 
@@ -193,12 +173,9 @@ def random_shooting_mpc(cfg, target, model, obs):
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
-        P = np.random.rand(5) * 5
-        I = np.zeros(5)
-        D = np.random.rand(5)
-        policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
-        policies.append(policy)
-        rewards = np.append(rewards, cum_reward(policy, model, target, obs, cfg.horizon))
+        action_seq = np.random.rand(cfg.horizon, 5) * 5
+        policies.append(action_seq)
+        rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, cfg.horizon))
     #print("Minimum reward: " + str(np.min(rewards)))
     #print("Maximum reward: " + str(np.max(rewards)))
     return policies[np.argmax(rewards)], np.max(rewards)
@@ -239,8 +216,7 @@ def plan(cfg):
     ens = cfg.model.ensemble
     # create dataset for model input/output
     log.info("Creating initial dataset for model training")
-    dataset = create_dataset_traj(exper_data,
-                                  threshold=cfg.model.training.filter_rate,
+    dataset = create_dataset_step(exper_data,
                                   t_range=cfg.model.training.t_range)
     # create and train model
     model = DynamicsModel(cfg)
@@ -256,20 +232,16 @@ def plan(cfg):
             log.info(f"Trial timestep: {j}")
             # Step 3: Plan
             # Moved obs assignment to the end of the loop
-            policy, policy_reward = random_shooting_mpc(cfg, target, model, obs)
-            action, _ = policy.act(obs2q(obs))
+            action_seq, policy_reward = random_shooting_mpc(cfg, target, model, obs)
+            action = action_seq[0]
             next_obs, reward, done, info = env.step(action)
             if done:
                 break
-            '''
-            TODO: What to add to the dataset here?
-            Running policy for multiple steps?
-            For now, just append one step (transition dynamics)
-            '''
-            dat = [obs.squeeze(), 1]
-            dat.extend([policy.get_P(), policy.get_D()])
-            dat.append(target)
-            dataset = (np.append(dataset[0],np.hstack(dat).reshape(1,-1), axis=0), np.append(dataset[1],next_obs.reshape(1,-1), axis=0))
+            data_in = []
+            data_out = []
+            data_in.append(np.hstack((obs, action)))
+            data_out.append(next_obs - obs)
+            dataset = (np.append(dataset[0],data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
             obs = next_obs
         final_reward[i] = get_reward(obs, target, 0)
 
