@@ -152,10 +152,10 @@ def cum_reward(action_seq, model, target, obs, horizon):
     '''
     reward_sum = 0
     for i in range(horizon):
-        data_in.append(np.hstack((obs, action_seq[i])))
-        delta = model.predict(np.array(data_in))[0].numpy()
-        output_state = obs + delta
-        reward_sum += get_reward(output_state, target, action)
+        data_in = np.hstack((obs, action_seq[i]))
+        output_state = model.predict(np.array(data_in)[None])[0].numpy()
+        # output_state = obs + delta
+        reward_sum += get_reward(output_state, target, action_seq[i])
         obs = output_state
     return reward_sum
 
@@ -237,11 +237,14 @@ def plan(cfg):
             next_obs, reward, done, info = env.step(action)
             if done:
                 break
-            data_in = []
-            data_out = []
-            data_in.append(np.hstack((obs, action)))
-            data_out.append(next_obs - obs)
-            dataset = (np.append(dataset[0],data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
+            # data_in = []
+            # data_out = []
+            # data_in.append(np.hstack((obs, action)))
+            # data_out.append(next_obs - obs)
+            # import pdb ; pdb.set_trace()
+            data_in = np.hstack((obs, action))
+            data_out = next_obs - obs
+            dataset = (np.append(dataset[0], data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
             obs = next_obs
         final_reward[i] = get_reward(obs, target, 0)
 

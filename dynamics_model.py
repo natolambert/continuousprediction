@@ -121,6 +121,7 @@ class Net(nn.Module):
         else:
             self.state_indices = np.arange(n_in)
 
+
         # create object nicely
         if cfg.model.lstm is not None:  # self.is_lstm:
             # The LSTM takes word embeddings as inputs, and outputs hidden states
@@ -177,6 +178,7 @@ class Net(nn.Module):
                 # else:
                 x = self.hidden2tag(lstm_out.view(len(x), num_traj, -1))
             else:
+                # import pdb ; pdb.set_trace()
                 x = self.features(x.float())
         else:
             x = self.features(x.float())
@@ -448,8 +450,6 @@ class DynamicsModel(object):
         TODO: Fix hardcoding in this method
         TODO: particle sampling approach for probabilistic model
         """
-        if type(x) == np.ndarray:
-            x = torch.from_numpy(np.float64(x))
         prediction = torch.zeros((x.shape[0], len(self.state_indices)))
 
         # The purpose of this line is to reform the dataset to use only the state indices requested
@@ -470,6 +470,8 @@ class DynamicsModel(object):
             return prediction[:, :len(self.state_indices)]
         else:
             # This hardcode is the state size changing. X also includes the action / index
+            if type(x) == np.ndarray:
+                x = torch.from_numpy(np.float64(x))
             return x[:, :len(self.state_indices)] + prediction
 
     def train(self, dataset, cfg):

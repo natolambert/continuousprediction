@@ -1,5 +1,5 @@
 defaults:
-  - models: t
+  - models: d
   - envs: reacher
 
 video: false
