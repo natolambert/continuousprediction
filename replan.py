@@ -274,10 +274,8 @@ def plan(cfg):
         final_reward[i] = get_reward(obs, target, 0)
 
         log.info(f"Final MPC cumulative reward in iteration {i}: {policy_reward}")
-        log.info(f"Initial reward: {initial_reward[i]}")
-        log.info(f"Final reward: {final_reward[i]}")
-    log.info(f"Initial rewards: {initial_reward}")
-    log.info(f"Final rewards: {final_reward}")
+        log.info(f"Initial rewards: {initial_reward}")
+        log.info(f"Final rewards: {final_reward}")
 
 if __name__ == '__main__':
     sys.exit(plan())

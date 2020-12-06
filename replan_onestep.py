@@ -153,7 +153,8 @@ def cum_reward(action_seq, model, target, obs, horizon):
     reward_sum = 0
     for i in range(horizon):
         data_in = np.hstack((obs, action_seq[i]))
-        output_state = model.predict(np.array(data_in)[None])[0].numpy()
+        # added variable to only reform dataset with selected state indices if on first pass
+        output_state = model.predict(np.array(data_in)[None], reform = (i==0))[0].numpy()
         # output_state = obs + delta
         reward_sum += get_reward(output_state, target, action_seq[i])
         obs = output_state
@@ -198,8 +199,8 @@ def plan(cfg):
     # Step 1: run random base policy to collect data points
     # get a target to work towards, training is still done on random targets to not affect exploration
 
-    target = np.random.rand(5) * 2 - 1
-    #target = np.array([1, 1, 1, 1, 1])
+    #target = np.random.rand(5) * 2 - 1
+    target = np.array([0.46567452, -0.95595055, 0.67755277, 0.56301844, 0.93220489])
 
     log.info(f"Planning towards target: {target}")
     # collect data through reacher environment
