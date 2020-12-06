@@ -80,10 +80,9 @@ def run_controller(env, horizon, policy):
 
     observation = env.reset()
     for i in range(horizon):
-        state = observation
-        action, t = policy.act(obs2q(state))
+        action, t = policy.act(obs2q(observation))
 
-        observation, reward, done, info = env.step(action)
+        next_obs, reward, done, info = env.step(action)
 
         if done:
             return logs
@@ -92,6 +91,7 @@ def run_controller(env, horizon, policy):
         logs.actions.append(action)
         logs.rewards.append(reward)
         logs.states.append(observation.squeeze())
+        observation = next_obs
 
     logs.actions = np.array(logs.actions)
     logs.rewards = np.array(logs.rewards)

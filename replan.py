@@ -181,7 +181,7 @@ def cum_reward(policy, model, target, obs, horizon):
 
 
 
-def random_shooting_mpc(cfg, target, model, obs):
+def random_shooting_mpc(cfg, target, model, obs, horizon):
     '''
     Creates random PID configurations and returns the one with the best cumulative reward
     :param target: target to aim for
@@ -198,7 +198,7 @@ def random_shooting_mpc(cfg, target, model, obs):
         D = np.random.rand(5)
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         policies.append(policy)
-        rewards = np.append(rewards, cum_reward(policy, model, target, obs, cfg.horizon))
+        rewards = np.append(rewards, cum_reward(policy, model, target, obs, horizon))
     #print("Minimum reward: " + str(np.min(rewards)))
     #print("Maximum reward: " + str(np.max(rewards)))
     return policies[np.argmax(rewards)], np.max(rewards)
@@ -252,25 +252,45 @@ def plan(cfg):
         obs = env.reset()
         print("Initial observation: " + str(obs))
         initial_reward[i] = get_reward(obs, target, 0)
-        for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
-            log.info(f"Trial timestep: {j}")
-            # Step 3: Plan
-            # Moved obs assignment to the end of the loop
-            policy, policy_reward = random_shooting_mpc(cfg, target, model, obs)
-            action, _ = policy.act(obs2q(obs))
-            next_obs, reward, done, info = env.step(action)
-            if done:
-                break
-            '''
-            TODO: What to add to the dataset here?
-            Running policy for multiple steps?
-            For now, just append one step (transition dynamics)
-            '''
-            dat = [obs.squeeze(), 1]
-            dat.extend([policy.get_P(), policy.get_D()])
-            dat.append(target)
-            dataset = (np.append(dataset[0],np.hstack(dat).reshape(1,-1), axis=0), np.append(dataset[1],next_obs.reshape(1,-1), axis=0))
-            obs = next_obs
+        # RUN MPC ONCE EACH TIMESTEP
+        if(cfg.num_MPC_per_iter == 0):
+            for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
+                log.info(f"Trial timestep: {j}")
+                # Step 3: Plan
+                # Moved obs assignment to the end of the loop
+                policy, policy_reward = random_shooting_mpc(cfg, target, model, obs, cfg.horizon)
+                action, _ = policy.act(obs2q(obs))
+                next_obs, reward, done, info = env.step(action)
+                if done:
+                    break
+                '''
+                TODO: What to add to the dataset here?
+                Running policy for multiple steps?
+                For now, just append one step (transition dynamics)
+                '''
+                dat = [obs.squeeze(), 1]
+                dat.extend([policy.get_P(), policy.get_D()])
+                dat.append(target)
+                dataset = (np.append(dataset[0],np.hstack(dat).reshape(1,-1), axis=0), np.append(dataset[1],next_obs.reshape(1,-1), axis=0))
+                obs = next_obs
+        # RUN MPC SOME NUMBER OF TIMES IN AN ITERATION
+        else:
+            horizon = int(cfg.plan_trial_timesteps/cfg.num_MPC_per_iter)
+            for j in range(cfg.num_MPC_per_iter):
+                policy, policy_reward = random_shooting_mpc(cfg, target, model, obs, horizon)
+                initial_obs = obs
+                for k in range(horizon):
+                    action, _ = policy.act(obs2q(obs))
+                    next_obs, reward, done, info = env.step(action)
+                    if done:
+                        break
+                    dat = [initial_obs.squeeze(), k+1]
+                    dat.extend([policy.get_P(), policy.get_D()])
+                    dat.append(target)
+                    dataset = (np.append(dataset[0],np.hstack(dat).reshape(1,-1), axis=0), np.append(dataset[1],next_obs.reshape(1,-1), axis=0))
+                    obs = next_obs
+                if done:
+                    break
         final_reward[i] = get_reward(obs, target, 0)
 
         log.info(f"Final MPC cumulative reward in iteration {i}: {policy_reward}")
