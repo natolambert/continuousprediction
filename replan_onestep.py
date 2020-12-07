@@ -180,7 +180,7 @@ def random_shooting_mpc(cfg, target, model, obs):
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
-        action_seq = np.random.rand(cfg.horizon, 5) * 5
+        action_seq = np.random.rand(cfg.horizon, 5) - 0.5
         policies.append(action_seq)
         rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, cfg.horizon))
     #print("Minimum reward: " + str(np.min(rewards)))
@@ -256,10 +256,8 @@ def plan(cfg):
         final_reward[i] = get_reward(obs, target, 0)
 
         log.info(f"Final MPC cumulative reward in iteration {i}: {policy_reward}")
-        log.info(f"Initial reward: {initial_reward[i]}")
-        log.info(f"Final reward: {final_reward[i]}")
-    log.info(f"Initial rewards: {initial_reward}")
-    log.info(f"Final rewards: {final_reward}")
+        log.info(f"Initial rewards: {initial_reward}")
+        log.info(f"Final rewards: {final_reward}")
 
 if __name__ == '__main__':
     sys.exit(plan())
