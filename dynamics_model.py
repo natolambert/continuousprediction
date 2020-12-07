@@ -444,7 +444,7 @@ class DynamicsModel(object):
 
         return prediction[:, :, :]
 
-    def predict(self, x):
+    def predict(self, x, reform = True):
         """
         Use the model to predict values with x as input
         TODO: Fix hardcoding in this method
@@ -453,10 +453,11 @@ class DynamicsModel(object):
         prediction = torch.zeros((x.shape[0], len(self.state_indices)))
 
         # The purpose of this line is to reform the dataset to use only the state indices requested
-        if not self.train_target and not self.control_params:
-            x = np.hstack((x[:, self.state_indices], x[:, [self.cfg.env.state_size]]))
-        else:
-            x = np.hstack((x[:, self.state_indices], x[:, self.cfg.env.state_size:]))
+        if reform:
+            if not self.train_target and not self.control_params:
+                x = np.hstack((x[:, self.state_indices], x[:, [self.cfg.env.state_size]]))
+            else:
+                x = np.hstack((x[:, self.state_indices], x[:, self.cfg.env.state_size:]))
 
         for n in self.nets:
             scaledInput = n.testPreprocess(x, self.cfg)

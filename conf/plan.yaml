@@ -1,11 +1,18 @@
 defaults:
-  - models: d
+  - models: t
   - envs: reacher
 
 video: false
 
-horizon: 25
-n_iter: 1
+n_iter: 50
 initial_num_trials: 100
 plan_trial_timesteps: 250
-num_random_configs: 500
+num_random_configs: 100
+
+# number of MPC runs per iteration
+# runs MPC with horizon=plan_trial_timesteps/num_MPC_per_iter
+# if set to 0, will run MPC once every time step with horizon equal to value set below
+num_MPC_per_iter: 1
+# for trajectory (replan.py), rules are above
+# for one-step (replan_onstep.py), always use this as horizon, and MPC is run every time step
+horizon: 25

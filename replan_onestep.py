@@ -17,7 +17,7 @@ def create_dataset_step(data, delta=True, t_range=0, is_lstm = False, lstm_batch
 
     Parameters:
     -----------
-    data: A 2d np array. Each row is a state
+    data: List of DotMaps, each dotmap is a trajectory
     delta: Whether model predicts change in state or next state.
 
     Notes: 
@@ -84,10 +84,9 @@ def run_controller(env, horizon, policy):
 
     observation = env.reset()
     for i in range(horizon):
-        state = observation
-        action, t = policy.act(obs2q(state))
+        action, t = policy.act(obs2q(observation))
 
-        observation, reward, done, info = env.step(action)
+        next_obs, reward, done, info = env.step(action)
 
         if done:
             return logs
@@ -96,6 +95,7 @@ def run_controller(env, horizon, policy):
         logs.actions.append(action)
         logs.rewards.append(reward)
         logs.states.append(observation.squeeze())
+        observation = next_obs
 
     logs.actions = np.array(logs.actions)
     logs.rewards = np.array(logs.rewards)
@@ -158,7 +158,8 @@ def cum_reward(action_seq, model, target, obs, horizon):
     reward_sum = 0
     for i in range(horizon):
         data_in = np.hstack((obs, action_seq[i]))
-        output_state = model.predict(np.array(data_in)[None])[0].numpy()
+        # added variable to only reform dataset with selected state indices if on first pass
+        output_state = model.predict(np.array(data_in)[None], reform = (i==0))[0].numpy()
         # output_state = obs + delta
         reward_sum += get_reward(output_state, target, action_seq[i])
         obs = output_state
@@ -204,9 +205,9 @@ def plan(cfg):
     # Step 1: run random base policy to collect data points
     # get a target to work towards, training is still done on random targets to not affect exploration
 
-    # target = np.random.rand(5) * 2 - 1
-    # target = np.array([1, 1, 1, 1, 1])
-    target = np.array([0.17130509, 0.8504938, 0.38670446, -0.33385786, -0.06983104])  # Exp 1 Target
+    #target = np.random.rand(5) * 2 - 1
+    target = np.array([0.17130509, 0.8504938, 0.38670446, -0.33385786, -0.06983104])
+    # target = np.array([0.46567452, -0.95595055, 0.67755277, 0.56301844, 0.93220489])
 
     log.info(f"Planning towards target: {target}")
     # collect data through reacher environment
@@ -248,7 +249,6 @@ def plan(cfg):
             # data_out = []
             # data_in.append(np.hstack((obs, action)))
             # data_out.append(next_obs - obs)
-            # import pdb ; pdb.set_trace()
             data_in = np.hstack((obs, action))
             data_out = next_obs - obs
             dataset = (np.append(dataset[0], data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
