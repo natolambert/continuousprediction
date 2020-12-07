@@ -339,8 +339,13 @@ class Net(nn.Module):
             trainLoader = DataLoader(dataset[:int(sequence_split * bs)], batch_size=bs, shuffle=False)
             testLoader = DataLoader(dataset[int(sequence_split * bs):], batch_size=bs, shuffle=False)
         else:
-            trainLoader = DataLoader(dataset[:int(split * len(dataset))], batch_size=bs, shuffle=True)
-            testLoader = DataLoader(dataset[int(split * len(dataset)):], batch_size=bs, shuffle=True)
+            import random
+            fraction_to_train = 0.8
+            train_data = dataset[:int(split * len(dataset))]
+            test_data = dataset[int(split * len(dataset)):]
+            random.shuffle(train_data)
+            trainLoader = DataLoader(train_data[:int(fraction_to_train*len(train_data))], batch_size=bs, shuffle=True)
+            testLoader = DataLoader(test_data, batch_size=bs, shuffle=True)
 
         # Optimization loop
         train_errors = []
@@ -427,7 +432,6 @@ class DynamicsModel(object):
                 self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
         elif env == "Lorenz" or env == "SS":
             self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="Lorenz") for i in range(self.E)]
-
 
     def predict_lstm(self, x, num_traj=1):
         # LSTM takes in a variable length object and predicts the next in the future.

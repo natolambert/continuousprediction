@@ -235,12 +235,12 @@ def plan(cfg):
         log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
         
-        this_dataset_indices = np.arange(start=0, stop=dataset[0].shape[0], step=1)
-        np.random.shuffle(this_dataset_indices)
-        this_dataset_indices = this_dataset_indices[:int(fraction_per_iter*dataset[0].shape[0])]
-        this_dataset = (dataset[0][this_dataset_indices], dataset[1][this_dataset_indices])
+        # this_dataset_indices = np.arange(start=0, stop=dataset[0].shape[0], step=1)
+        # np.random.shuffle(this_dataset_indices)
+        # this_dataset_indices = this_dataset_indices[:int(fraction_per_iter*dataset[0].shape[0])]
+        # this_dataset = (dataset[0][this_dataset_indices], dataset[1][this_dataset_indices])
 
-        train_logs, test_logs = model.train(this_dataset, cfg)
+        train_logs, test_logs = model.train(dataset, cfg)
         obs = env.reset()
         print("Initial observation: " + str(obs))
         initial_reward[i] = get_reward(obs, target, 0)
