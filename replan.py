@@ -221,8 +221,8 @@ def plan(cfg):
     # Step 1: run random base policy to collect data points
     # get a target to work towards, training is still done on random targets to not affect exploration
 
-    target = np.random.rand(5) * 2 - 1
-    #target = np.array([1, 1, 1, 1, 1])
+    #target = np.random.rand(5) * 2 - 1
+    target = np.array([0.46567452, -0.95595055, 0.67755277, 0.56301844, 0.93220489])
 
     log.info(f"Planning towards target: {target}")
     # collect data through reacher environment

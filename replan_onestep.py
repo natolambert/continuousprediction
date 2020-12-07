@@ -174,7 +174,7 @@ def random_shooting_mpc(cfg, target, model, obs):
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
-        action_seq = np.random.rand(cfg.horizon, 5) * 5
+        action_seq = np.random.rand(cfg.horizon, 5)*.5
         policies.append(action_seq)
         rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, cfg.horizon))
     #print("Minimum reward: " + str(np.min(rewards)))
@@ -200,7 +200,7 @@ def plan(cfg):
     # get a target to work towards, training is still done on random targets to not affect exploration
 
     #target = np.random.rand(5) * 2 - 1
-    target = np.array([0.46567452, -0.95595055, 0.67755277, 0.56301844, 0.93220489])
+    target = np.array( [ 0.17130509, 0.8504938, 0.38670446, -0.33385786, -0.06983104])
 
     log.info(f"Planning towards target: {target}")
     # collect data through reacher environment
@@ -250,10 +250,8 @@ def plan(cfg):
         final_reward[i] = get_reward(obs, target, 0)
 
         log.info(f"Final MPC cumulative reward in iteration {i}: {policy_reward}")
-        log.info(f"Initial reward: {initial_reward[i]}")
-        log.info(f"Final reward: {final_reward[i]}")
-    log.info(f"Initial rewards: {initial_reward}")
-    log.info(f"Final rewards: {final_reward}")
+        log.info(f"Initial rewards: {initial_reward}")
+        log.info(f"Final rewards: {final_reward}")
 
 if __name__ == '__main__':
     sys.exit(plan())
