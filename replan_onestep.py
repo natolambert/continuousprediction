@@ -18,6 +18,10 @@ def create_dataset_step(data, delta=True, t_range=0, is_lstm = False, lstm_batch
     Parameters:
     -----------
     data: A 2d np array. Each row is a state
+    delta: Whether model predicts change in state or next state.
+
+    Notes: 
+      - No PID parameters in the outputted dataset
     """
     data_in = []
     data_out = []
@@ -108,7 +112,7 @@ def collect_initial_data(cfg, env):
     # Logs is an array of dotmaps, each dotmap contains 2d np arrays with data
     # about <horizon> steps with actions, rewards and states
     logs = []
-    for i in range(cfg.initial_num_trials):
+    for i in range(cfg.initial_num_trials):  # Generates initial_num_trials trajectories
         log.info('Trial %d' % i)
         env.seed(i)
         s0 = env.reset()
@@ -122,7 +126,8 @@ def collect_initial_data(cfg, env):
 
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
 
-        dotmap = run_controller(env, horizon=cfg.plan_trial_timesteps, policy=policy)
+        dotmap = run_controller(env, horizon=cfg.plan_trial_timesteps, policy=policy)  
+        # Runs PID controller to generate a trajectory with horizon plan_trial_timesteps
 
         dotmap.target = target
         dotmap.P = P / 5
@@ -169,6 +174,7 @@ def random_shooting_mpc(cfg, target, model, obs):
     :param obs: observation to start calculating from
     :return: the PID policy that has the best cumulative reward, and the best cumulative reward (for evaluation)
     '''
+    # TODO: Run experiments setting cfg.num_random_configs = 1
     num_random_configs = cfg.num_random_configs
     policies = []
     rewards = np.array([])
@@ -198,15 +204,16 @@ def plan(cfg):
     # Step 1: run random base policy to collect data points
     # get a target to work towards, training is still done on random targets to not affect exploration
 
-    target = np.random.rand(5) * 2 - 1
-    #target = np.array([1, 1, 1, 1, 1])
+    # target = np.random.rand(5) * 2 - 1
+    # target = np.array([1, 1, 1, 1, 1])
+    target = np.array([0.17130509, 0.8504938, 0.38670446, -0.33385786, -0.06983104])  # Exp 1 Target
 
     log.info(f"Planning towards target: {target}")
     # collect data through reacher environment
-    log.info("Collecting initial data")
     env_model = cfg.env.name
-    env = gym.make(env_model)
     log.info('Initializing env: %s' % env_model)
+    env = gym.make(env_model)
+    log.info("Collecting initial data")
     exper_data = collect_initial_data(cfg, env)
     #test_data = collect_initial_data(cfg, env)
 

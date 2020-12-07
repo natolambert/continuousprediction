@@ -8,4 +8,4 @@ horizon: 25
 n_iter: 1
 initial_num_trials: 100
 plan_trial_timesteps: 250
-num_random_configs: 100
+num_random_configs: 500
