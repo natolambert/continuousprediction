@@ -428,6 +428,7 @@ class DynamicsModel(object):
         elif env == "Lorenz" or env == "SS":
             self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="Lorenz") for i in range(self.E)]
 
+
     def predict_lstm(self, x, num_traj=1):
         # LSTM takes in a variable length object and predicts the next in the future.
         if type(x) == np.ndarray:

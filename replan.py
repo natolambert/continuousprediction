@@ -244,10 +244,17 @@ def plan(cfg):
                                   t_range=cfg.model.training.t_range)
     # create and train model
     model = DynamicsModel(cfg)
+    fraction_per_iter = 0.8
     for i in range(cfg.n_iter):
         log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
-        train_logs, test_logs = model.train(dataset, cfg)
+
+        this_dataset_indices = np.arange(start=0, stop=dataset[0].shape[0], step=1)
+        np.random.shuffle(this_dataset_indices)
+        this_dataset_indices = this_dataset_indices[:int(fraction_per_iter*dataset[0].shape[0])]
+        this_dataset = (dataset[0][this_dataset_indices], dataset[1][this_dataset_indices])
+
+        train_logs, test_logs = model.train(this_dataset, cfg)
 
         obs = env.reset()
         print("Initial observation: " + str(obs))

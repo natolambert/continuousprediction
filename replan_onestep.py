@@ -180,6 +180,8 @@ def random_shooting_mpc(cfg, target, model, obs):
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
+        # action_seq = np.random.rand(cfg.horizon, 5)*10 - 5
+        # action_seq = np.random.rand(cfg.horizon, 5) * 0.5
         action_seq = np.random.rand(cfg.horizon, 5) - 0.5
         policies.append(action_seq)
         rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, cfg.horizon))
@@ -206,8 +208,8 @@ def plan(cfg):
     # get a target to work towards, training is still done on random targets to not affect exploration
 
     #target = np.random.rand(5) * 2 - 1
-    target = np.array([0.17130509, 0.8504938, 0.38670446, -0.33385786, -0.06983104])
-    # target = np.array([0.46567452, -0.95595055, 0.67755277, 0.56301844, 0.93220489])
+    # target = np.array([0.17130509, 0.8504938, 0.38670446, -0.33385786, -0.06983104])  # Experiment 1
+    target = np.array([0.46567452, -0.95595055, 0.67755277, 0.56301844, 0.93220489])  # Experiment 2
 
     log.info(f"Planning towards target: {target}")
     # collect data through reacher environment
@@ -228,11 +230,17 @@ def plan(cfg):
                                   t_range=cfg.model.training.t_range)
     # create and train model
     model = DynamicsModel(cfg)
+    fraction_per_iter = 0.8
     for i in range(cfg.n_iter):
         log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
-        train_logs, test_logs = model.train(dataset, cfg)
+        
+        this_dataset_indices = np.arange(start=0, stop=dataset[0].shape[0], step=1)
+        np.random.shuffle(this_dataset_indices)
+        this_dataset_indices = this_dataset_indices[:int(fraction_per_iter*dataset[0].shape[0])]
+        this_dataset = (dataset[0][this_dataset_indices], dataset[1][this_dataset_indices])
 
+        train_logs, test_logs = model.train(this_dataset, cfg)
         obs = env.reset()
         print("Initial observation: " + str(obs))
         initial_reward[i] = get_reward(obs, target, 0)
