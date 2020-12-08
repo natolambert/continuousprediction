@@ -57,7 +57,6 @@ def create_dataset_traj(data, threshold=0.0, t_range=0):
 
                 # The randomely continuing is something I thought of to shrink
                 # the datasets while still having a large variety
-
                 if np.random.random() < threshold:
                     continue
                 dat = [states[i], j - i]
@@ -67,7 +66,6 @@ def create_dataset_traj(data, threshold=0.0, t_range=0):
                 data_out.append(states[j])
     data_in = np.array(data_in, dtype=np.float32)
     data_out = np.array(data_out, dtype=np.float32)
-
     return data_in, data_out
 
 def obs2q(obs):
@@ -244,7 +242,7 @@ def plan(cfg):
                                   t_range=cfg.model.training.t_range)
     # create and train model
     model = DynamicsModel(cfg)
-    fraction_per_iter = 0.8
+    # fraction_per_iter = 0.8
     for i in range(cfg.n_iter):
         log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
@@ -255,7 +253,6 @@ def plan(cfg):
         # this_dataset = (dataset[0][this_dataset_indices], dataset[1][this_dataset_indices])
 
         train_logs, test_logs = model.train(dataset, cfg)
-
         obs = env.reset()
         print("Initial observation: " + str(obs))
         initial_reward[i] = get_reward(obs, target, 0)
@@ -286,7 +283,7 @@ def plan(cfg):
             for j in range(cfg.num_MPC_per_iter):
                 policy, policy_reward = random_shooting_mpc(cfg, target, model, obs, horizon)
                 initial_obs = obs
-                for k in range(horizon):
+                for k in range(horizon):  # Add O(Horizon^2) data points to dataset each iteration
                     action, _ = policy.act(obs2q(obs))
                     next_obs, reward, done, info = env.step(action)
                     if done:
