@@ -96,10 +96,9 @@ def run_controller(env, horizon, policy):
 
     observation = env.reset()
     for i in range(horizon):
-        state = observation
-        action, t = policy.act(obs2q(state))
+        action, t = policy.act(obs2q(observation))
 
-        observation, reward, done, info = env.step(action)
+        next_obs, reward, done, info = env.step(action)
 
         if done:
             return logs
@@ -108,6 +107,7 @@ def run_controller(env, horizon, policy):
         logs.actions.append(action)
         logs.rewards.append(reward)
         logs.states.append(observation.squeeze())
+        observation = next_obs
 
     logs.actions = np.array(logs.actions)
     logs.rewards = np.array(logs.rewards)
@@ -283,16 +283,37 @@ def plan(cfg):
             for j in range(cfg.num_MPC_per_iter):
                 policy, policy_reward = random_shooting_mpc(cfg, target, model, obs, horizon)
                 initial_obs = obs
-                for k in range(horizon):  # Add O(Horizon^2) data points to dataset each iteration
+
+                logs = DotMap()
+                logs.states = []
+                logs.actions = []
+                logs.rewards = []
+                logs.times = []
+
+                logs.target = target
+                logs.P = policy.get_P() / 5
+                logs.I = np.zeros(5)
+                logs.D = policy.get_D()
+
+                for k in range(horizon):
                     action, _ = policy.act(obs2q(obs))
                     next_obs, reward, done, info = env.step(action)
                     if done:
                         break
-                    dat = [initial_obs.squeeze(), k+1]
-                    dat.extend([policy.get_P(), policy.get_D()])
-                    dat.append(target)
-                    dataset = (np.append(dataset[0],np.hstack(dat).reshape(1,-1), axis=0), np.append(dataset[1],next_obs.reshape(1,-1), axis=0))
+
+                    logs.actions.append(action)
+                    logs.rewards.append(reward)
+                    logs.states.append(obs.squeeze())
                     obs = next_obs
+
+                logs.actions = np.array(logs.actions)
+                logs.rewards = np.array(logs.rewards)
+                logs.states = np.array(logs.states)
+
+                data_in, data_out = create_dataset_traj(exper_data,
+                                              threshold=cfg.model.training.filter_rate,
+                                              t_range=cfg.model.training.t_range)
+                dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1],data_out, axis=0))
                 if done:
                     break
         final_reward[i] = get_reward(obs, target, 0)
