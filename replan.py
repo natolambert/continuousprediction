@@ -158,7 +158,7 @@ def get_reward(output_state, target, action):
     reward = reward_dist + reward_ctrl
     return reward
 
-def cum_reward(policy, model, target, obs, horizon):
+def cum_reward(policies, model, target, obs, horizon):
     '''
     Calculates the cumulative reward of a run with a given policy and target
     :param policy: policy used to get actions
@@ -167,14 +167,21 @@ def cum_reward(policy, model, target, obs, horizon):
     :param obs: observation to start calculating from
     :param horizon: number of time steps to calculate for
     '''
-    reward_sum = 0
+    reward_sum = np.zeros(len(policies))
     for i in range(horizon):
-        dat = [obs, i+1]
-        dat.extend([policy.get_P(), policy.get_D()])
-        dat.append(target)
-        action, _ = policy.act(obs2q(obs))
-        output_state = model.predict(np.array([np.hstack(dat)]))[0].numpy()
-        reward_sum += get_reward(output_state, target, action)
+        big_dat = []
+        for policy in policies:
+            dat = [obs, i+1]
+            dat.extend([policy.get_P(), policy.get_D()])
+            dat.append(target)
+            action, _ = policy.act(obs2q(obs))
+            # print(np.array([np.hstack(dat)]).shape)
+            big_dat.append(np.hstack(dat))
+        big_dat = np.vstack(big_dat)
+        # print(big_dat.shape)
+        output_states = model.predict(big_dat).numpy()
+        reward_sum += np.array([get_reward(os, target, action) for os in output_states])
+    print(reward_sum.shape)
     return reward_sum
 
 def random_shooting_mpc_pool_helper(params):
@@ -182,14 +189,13 @@ def random_shooting_mpc_pool_helper(params):
     num_random_configs, target, model, obs, horizon, seed = params
     np.random.seed(seed)
     policies = []
-    rewards = np.array([])
     for i in range(num_random_configs):
         P = np.random.rand(5) * 5
         I = np.zeros(5)
         D = np.random.rand(5)
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         policies.append(policy)
-        rewards = np.append(rewards, cum_reward(policy, model, target, obs, horizon))
+    rewards = cum_reward(policies, model, target, obs, horizon)
     return policies[np.argmax(rewards)], np.max(rewards)
 
 def random_shooting_mpc(cfg, target, model, obs, horizon):
