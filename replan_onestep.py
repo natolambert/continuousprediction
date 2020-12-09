@@ -156,6 +156,7 @@ def cum_reward(action_seq, model, target, obs, horizon):
     :param horizon: number of time steps to calculate for
     '''
     reward_sum = 0
+    # TODO: Parallelize this across the batch
     for i in range(horizon):
         data_in = np.hstack((obs, action_seq[i]))
         # added variable to only reform dataset with selected state indices if on first pass
@@ -165,30 +166,35 @@ def cum_reward(action_seq, model, target, obs, horizon):
         obs = output_state
     return reward_sum
 
-
-
-def random_shooting_mpc(cfg, target, model, obs):
-    '''
-    Creates random PID configurations and returns the one with the best cumulative reward
-    :param target: target to aim for
-    :param model: model to use to predict dynamics
-    :param obs: observation to start calculating from
-    :return: the PID policy that has the best cumulative reward, and the best cumulative reward (for evaluation)
-    '''
-    # TODO: Run experiments setting cfg.num_random_configs = 1
-    num_random_configs = cfg.num_random_configs
+def random_shooting_mpc_pool_helper(params):
+    """Helper function used for multiprocessing"""
+    num_random_configs, horizon, model, target, obs, seed = params
+    np.random.seed(seed)
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
-        # action_seq = np.random.rand(cfg.horizon, 5)*10 - 5
-        # action_seq = np.random.rand(cfg.horizon, 5) * 0.5
-        action_seq = np.random.rand(cfg.horizon, 5) - 0.5
+        action_seq = np.random.rand(horizon, 5) - 0.5
         policies.append(action_seq)
-        rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, cfg.horizon))
-    #print("Minimum reward: " + str(np.min(rewards)))
-    #print("Maximum reward: " + str(np.max(rewards)))
+        rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon))
     return policies[np.argmax(rewards)], np.max(rewards)
 
+def random_shooting_mpc(cfg, target, model, obs):
+    '''
+    Creates random action configurations and returns the one with the best cumulative reward
+    :param target: target to aim for
+    :param model: model to use to predict dynamics
+    :param obs: observation to start calculating from
+    :return: the policy that has the best cumulative reward, and the best cumulative reward (for evaluation)
+    '''
+    # TODO: Run experiments setting cfg.num_random_configs = 1
+    # Parallelize this w/ multiprocessing.Pool
+    from multiprocessing import Pool
+    num_random_configs = cfg.num_random_configs
+    with Pool(10) as p:
+        function_inputs = [[num_random_configs//10, cfg.horizon, model, target, obs, i] for i in range(10)]
+        out = p.map(random_shooting_mpc_pool_helper, function_inputs)
+    return max(out, key=lambda x: x[1])
+    
 @hydra.main(config_path='conf/plan.yaml')
 def plan(cfg):
     # Following http://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-11.pdf
@@ -207,7 +213,7 @@ def plan(cfg):
     # Step 1: run random base policy to collect data points
     # get a target to work towards, training is still done on random targets to not affect exploration
 
-    #target = np.random.rand(5) * 2 - 1
+    # target = np.random.rand(5) * 2 - 1
     # target = np.array([0.17130509, 0.8504938, 0.38670446, -0.33385786, -0.06983104])  # Experiment 1
     target = np.array([0.46567452, -0.95595055, 0.67755277, 0.56301844, 0.93220489])  # Experiment 2
 
@@ -230,15 +236,13 @@ def plan(cfg):
                                   t_range=cfg.model.training.t_range)
     # create and train model
     model = DynamicsModel(cfg)
-    fraction_per_iter = 0.8
     for i in range(cfg.n_iter):
         log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
         
-        # this_dataset_indices = np.arange(start=0, stop=dataset[0].shape[0], step=1)
-        # np.random.shuffle(this_dataset_indices)
-        # this_dataset_indices = this_dataset_indices[:int(fraction_per_iter*dataset[0].shape[0])]
-        # this_dataset = (dataset[0][this_dataset_indices], dataset[1][this_dataset_indices])
+        shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
+        np.random.shuffle(shuffle_idxs)
+        dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
 
         train_logs, test_logs = model.train(dataset, cfg)
         obs = env.reset()
@@ -253,12 +257,8 @@ def plan(cfg):
             next_obs, reward, done, info = env.step(action)
             if done:
                 break
-            # data_in = []
-            # data_out = []
-            # data_in.append(np.hstack((obs, action)))
-            # data_out.append(next_obs - obs)
-            data_in = np.hstack((obs, action))
-            data_out = next_obs - obs
+            data_in = np.hstack((obs, action)).reshape(1, -1)
+            data_out = (next_obs - obs).reshape(1, -1)
             dataset = (np.append(dataset[0], data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
             obs = next_obs
         final_reward[i] = get_reward(obs, target, 0)

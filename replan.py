@@ -177,17 +177,10 @@ def cum_reward(policy, model, target, obs, horizon):
         reward_sum += get_reward(output_state, target, action)
     return reward_sum
 
-
-
-def random_shooting_mpc(cfg, target, model, obs, horizon):
-    '''
-    Creates random PID configurations and returns the one with the best cumulative reward
-    :param target: target to aim for
-    :param model: model to use to predict dynamics
-    :param obs: observation to start calculating from
-    :return: the PID policy that has the best cumulative reward, and the best cumulative reward (for evaluation)
-    '''
-    num_random_configs = cfg.num_random_configs
+def random_shooting_mpc_pool_helper(params):
+    """Helper function used for multiprocessing"""
+    num_random_configs, target, model, obs, horizon, seed = params
+    np.random.seed(seed)
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
@@ -197,9 +190,23 @@ def random_shooting_mpc(cfg, target, model, obs, horizon):
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         policies.append(policy)
         rewards = np.append(rewards, cum_reward(policy, model, target, obs, horizon))
-    #print("Minimum reward: " + str(np.min(rewards)))
-    #print("Maximum reward: " + str(np.max(rewards)))
     return policies[np.argmax(rewards)], np.max(rewards)
+
+def random_shooting_mpc(cfg, target, model, obs, horizon):
+    '''
+    Creates random PID configurations and returns the one with the best cumulative reward
+    :param target: target to aim for
+    :param model: model to use to predict dynamics
+    :param obs: observation to start calculating from
+    :return: the PID policy that has the best cumulative reward, and the best cumulative reward (for evaluation)
+    '''
+    from multiprocessing import Pool
+    num_random_configs = cfg.num_random_configs
+    with Pool(10) as p:
+        function_inputs = [[num_random_configs//10, target, model, obs, cfg.horizon, i] for i in range(10)]
+        out = p.map(random_shooting_mpc_pool_helper, function_inputs)
+    import pdb ; pdb.set_trace()
+    return max(out, key=lambda x:x[1])
 
 @hydra.main(config_path='conf/plan.yaml')
 def plan(cfg):
@@ -240,17 +247,12 @@ def plan(cfg):
     dataset = create_dataset_traj(exper_data,
                                   threshold=cfg.model.training.filter_rate,
                                   t_range=cfg.model.training.t_range)
+    new_data = []
     # create and train model
     model = DynamicsModel(cfg)
-    # fraction_per_iter = 0.8
     for i in range(cfg.n_iter):
         log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
-
-        # this_dataset_indices = np.arange(start=0, stop=dataset[0].shape[0], step=1)
-        # np.random.shuffle(this_dataset_indices)
-        # this_dataset_indices = this_dataset_indices[:int(fraction_per_iter*dataset[0].shape[0])]
-        # this_dataset = (dataset[0][this_dataset_indices], dataset[1][this_dataset_indices])
 
         train_logs, test_logs = model.train(dataset, cfg)
         obs = env.reset()
@@ -313,7 +315,8 @@ def plan(cfg):
                 data_in, data_out = create_dataset_traj(exper_data,
                                               threshold=cfg.model.training.filter_rate,
                                               t_range=cfg.model.training.t_range)
-                dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1],data_out, axis=0))
+                new_data.append((data_in, data_out))
+                # dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1],data_out, axis=0))
                 if done:
                     break
         final_reward[i] = get_reward(obs, target, 0)

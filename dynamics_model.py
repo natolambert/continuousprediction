@@ -178,7 +178,6 @@ class Net(nn.Module):
                 # else:
                 x = self.hidden2tag(lstm_out.view(len(x), num_traj, -1))
             else:
-                # import pdb ; pdb.set_trace()
                 x = self.features(x.float())
         else:
             x = self.features(x.float())
@@ -340,18 +339,18 @@ class Net(nn.Module):
             testLoader = DataLoader(dataset[int(sequence_split * bs):], batch_size=bs, shuffle=False)
         else:
             import random
-            fraction_to_train = 0.8
+            # fraction_to_train = 1.0
             train_data = dataset[:int(split * len(dataset))]
             test_data = dataset[int(split * len(dataset)):]
-            random.shuffle(train_data)
-            trainLoader = DataLoader(train_data[:int(fraction_to_train*len(train_data))], batch_size=bs, shuffle=True)
+            # random.shuffle(train_data)
+            # trainLoader = DataLoader(train_data[:int(fraction_to_train*len(train_data))], batch_size=bs, shuffle=True)
+            trainLoader = DataLoader(train_data, batch_size=bs, shuffle=True)
             testLoader = DataLoader(test_data, batch_size=bs, shuffle=True)
 
         # Optimization loop
         train_errors = []
         test_errors = []
-        for epoch in range(epochs):
-
+        for epoch in range(epochs):  # By default trains for 25 epochs per iteration
             train_error = 0
             test_error = 0
 
@@ -481,6 +480,7 @@ class DynamicsModel(object):
             return x[:, :len(self.state_indices)] + prediction
 
     def train(self, dataset, cfg):
+        # TODO: Add support for training on new_data
         acctest_l = []
         acctrain_l = []
 
