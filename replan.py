@@ -203,9 +203,8 @@ def random_shooting_mpc(cfg, target, model, obs, horizon):
     from multiprocessing import Pool
     num_random_configs = cfg.num_random_configs
     with Pool(10) as p:
-        function_inputs = [[num_random_configs//10, target, model, obs, cfg.horizon, i] for i in range(10)]
+        function_inputs = [(num_random_configs//10, target, model, obs, cfg.horizon, i) for i in range(10)]
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
-    import pdb ; pdb.set_trace()
     return max(out, key=lambda x:x[1])
 
 @hydra.main(config_path='conf/plan.yaml')
@@ -247,12 +246,15 @@ def plan(cfg):
     dataset = create_dataset_traj(exper_data,
                                   threshold=cfg.model.training.filter_rate,
                                   t_range=cfg.model.training.t_range)
-    new_data = []
     # create and train model
     model = DynamicsModel(cfg)
     for i in range(cfg.n_iter):
         log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
+
+        shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
+        np.random.shuffle(shuffle_idxs)
+        dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
 
         train_logs, test_logs = model.train(dataset, cfg)
         obs = env.reset()
@@ -315,8 +317,7 @@ def plan(cfg):
                 data_in, data_out = create_dataset_traj(exper_data,
                                               threshold=cfg.model.training.filter_rate,
                                               t_range=cfg.model.training.t_range)
-                new_data.append((data_in, data_out))
-                # dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1],data_out, axis=0))
+                dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1],data_out, axis=0))
                 if done:
                     break
         final_reward[i] = get_reward(obs, target, 0)
