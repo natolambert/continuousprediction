@@ -20,7 +20,7 @@ def create_dataset_step(data, delta=True, t_range=0, is_lstm = False, lstm_batch
     data: List of DotMaps, each dotmap is a trajectory
     delta: Whether model predicts change in state or next state.
 
-    Notes: 
+    Notes:
       - No PID parameters in the outputted dataset
     """
     data_in = []
@@ -126,7 +126,7 @@ def collect_initial_data(cfg, env):
 
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
 
-        dotmap = run_controller(env, horizon=cfg.plan_trial_timesteps, policy=policy)  
+        dotmap = run_controller(env, horizon=cfg.plan_trial_timesteps, policy=policy)
         # Runs PID controller to generate a trajectory with horizon plan_trial_timesteps
 
         dotmap.target = target
@@ -173,7 +173,7 @@ def random_shooting_mpc_pool_helper(params):
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
-        action_seq = np.random.rand(horizon, 5) - 0.5
+        action_seq = (np.random.rand(horizon, 5) - 0.5)
         policies.append(action_seq)
         rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon))
     return policies[np.argmax(rewards)], np.max(rewards)
@@ -194,7 +194,7 @@ def random_shooting_mpc(cfg, target, model, obs):
         function_inputs = [[num_random_configs//10, cfg.horizon, model, target, obs, i] for i in range(10)]
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
     return max(out, key=lambda x: x[1])
-    
+
 @hydra.main(config_path='conf/plan.yaml')
 def plan(cfg):
     # Following http://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-11.pdf
@@ -205,6 +205,8 @@ def plan(cfg):
     initial_reward = np.zeros(cfg.n_iter)
     # reward at end of each iteration
     final_reward = np.zeros(cfg.n_iter)
+    # cumulative reward of trajectory at end of each iteration
+    final_cum_reward = np.zeros(cfg.n_iter)
 
     # VD: Added empty lists because they aren't present
     data_in = []
@@ -239,7 +241,7 @@ def plan(cfg):
     for i in range(cfg.n_iter):
         log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
-        
+
         shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
         np.random.shuffle(shuffle_idxs)
         dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
@@ -248,6 +250,7 @@ def plan(cfg):
         obs = env.reset()
         print("Initial observation: " + str(obs))
         initial_reward[i] = get_reward(obs, target, 0)
+        final_cum_reward[i] = initial_reward[i]
         for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
             log.info(f"Trial timestep: {j}")
             # Step 3: Plan
@@ -261,11 +264,13 @@ def plan(cfg):
             data_out = (next_obs - obs).reshape(1, -1)
             dataset = (np.append(dataset[0], data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
             obs = next_obs
+            final_cum_reward[i] += get_reward(obs, target, action)
         final_reward[i] = get_reward(obs, target, 0)
+        final_cum_reward[i] = final_cum_reward[i]/(cfg.plan_trial_timesteps-cfg.horizon)
 
-        log.info(f"Final MPC cumulative reward in iteration {i}: {policy_reward}")
         log.info(f"Initial rewards: {initial_reward}")
         log.info(f"Final rewards: {final_reward}")
+        log.info(f"Final cumulative rewards: {final_cum_reward}")
 
 if __name__ == '__main__':
     sys.exit(plan())
