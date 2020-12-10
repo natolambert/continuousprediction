@@ -147,7 +147,7 @@ def get_reward(output_state, target, action):
     reward = reward_dist + reward_ctrl
     return reward
 
-def cum_reward(action_seq, model, target, obs, horizon):
+def cum_reward(action_seq, model, target, obs, horizon, zz):
     '''
     Calculates the cumulative reward of a run with a given policy and target
     :param action_seq: sequence of actions, length: horizon
@@ -160,9 +160,11 @@ def cum_reward(action_seq, model, target, obs, horizon):
     for i in range(horizon):
         data_in = np.hstack((obs, action_seq[i]))
         # added variable to only reform dataset with selected state indices if on first pass
-        output_state = model.predict(np.array(data_in)[None], reform = (i==0))[0].numpy()
-        # output_state = obs + delta
-        reward_sum += get_reward(output_state, target, action_seq[i])
+        output_state = model.predict(np.array(data_in)[None], reform=(i==0))[0].numpy()
+        this_reward = get_reward(output_state, target, action_seq[i])
+        reward_sum += this_reward
+        if zz and (i == 0 or i == 1):
+            import pdb ; pdb.set_trace()
         obs = output_state
     return reward_sum
 
@@ -173,16 +175,14 @@ def cum_reward_stacked(policies, model, target, obs, horizon):
     reward_sum = np.zeros(len(policies))
     for i in range(horizon):
         big_dat = []
-        big_action = []
         for action_seq in policies:
             dat = np.hstack((obs, action_seq[i]))
-            big_action.append(action_seq[i])
-            # print(np.array([np.hstack(dat)]).shape)
             big_dat.append(dat)
         big_dat = np.vstack(big_dat)
-        # print(big_dat.shape)
         output_states = model.predict(big_dat).numpy()
-        reward_sum += np.array([get_reward(output_states[j], target, big_action[j]) for j in range(len(policies))])
+        this_reward = np.array([get_reward(output_states[j], target, policies[j][i]) for j in range(len(policies))])
+        import pdb ; pdb.set_trace()
+        reward_sum += this_reward
     return reward_sum
 
 def random_shooting_mpc_pool_helper(params):
@@ -192,10 +192,10 @@ def random_shooting_mpc_pool_helper(params):
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
-        action_seq = (np.random.rand(horizon, 5) - 0.5)
+        action_seq = (np.random.rand(horizon, 5) - 0.5)  # (-0.5, 0.5)
         policies.append(action_seq)
-        #rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon))
-    rewards = cum_reward_stacked(policies, model, target, obs, horizon)
+        rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon, i==0))
+    rewards_stacked = cum_reward_stacked(policies, model, target, obs, horizon)
     return policies[np.argmax(rewards)], np.max(rewards)
 
 def random_shooting_mpc(cfg, target, model, obs):
@@ -208,11 +208,20 @@ def random_shooting_mpc(cfg, target, model, obs):
     '''
     # TODO: Run experiments setting cfg.num_random_configs = 1
     # Parallelize this w/ multiprocessing.Pool
-    from multiprocessing import Pool
+    for net in model.nets:
+        net.eval()
+    num_parallel_threads = 1
     num_random_configs = cfg.num_random_configs
-    with Pool(10) as p:
-        function_inputs = [(num_random_configs//10, cfg.horizon, model, target, obs, i) for i in range(10)]
-        out = p.map(random_shooting_mpc_pool_helper, function_inputs)
+    if num_random_configs % num_parallel_threads != 0:
+        raise ValueError("Number of Parallel Threads must perfectly divide Num Random Configs")
+    
+    # from multiprocessing import Pool
+    # with Pool(num_parallel_threads) as p:
+    #     function_inputs = [(num_random_configs//num_parallel_threads, cfg.horizon, model, target, obs, i) for i in range(num_parallel_threads)]
+    #     out = p.map(random_shooting_mpc_pool_helper, function_inputs)
+    out = [random_shooting_mpc_pool_helper([num_random_configs, cfg.horizon, model, target, obs, 0])]
+    for net in model.nets:
+        net.train()
     return max(out, key=lambda x: x[1])
 
 @hydra.main(config_path='conf/plan.yaml')
