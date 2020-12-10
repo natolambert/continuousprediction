@@ -173,7 +173,7 @@ def random_shooting_mpc_pool_helper(params):
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
-        action_seq = np.random.rand(horizon, 5) - 0.5
+        action_seq = np.random.rand(horizon, 5)*2 - 1
         policies.append(action_seq)
         rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon))
     return policies[np.argmax(rewards)], np.max(rewards)
@@ -191,7 +191,7 @@ def random_shooting_mpc(cfg, target, model, obs):
     from multiprocessing import Pool
     num_random_configs = cfg.num_random_configs
     with Pool(10) as p:
-        function_inputs = [[num_random_configs//10, cfg.horizon, model, target, obs, i] for i in range(10)]
+        function_inputs = [(num_random_configs//10, cfg.horizon, model, target, obs, i) for i in range(10)]
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
     return max(out, key=lambda x: x[1])
     
