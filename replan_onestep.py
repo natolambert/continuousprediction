@@ -192,7 +192,7 @@ def random_shooting_mpc_pool_helper(params):
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
-        action_seq = (np.random.rand(horizon, 5) - 0.5)
+        action_seq = (np.random.rand(horizon, 5) - 0.5)*2
         policies.append(action_seq)
         #rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon))
     rewards = cum_reward_stacked(policies, model, target, obs, horizon)
