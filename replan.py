@@ -158,7 +158,7 @@ def get_reward(output_state, target, action):
     reward = reward_dist + reward_ctrl
     return reward
 
-def cum_reward(policy, model, target, obs, horizon):
+def cum_reward(policies, model, target, obs, horizon):
     '''
     Calculates the cumulative reward of a run with a given policy and target
     :param policy: policy used to get actions
@@ -167,14 +167,22 @@ def cum_reward(policy, model, target, obs, horizon):
     :param obs: observation to start calculating from
     :param horizon: number of time steps to calculate for
     '''
-    reward_sum = 0
+    reward_sum = np.zeros(len(policies))
     for i in range(horizon):
-        dat = [obs, i+1]
-        dat.extend([policy.get_P(), policy.get_D()])
-        dat.append(target)
-        action, _ = policy.act(obs2q(obs))
-        output_state = model.predict(np.array([np.hstack(dat)]))[0].numpy()
-        reward_sum += get_reward(output_state, target, action)
+        big_dat = []
+        big_action = []
+        for policy in policies:
+            dat = [obs, i+1]
+            dat.extend([policy.get_P(), policy.get_D()])
+            dat.append(target)
+            action, _ = policy.act(obs2q(obs))
+            big_action.append(action)
+            # print(np.array([np.hstack(dat)]).shape)
+            big_dat.append(np.hstack(dat))
+        big_dat = np.vstack(big_dat)
+        # print(big_dat.shape)
+        output_states = model.predict(big_dat).numpy()
+        reward_sum += np.array([get_reward(output_states[j], target, big_action[j]) for j in range(len(policies))])
     return reward_sum
 
 def random_shooting_mpc_pool_helper(params):
@@ -182,15 +190,15 @@ def random_shooting_mpc_pool_helper(params):
     num_random_configs, target, model, obs, horizon, seed = params
     np.random.seed(seed)
     policies = []
-    rewards = np.array([])
     for i in range(num_random_configs):
         P = np.random.rand(5) * 5
         I = np.zeros(5)
         D = np.random.rand(5)
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
         policies.append(policy)
-        rewards = np.append(rewards, cum_reward(policy, model, target, obs, horizon))
-    return policies[np.argmax(rewards)], np.max(rewards)
+    rewards = cum_reward(policies, model, target, obs, horizon)
+    optimal_policy = policies[np.argmax(rewards)]
+    return PID(dX=5, dU=5, P=optimal_policy.get_P(), I=np.zeros(5), D=optimal_policy.get_D(), target=target), np.max(rewards)
 
 def random_shooting_mpc(cfg, target, model, obs, horizon):
     '''
@@ -217,6 +225,8 @@ def plan(cfg):
     initial_reward = np.zeros(cfg.n_iter)
     # reward at end of each iteration
     final_reward = np.zeros(cfg.n_iter)
+    # cumulative reward of trajectory at end of each iteration
+    final_cum_reward = np.zeros(cfg.n_iter)
 
     # VD: Added empty lists because they aren't present
     data_in = []
@@ -260,6 +270,7 @@ def plan(cfg):
         obs = env.reset()
         print("Initial observation: " + str(obs))
         initial_reward[i] = get_reward(obs, target, 0)
+        final_cum_reward[i] = initial_reward[i]
         # RUN MPC ONCE EACH TIMESTEP
         if(cfg.num_MPC_per_iter == 0):
             for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
@@ -277,10 +288,11 @@ def plan(cfg):
                 For now, just append one step (transition dynamics)
                 '''
                 dat = [obs.squeeze(), 1]
-                dat.extend([policy.get_P(), policy.get_D()])
+                dat.extend([policy.get_P() / 5, policy.get_D()])
                 dat.append(target)
                 dataset = (np.append(dataset[0],np.hstack(dat).reshape(1,-1), axis=0), np.append(dataset[1],next_obs.reshape(1,-1), axis=0))
                 obs = next_obs
+                final_cum_reward[i] += get_reward(obs, target, action)
         # RUN MPC SOME NUMBER OF TIMES IN AN ITERATION
         else:
             horizon = int(cfg.plan_trial_timesteps/cfg.num_MPC_per_iter)
@@ -309,6 +321,9 @@ def plan(cfg):
                     logs.rewards.append(reward)
                     logs.states.append(obs.squeeze())
                     obs = next_obs
+                    if (j == cfg.num_MPC_per_iter-1 and k == horizon-1):
+                        continue
+                    final_cum_reward[i] += get_reward(obs, target, action)
 
                 logs.actions = np.array(logs.actions)
                 logs.rewards = np.array(logs.rewards)
@@ -322,9 +337,14 @@ def plan(cfg):
                     break
         final_reward[i] = get_reward(obs, target, 0)
 
-        log.info(f"Final MPC cumulative reward in iteration {i}: {policy_reward}")
+        if (cfg.num_MPC_per_iter == 0):
+            final_cum_reward[i] = final_cum_reward[i]/(cfg.plan_trial_timesteps-cfg.horizon)
+        else:
+            final_cum_reward[i] = final_cum_reward[i]/cfg.plan_trial_timesteps
+
         log.info(f"Initial rewards: {initial_reward}")
         log.info(f"Final rewards: {final_reward}")
+        log.info(f"Final cumulative rewards: {final_cum_reward}")
 
 if __name__ == '__main__':
     sys.exit(plan())
