@@ -171,18 +171,20 @@ def cum_reward_stacked(policies, model, target, obs, horizon):
     Version of cum_reward that calculates the prediction with a stacked input
     '''
     reward_sum = np.zeros(len(policies))
+    obs = np.full((len(policies), obs.shape[0]), obs)
     for i in range(horizon):
         big_dat = []
         big_action = []
-        for action_seq in policies:
-            dat = np.hstack((obs, action_seq[i]))
-            big_action.append(action_seq[i])
+        for j in range(len(policies)):
+            dat = np.hstack((obs[j], policies[j][i]))
+            big_action.append(policies[j][i])
             # print(np.array([np.hstack(dat)]).shape)
             big_dat.append(dat)
         big_dat = np.vstack(big_dat)
         # print(big_dat.shape)
-        output_states = model.predict(big_dat).numpy()
-        reward_sum += np.array([get_reward(output_states[j], target, big_action[j]) for j in range(len(policies))])
+        output_states = model.predict(big_dat, reform=(i==0)).numpy()
+        reward_sum += np.array([get_reward(output_states[k], target, big_action[k]) for k in range(len(policies))])
+        obs = output_states
     return reward_sum
 
 def random_shooting_mpc_pool_helper(params):
