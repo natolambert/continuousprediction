@@ -166,6 +166,25 @@ def cum_reward(action_seq, model, target, obs, horizon):
         obs = output_state
     return reward_sum
 
+def cum_reward_stacked(policies, model, target, obs, horizon):
+    '''
+    Version of cum_reward that calculates the prediction with a stacked input
+    '''
+    reward_sum = np.zeros(len(policies))
+    for i in range(horizon):
+        big_dat = []
+        big_action = []
+        for action_seq in policies:
+            dat = np.hstack((obs, action_seq[i]))
+            big_action.append(action_seq[i])
+            # print(np.array([np.hstack(dat)]).shape)
+            big_dat.append(dat)
+        big_dat = np.vstack(big_dat)
+        # print(big_dat.shape)
+        output_states = model.predict(big_dat).numpy()
+        reward_sum += np.array([get_reward(output_states[j], target, big_action[j]) for j in range(len(policies))])
+    return reward_sum
+
 def random_shooting_mpc_pool_helper(params):
     """Helper function used for multiprocessing"""
     num_random_configs, horizon, model, target, obs, seed = params
@@ -175,7 +194,8 @@ def random_shooting_mpc_pool_helper(params):
     for i in range(num_random_configs):
         action_seq = (np.random.rand(horizon, 5) - 0.5)
         policies.append(action_seq)
-        rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon))
+        #rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon))
+    rewards = cum_reward_stacked(policies, model, target, obs, horizon)
     return policies[np.argmax(rewards)], np.max(rewards)
 
 def random_shooting_mpc(cfg, target, model, obs):
