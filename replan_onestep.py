@@ -156,33 +156,32 @@ def cum_reward(action_seq, model, target, obs, horizon, zz):
     :param horizon: number of time steps to calculate for
     '''
     reward_sum = 0
-    # TODO: Parallelize this across the batch
     for i in range(horizon):
         data_in = np.hstack((obs, action_seq[i]))
         # added variable to only reform dataset with selected state indices if on first pass
         output_state = model.predict(np.array(data_in)[None], reform=(i==0))[0].numpy()
         this_reward = get_reward(output_state, target, action_seq[i])
         reward_sum += this_reward
-        if zz and (i == 0 or i == 1):
-            import pdb ; pdb.set_trace()
         obs = output_state
     return reward_sum
 
 def cum_reward_stacked(policies, model, target, obs, horizon):
     '''
-    Version of cum_reward that calculates the prediction with a stacked input
+    Parallelizes cum_reward by concatenating inputs along batch dimension
     '''
     reward_sum = np.zeros(len(policies))
+    obs = np.full((len(policies), obs.shape[0]), obs)
     for i in range(horizon):
         big_dat = []
-        for action_seq in policies:
-            dat = np.hstack((obs, action_seq[i]))
+        big_action = []
+        for j in range(len(policies)):
+            dat = np.hstack((obs[j], policies[j][i]))
+            big_action.append(policies[j][i])
             big_dat.append(dat)
         big_dat = np.vstack(big_dat)
-        output_states = model.predict(big_dat).numpy()
-        this_reward = np.array([get_reward(output_states[j], target, policies[j][i]) for j in range(len(policies))])
-        import pdb ; pdb.set_trace()
-        reward_sum += this_reward
+        output_states = model.predict(big_dat, reform=(i==0)).numpy()
+        reward_sum += np.array([get_reward(output_states[k], target, big_action[k]) for k in range(len(policies))])
+        obs = output_states
     return reward_sum
 
 def random_shooting_mpc_pool_helper(params):
@@ -190,12 +189,12 @@ def random_shooting_mpc_pool_helper(params):
     num_random_configs, horizon, model, target, obs, seed = params
     np.random.seed(seed)
     policies = []
-    rewards = np.array([])
-    for i in range(num_random_configs):
-        action_seq = (np.random.rand(horizon, 5) - 0.5)  # (-0.5, 0.5)
+    # rewards = np.array([])
+    for _ in range(num_random_configs):
+        action_seq = (np.random.rand(horizon, 5) - 0.5)*2
         policies.append(action_seq)
-        rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon, i==0))
-    rewards_stacked = cum_reward_stacked(policies, model, target, obs, horizon)
+        # rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon, i==0))
+    rewards = cum_reward_stacked(policies, model, target, obs, horizon)
     return policies[np.argmax(rewards)], np.max(rewards)
 
 def random_shooting_mpc(cfg, target, model, obs):
@@ -208,20 +207,16 @@ def random_shooting_mpc(cfg, target, model, obs):
     '''
     # TODO: Run experiments setting cfg.num_random_configs = 1
     # Parallelize this w/ multiprocessing.Pool
-    for net in model.nets:
-        net.eval()
-    num_parallel_threads = 1
+    num_parallel_threads = 10
     num_random_configs = cfg.num_random_configs
     if num_random_configs % num_parallel_threads != 0:
         raise ValueError("Number of Parallel Threads must perfectly divide Num Random Configs")
     
-    # from multiprocessing import Pool
-    # with Pool(num_parallel_threads) as p:
-    #     function_inputs = [(num_random_configs//num_parallel_threads, cfg.horizon, model, target, obs, i) for i in range(num_parallel_threads)]
-    #     out = p.map(random_shooting_mpc_pool_helper, function_inputs)
-    out = [random_shooting_mpc_pool_helper([num_random_configs, cfg.horizon, model, target, obs, 0])]
-    for net in model.nets:
-        net.train()
+    from multiprocessing import Pool
+    with Pool(num_parallel_threads) as p:
+        function_inputs = [(num_random_configs//num_parallel_threads, cfg.horizon, model, target, obs, i) for i in range(num_parallel_threads)]
+        out = p.map(random_shooting_mpc_pool_helper, function_inputs)
+    # out = [random_shooting_mpc_pool_helper([num_random_configs, cfg.horizon, model, target, obs, 0])]
     return max(out, key=lambda x: x[1])
 
 @hydra.main(config_path='conf/plan.yaml')
