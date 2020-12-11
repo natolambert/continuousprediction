@@ -223,7 +223,6 @@ def random_shooting_mpc(cfg, target, model, obs):
 def plan(cfg):
     # Following http://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-11.pdf
     # model-based reinforcement learning version 1.5
-
     # Evaluation variables
     # reward at beginning of each iteration
     initial_reward = np.zeros(cfg.n_iter)
@@ -261,40 +260,62 @@ def plan(cfg):
     dataset = create_dataset_step(exper_data,
                                   t_range=cfg.model.training.t_range)
     # create and train model
+    num_trials = 3
+    initial_rewards = []
+    final_rewards = []
+    final_cum_rewards = []
+
     model = DynamicsModel(cfg)
-    for i in range(cfg.n_iter):
-        log.info(f"Training iteration {i}")
-        log.info(f"Training model P:{prob}, E:{ens}")
+    for _ in range(num_trials):
+        for i in range(cfg.n_iter):
+            log.info(f"Training iteration {i}")
+            log.info(f"Training model P:{prob}, E:{ens}")
 
-        shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
-        np.random.shuffle(shuffle_idxs)
-        dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
+            shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
+            np.random.shuffle(shuffle_idxs)
+            dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
 
-        train_logs, test_logs = model.train(dataset, cfg)
-        obs = env.reset()
-        print("Initial observation: " + str(obs))
-        initial_reward[i] = get_reward(obs, target, 0)
-        final_cum_reward[i] = initial_reward[i]
-        for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
-            log.info(f"Trial timestep: {j}")
-            # Step 3: Plan
-            # Moved obs assignment to the end of the loop
-            action_seq, policy_reward = random_shooting_mpc(cfg, target, model, obs)
-            action = action_seq[0]
-            next_obs, reward, done, info = env.step(action)
-            if done:
-                break
-            data_in = np.hstack((obs, action)).reshape(1, -1)
-            data_out = (next_obs - obs).reshape(1, -1)
-            dataset = (np.append(dataset[0], data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
-            obs = next_obs
-            final_cum_reward[i] += get_reward(obs, target, action)
-        final_reward[i] = get_reward(obs, target, 0)
-        final_cum_reward[i] = final_cum_reward[i]/(cfg.plan_trial_timesteps-cfg.horizon)
+            train_logs, test_logs = model.train(dataset, cfg)
+            obs = env.reset()
+            print("Initial observation: " + str(obs))
+            initial_reward[i] = get_reward(obs, target, 0)
+            final_cum_reward[i] = initial_reward[i]
+            for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
+                log.info(f"Trial timestep: {j}")
+                # Step 3: Plan
+                # Moved obs assignment to the end of the loop
+                action_seq, policy_reward = random_shooting_mpc(cfg, target, model, obs)
+                action = action_seq[0]
+                next_obs, reward, done, info = env.step(action)
+                if done:
+                    break
+                data_in = np.hstack((obs, action)).reshape(1, -1)
+                data_out = (next_obs - obs).reshape(1, -1)
+                dataset = (np.append(dataset[0], data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
+                obs = next_obs
+                final_cum_reward[i] += get_reward(obs, target, action)
+            final_reward[i] = get_reward(obs, target, 0)
+            final_cum_reward[i] = final_cum_reward[i]/(cfg.plan_trial_timesteps-cfg.horizon)
 
-        log.info(f"Initial rewards: {initial_reward}")
-        log.info(f"Final rewards: {final_reward}")
-        log.info(f"Final cumulative rewards: {final_cum_reward}")
+            log.info(f"Initial rewards: {initial_reward}")
+            log.info(f"Final rewards: {final_reward}")
+            log.info(f"Final cumulative rewards: {final_cum_reward}")
+            
+        initial_rewards.append(np.array(initial_reward))
+        final_rewards.append(np.array(final_reward))
+        final_cum_rewards.append(np.array(final_cum_reward))
+    
+    log.info(f"Initial Rewards: {initial_rewards}")
+    log.info(f"Final Rewards: {final_rewards}")
+    log.info(f"Final Cum Rewards: {final_cum_rewards}")
+
+    initial_rewards = np.vstack(initial_rewards).mean(axis=0)
+    final_rewards = np.vstack(final_rewards).mean(axis=0)
+    final_cum_rewards = np.vstack(final_cum_rewards).mean(axis=0)
+    
+    log.info(f"Mean Initial Reward: {initial_rewards.tolist()}")
+    log.info(f"Mean Final Reward: {final_rewards.tolist()}")
+    log.info(f"Mean Final Cum Reward: {final_cum_rewards.tolist()}")
 
 if __name__ == '__main__':
     sys.exit(plan())
