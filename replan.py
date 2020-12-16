@@ -138,7 +138,7 @@ def collect_initial_data(cfg, env):
 
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
 
-        dotmap = run_controller(env, horizon=cfg.plan_trial_timesteps, policy=policy)
+        dotmap = run_controller(env, horizon=cfg.initial_num_trial_length, policy=policy)
 
         dotmap.target = target
         dotmap.P = P / 5
@@ -158,7 +158,7 @@ def get_reward(output_state, target, action):
     reward = reward_dist + reward_ctrl
     return reward
 
-def cum_reward(policies, model, target, obs, horizon):
+def cum_reward(policies, model, target, initial_obs, horizon):
     '''
     Calculates the cumulative reward of a run with a given policy and target
     :param policy: policy used to get actions
@@ -168,14 +168,15 @@ def cum_reward(policies, model, target, obs, horizon):
     :param horizon: number of time steps to calculate for
     '''
     reward_sum = np.zeros(len(policies))
+    obs = np.full((len(policies), initial_obs.shape[0]), initial_obs)
     for i in range(horizon):
         big_dat = []
         big_action = []
-        for policy in policies:
-            dat = [obs, i+1]
-            dat.extend([policy.get_P(), policy.get_D()])
+        for j in range(len(policies)):
+            dat = [initial_obs, i+1]
+            dat.extend([policies[j].get_P(), policies[j].get_D()])
             dat.append(target)
-            action, _ = policy.act(obs2q(obs))
+            action, _ = policies[j].act(obs2q(obs[j]))
             big_action.append(action)
             # print(np.array([np.hstack(dat)]).shape)
             big_dat.append(np.hstack(dat))
@@ -183,6 +184,7 @@ def cum_reward(policies, model, target, obs, horizon):
         # print(big_dat.shape)
         output_states = model.predict(big_dat).numpy()
         reward_sum += np.array([get_reward(output_states[j], target, big_action[j]) for j in range(len(policies))])
+        obs = output_states
     return reward_sum
 
 def random_shooting_mpc_pool_helper(params):
@@ -235,8 +237,8 @@ def plan(cfg):
     # Step 1: run random base policy to collect data points
     # get a target to work towards, training is still done on random targets to not affect exploration
 
-    #target = np.random.rand(5) * 2 - 1
-    target = np.array([0.46567452, -0.95595055, 0.67755277, 0.56301844, 0.93220489])
+    target = np.random.rand(5) * 2 - 1
+    #target = np.array([-0.53819503, -0.39885876, 0.2089623, -0.44964409, -0.13150919])
 
     log.info(f"Planning towards target: {target}")
     # collect data through reacher environment
@@ -254,7 +256,7 @@ def plan(cfg):
     # create dataset for model input/output
     log.info("Creating initial dataset for model training")
     dataset = create_dataset_traj(exper_data,
-                                  threshold=cfg.model.training.filter_rate,
+                                  threshold=0,
                                   t_range=cfg.model.training.t_range)
     # create and train model
     model = DynamicsModel(cfg)
@@ -264,16 +266,19 @@ def plan(cfg):
 
         shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
         np.random.shuffle(shuffle_idxs)
-        dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
-
-        train_logs, test_logs = model.train(dataset, cfg)
+        #training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
+        if(cfg.num_training_points == 0):
+            training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
+        else:
+            training_dataset = (dataset[0][shuffle_idxs[:cfg.num_training_points]], dataset[1][shuffle_idxs[:cfg.num_training_points]])
+        train_logs, test_logs = model.train(training_dataset, cfg)
         obs = env.reset()
         print("Initial observation: " + str(obs))
         initial_reward[i] = get_reward(obs, target, 0)
         final_cum_reward[i] = initial_reward[i]
         # RUN MPC ONCE EACH TIMESTEP
         if(cfg.num_MPC_per_iter == 0):
-            for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
+            for j in range(cfg.plan_trial_timesteps-1):
                 log.info(f"Trial timestep: {j}")
                 # Step 3: Plan
                 # Moved obs assignment to the end of the loop
@@ -298,7 +303,6 @@ def plan(cfg):
             horizon = int(cfg.plan_trial_timesteps/cfg.num_MPC_per_iter)
             for j in range(cfg.num_MPC_per_iter):
                 policy, policy_reward = random_shooting_mpc(cfg, target, model, obs, horizon)
-                initial_obs = obs
 
                 logs = DotMap()
                 logs.states = []
@@ -330,15 +334,16 @@ def plan(cfg):
                 logs.states = np.array(logs.states)
 
                 data_in, data_out = create_dataset_traj(exper_data,
-                                              threshold=cfg.model.training.filter_rate,
+                                              threshold=0,
                                               t_range=cfg.model.training.t_range)
+                #dataset = (data_in, data_out)
                 dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1],data_out, axis=0))
                 if done:
                     break
         final_reward[i] = get_reward(obs, target, 0)
 
         if (cfg.num_MPC_per_iter == 0):
-            final_cum_reward[i] = final_cum_reward[i]/(cfg.plan_trial_timesteps-cfg.horizon)
+            final_cum_reward[i] = final_cum_reward[i]/(cfg.plan_trial_timesteps)
         else:
             final_cum_reward[i] = final_cum_reward[i]/cfg.plan_trial_timesteps
 

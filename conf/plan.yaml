@@ -4,15 +4,21 @@ defaults:
 
 video: false
 
-n_iter: 50
+#number of training points to randomly sample each retrain
+#set to 0 to train on all data_points
+num_training_points: 0
+n_iter: 1
 initial_num_trials: 100
+initial_num_trial_length: 350
 plan_trial_timesteps: 250
-num_random_configs: 100
+num_random_configs: 1000
 
 # number of MPC runs per iteration
 # runs MPC with horizon=plan_trial_timesteps/num_MPC_per_iter
 # if set to 0, will run MPC once every time step with horizon equal to value set below
-num_MPC_per_iter: 1
-# for trajectory (replan.py), rules are above
-# for one-step (replan_onstep.py), always use this as horizon, and MPC is run every time step
-horizon: 25
+num_MPC_per_iter: 0
+horizon: 100
+
+#only used for one-step
+#use PID parameters to plan rather than random actions
+PID_plan: true

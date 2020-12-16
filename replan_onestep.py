@@ -166,7 +166,7 @@ def cum_reward(action_seq, model, target, obs, horizon):
         obs = output_state
     return reward_sum
 
-def cum_reward_stacked(policies, model, target, obs, horizon):
+def cum_reward_stacked(policies, model, target, obs, horizon, PID_plan):
     '''
     Version of cum_reward that calculates the prediction with a stacked input
     '''
@@ -176,8 +176,12 @@ def cum_reward_stacked(policies, model, target, obs, horizon):
         big_dat = []
         big_action = []
         for j in range(len(policies)):
-            dat = np.hstack((obs[j], policies[j][i]))
-            big_action.append(policies[j][i])
+            if(PID_plan):
+                action, _ = policies[j].act(obs2q(obs[j]))
+            else:
+                action = policies[j][i]
+            dat = np.hstack((obs[j], action))
+            big_action.append(action)
             # print(np.array([np.hstack(dat)]).shape)
             big_dat.append(dat)
         big_dat = np.vstack(big_dat)
@@ -189,18 +193,25 @@ def cum_reward_stacked(policies, model, target, obs, horizon):
 
 def random_shooting_mpc_pool_helper(params):
     """Helper function used for multiprocessing"""
-    num_random_configs, horizon, model, target, obs, seed = params
+    num_random_configs, horizon, model, target, obs, PID_plan, seed = params
     np.random.seed(seed)
     policies = []
     rewards = np.array([])
     for i in range(num_random_configs):
-        action_seq = (np.random.rand(horizon, 5) - 0.5)*2
-        policies.append(action_seq)
+        if(PID_plan):
+            P = np.random.rand(5) * 5
+            I = np.zeros(5)
+            D = np.random.rand(5)
+            policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
+            policies.append(policy)
+        else:
+            action_seq = (np.random.rand(horizon, 5) - 0.5)*2
+            policies.append(action_seq)
         #rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon))
-    rewards = cum_reward_stacked(policies, model, target, obs, horizon)
+    rewards = cum_reward_stacked(policies, model, target, obs, horizon, PID_plan)
     return policies[np.argmax(rewards)], np.max(rewards)
 
-def random_shooting_mpc(cfg, target, model, obs):
+def random_shooting_mpc(cfg, target, model, obs, horizon):
     '''
     Creates random action configurations and returns the one with the best cumulative reward
     :param target: target to aim for
@@ -213,7 +224,7 @@ def random_shooting_mpc(cfg, target, model, obs):
     from multiprocessing import Pool
     num_random_configs = cfg.num_random_configs
     with Pool(10) as p:
-        function_inputs = [[num_random_configs//10, cfg.horizon, model, target, obs, i] for i in range(10)]
+        function_inputs = [[num_random_configs//10, horizon, model, target, obs, cfg.PID_plan, i] for i in range(10)]
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
     return max(out, key=lambda x: x[1])
 
@@ -237,10 +248,7 @@ def plan(cfg):
     # Step 1: run random base policy to collect data points
     # get a target to work towards, training is still done on random targets to not affect exploration
 
-    # target = np.random.rand(5) * 2 - 1
-    # target = np.array([0.17130509, 0.8504938, 0.38670446, -0.33385786, -0.06983104])  # Experiment 1
-    target = np.array([0.46567452, -0.95595055, 0.67755277, 0.56301844, 0.93220489])  # Experiment 2
-
+    target = np.random.rand(5) * 2 - 1
     log.info(f"Planning towards target: {target}")
     # collect data through reacher environment
     env_model = cfg.env.name
@@ -266,31 +274,77 @@ def plan(cfg):
 
         shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
         np.random.shuffle(shuffle_idxs)
-        dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
-
-        train_logs, test_logs = model.train(dataset, cfg)
+        #training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
+        if(cfg.num_training_points == 0):
+            training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
+        else:
+            training_dataset = (dataset[0][shuffle_idxs[:cfg.num_training_points]], dataset[1][shuffle_idxs[:cfg.num_training_points]])
+        train_logs, test_logs = model.train(training_dataset, cfg)
         obs = env.reset()
         print("Initial observation: " + str(obs))
         initial_reward[i] = get_reward(obs, target, 0)
+        log.info(f"Initial rewards: {initial_reward}")
         final_cum_reward[i] = initial_reward[i]
-        for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
-            log.info(f"Trial timestep: {j}")
-            # Step 3: Plan
-            # Moved obs assignment to the end of the loop
-            action_seq, policy_reward = random_shooting_mpc(cfg, target, model, obs)
-            action = action_seq[0]
-            next_obs, reward, done, info = env.step(action)
-            if done:
-                break
-            data_in = np.hstack((obs, action)).reshape(1, -1)
-            data_out = (next_obs - obs).reshape(1, -1)
-            dataset = (np.append(dataset[0], data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
-            obs = next_obs
-            final_cum_reward[i] += get_reward(obs, target, action)
+        #RUN MPC ONCE PER TIMESTEP
+        if (cfg.num_MPC_per_iter == 0):
+            for j in range(cfg.plan_trial_timesteps-cfg.horizon-1):
+                log.info(f"Trial timestep: {j}")
+                # Step 3: Plan
+                # Moved obs assignment to the end of the loop
+                action_seq, policy_reward = random_shooting_mpc(cfg, target, model, obs, cfg.horizon)
+                if cfg.PID_plan:
+                    action, _ = action_seq.act(obs2q(obs))
+                else:
+                    action = action_seq[0]
+                next_obs, reward, done, info = env.step(action)
+                if done:
+                    break
+                data_in = np.hstack((obs, action)).reshape(1, -1)
+                data_out = (next_obs - obs).reshape(1, -1)
+                #dataset = (data_in.reshape(1, -1), data_out.reshape(1, -1))
+                dataset = (np.append(dataset[0], data_in.reshape(1,-1), axis=0), np.append(dataset[1],data_out.reshape(1,-1), axis=0))
+                obs = next_obs
+                final_cum_reward[i] += get_reward(obs, target, action)
+        else:
+            horizon = int(cfg.plan_trial_timesteps/cfg.num_MPC_per_iter)
+            for j in range(cfg.num_MPC_per_iter):
+                action_seq, policy_reward = random_shooting_mpc(cfg, target, model, obs, horizon)
+                logs = DotMap()
+                logs.states = []
+                logs.actions = []
+                logs.rewards = []
+                logs.times = []
+
+                for k in range(horizon):
+                    if cfg.PID_plan:
+                        action, _ = action_seq.act(obs2q(obs))
+                    else:
+                        action = action_seq[k]
+                    next_obs, reward, done, info = env.step(action)
+                    if done:
+                        break
+
+                    logs.actions.append(action)
+                    logs.rewards.append(reward)
+                    logs.states.append(obs.squeeze())
+                    obs = next_obs
+                    if (j == cfg.num_MPC_per_iter-1 and k == horizon-1):
+                        continue
+                    final_cum_reward[i] += get_reward(obs, target, action)
+
+                logs.actions = np.array(logs.actions)
+                logs.rewards = np.array(logs.rewards)
+                logs.states = np.array(logs.states)
+
+                data_in, data_out = create_dataset_step(exper_data,
+                                              t_range=cfg.model.training.t_range)
+                #dataset = (data_in, data_out)
+                dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1],data_out, axis=0))
+                if done:
+                    break
+
         final_reward[i] = get_reward(obs, target, 0)
         final_cum_reward[i] = final_cum_reward[i]/(cfg.plan_trial_timesteps-cfg.horizon)
-
-        log.info(f"Initial rewards: {initial_reward}")
         log.info(f"Final rewards: {final_reward}")
         log.info(f"Final cumulative rewards: {final_cum_reward}")
 
