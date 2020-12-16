@@ -147,7 +147,7 @@ def get_reward(output_state, target, action):
     reward = reward_dist + reward_ctrl
     return reward
 
-def cum_reward(action_seq, model, target, obs, horizon):
+def cum_reward(action_seq, model, target, obs, horizon, zz):
     '''
     Calculates the cumulative reward of a run with a given policy and target
     :param action_seq: sequence of actions, length: horizon
@@ -156,19 +156,18 @@ def cum_reward(action_seq, model, target, obs, horizon):
     :param horizon: number of time steps to calculate for
     '''
     reward_sum = 0
-    # TODO: Parallelize this across the batch
     for i in range(horizon):
         data_in = np.hstack((obs, action_seq[i]))
         # added variable to only reform dataset with selected state indices if on first pass
-        output_state = model.predict(np.array(data_in)[None], reform = (i==0))[0].numpy()
-        # output_state = obs + delta
-        reward_sum += get_reward(output_state, target, action_seq[i])
+        output_state = model.predict(np.array(data_in)[None], reform=(i==0))[0].numpy()
+        this_reward = get_reward(output_state, target, action_seq[i])
+        reward_sum += this_reward
         obs = output_state
     return reward_sum
 
 def cum_reward_stacked(policies, model, target, obs, horizon, PID_plan):
     '''
-    Version of cum_reward that calculates the prediction with a stacked input
+    Parallelizes cum_reward by concatenating inputs along batch dimension
     '''
     reward_sum = np.zeros(len(policies))
     obs = np.full((len(policies), obs.shape[0]), obs)
@@ -185,7 +184,6 @@ def cum_reward_stacked(policies, model, target, obs, horizon, PID_plan):
             # print(np.array([np.hstack(dat)]).shape)
             big_dat.append(dat)
         big_dat = np.vstack(big_dat)
-        # print(big_dat.shape)
         output_states = model.predict(big_dat, reform=(i==0)).numpy()
         reward_sum += np.array([get_reward(output_states[k], target, big_action[k]) for k in range(len(policies))])
         obs = output_states
@@ -221,18 +219,22 @@ def random_shooting_mpc(cfg, target, model, obs, horizon):
     '''
     # TODO: Run experiments setting cfg.num_random_configs = 1
     # Parallelize this w/ multiprocessing.Pool
-    from multiprocessing import Pool
+    num_parallel_threads = 10
     num_random_configs = cfg.num_random_configs
-    with Pool(10) as p:
-        function_inputs = [[num_random_configs//10, horizon, model, target, obs, cfg.PID_plan, i] for i in range(10)]
+    if num_random_configs % num_parallel_threads != 0:
+        raise ValueError("Number of Parallel Threads must perfectly divide Num Random Configs")
+
+    from multiprocessing import Pool
+    with Pool(num_parallel_threads) as p:
+        function_inputs = [(num_random_configs//num_parallel_threads, horizon, model, target, obs, cfg.PID_plan, i) for i in range(num_parallel_threads)]
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
+    # out = [random_shooting_mpc_pool_helper([num_random_configs, cfg.horizon, model, target, obs, 0])]
     return max(out, key=lambda x: x[1])
 
 @hydra.main(config_path='conf/plan.yaml')
 def plan(cfg):
     # Following http://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-11.pdf
     # model-based reinforcement learning version 1.5
-
     # Evaluation variables
     # reward at beginning of each iteration
     initial_reward = np.zeros(cfg.n_iter)
@@ -267,6 +269,11 @@ def plan(cfg):
     dataset = create_dataset_step(exper_data,
                                   t_range=cfg.model.training.t_range)
     # create and train model
+    num_trials = 3
+    initial_rewards = []
+    final_rewards = []
+    final_cum_rewards = []
+
     model = DynamicsModel(cfg)
     for i in range(cfg.n_iter):
         log.info(f"Training iteration {i}")
