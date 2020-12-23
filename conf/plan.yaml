@@ -7,18 +7,23 @@ video: false
 #number of training points to randomly sample each retrain
 #set to 0 to train on all data_points
 num_training_points: 0
-n_iter: 1
-initial_num_trials: 100
-initial_num_trial_length: 350
+n_iter: 2
+#initial number of trajectories to train on
+initial_num_trials: 5
+initial_num_trial_length: 250
 plan_trial_timesteps: 250
+#MPC samples
 num_random_configs: 1000
 
 # number of MPC runs per iteration
 # runs MPC with horizon=plan_trial_timesteps/num_MPC_per_iter
 # if set to 0, will run MPC once every time step with horizon equal to value set below
-num_MPC_per_iter: 0
+# normally set to 0 or 1
+num_MPC_per_iter: 1
 horizon: 100
 
 #only used for one-step
 #use PID parameters to plan rather than random actions
 PID_plan: true
+
+random_seed: 0

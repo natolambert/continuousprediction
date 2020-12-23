@@ -177,6 +177,9 @@ class PID(Policy):
     def get_D(self):
         return self.Kd
 
+    def get_target(self):
+        return self.target
+
 
 class jointsTrajectoryTrackingPID(PID):
     """

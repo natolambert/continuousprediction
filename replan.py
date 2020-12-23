@@ -1,19 +1,7 @@
-''' TODO:
-    1. get_reward uses arccos(), but output state is sometimes out of the domain
-        sign of inaccurate predictions? or postprocessing scaling?
-        min: -1.7, max: 1.4 -> right now, i've just clipped the values to 1 and -1
-
-        Changed to just use the target (might make more sense because of obs2q()->
-        PID parameters work on first five values of obs, which means target is cosine of joint positions)
-
-        Added PID policy action to the reward calculation, but cannot match the reward in environment file perfectly,
-        since we cannot get the 3d vector of fingertip
-    2. does having the target remain the same through all MPC runs make sense?
-    3. evaluate, have some results to look at
-        does using the MPC rewards as a way to evaluate make sense?
-        maybe also include prediction error using test_data? (it's commented out right now)
-        what does hw 4 cs285 use for eval_return?
 '''
+TODO:
+'''
+
 import sys
 import hydra
 import logging
@@ -24,6 +12,7 @@ import gym
 from envs import *
 from policy import PID
 from dynamics_model import DynamicsModel
+import torch
 
 log = logging.getLogger(__name__)
 
@@ -148,13 +137,13 @@ def collect_initial_data(cfg, env):
 
     return logs
 
-def get_reward(output_state, target, action):
+def get_reward(output_state, action, target):
     '''
-    Calculates the reward given output_state and target
+    Calculates the reward given output_state action and target
     Uses simple np.linalg.norm between joint positions
     '''
     reward_ctrl = - np.square(action).sum() * 0.01
-    reward_dist = - np.linalg.norm(obs2q(output_state) - target)
+    reward_dist = - np.linalg.norm(output_state[:10] - target)
     reward = reward_dist + reward_ctrl
     return reward
 
@@ -175,7 +164,7 @@ def cum_reward(policies, model, target, initial_obs, horizon):
         for j in range(len(policies)):
             dat = [initial_obs, i+1]
             dat.extend([policies[j].get_P(), policies[j].get_D()])
-            dat.append(target)
+            dat.append(policies[j].get_target())
             action, _ = policies[j].act(obs2q(obs[j]))
             big_action.append(action)
             # print(np.array([np.hstack(dat)]).shape)
@@ -183,24 +172,25 @@ def cum_reward(policies, model, target, initial_obs, horizon):
         big_dat = np.vstack(big_dat)
         # print(big_dat.shape)
         output_states = model.predict(big_dat).numpy()
-        reward_sum += np.array([get_reward(output_states[j], target, big_action[j]) for j in range(len(policies))])
+        reward_sum += np.array([get_reward(output_states[j], big_action[j], target) for j in range(len(policies))])
         obs = output_states
     return reward_sum
 
 def random_shooting_mpc_pool_helper(params):
     """Helper function used for multiprocessing"""
-    num_random_configs, target, model, obs, horizon, seed = params
+    num_random_configs, model, obs, horizon, target, seed = params
     np.random.seed(seed)
     policies = []
     for i in range(num_random_configs):
         P = np.random.rand(5) * 5
         I = np.zeros(5)
         D = np.random.rand(5)
-        policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
+        target_PID = np.random.rand(10) * 2 - 1
+        policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target_PID)
         policies.append(policy)
     rewards = cum_reward(policies, model, target, obs, horizon)
     optimal_policy = policies[np.argmax(rewards)]
-    return PID(dX=5, dU=5, P=optimal_policy.get_P(), I=np.zeros(5), D=optimal_policy.get_D(), target=target), np.max(rewards)
+    return PID(dX=5, dU=5, P=optimal_policy.get_P(), I=np.zeros(5), D=optimal_policy.get_D(), target=optimal_policy.get_target()), np.max(rewards)
 
 def random_shooting_mpc(cfg, target, model, obs, horizon):
     '''
@@ -208,19 +198,18 @@ def random_shooting_mpc(cfg, target, model, obs, horizon):
     :param target: target to aim for
     :param model: model to use to predict dynamics
     :param obs: observation to start calculating from
+    :param horizon: number of time steps to calculate for
     :return: the PID policy that has the best cumulative reward, and the best cumulative reward (for evaluation)
     '''
     from multiprocessing import Pool
     num_random_configs = cfg.num_random_configs
     with Pool(10) as p:
-        function_inputs = [(num_random_configs//10, target, model, obs, cfg.horizon, i) for i in range(10)]
+        function_inputs = [(num_random_configs//10, model, obs, cfg.horizon, target, i) for i in range(10)]
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
     return max(out, key=lambda x:x[1])
 
 @hydra.main(config_path='conf/plan.yaml')
 def plan(cfg):
-    # Following http://rail.eecs.berkeley.edu/deeprlcourse/static/slides/lec-11.pdf
-    # model-based reinforcement learning version 1.5
 
     # Evaluation variables
     # reward at beginning of each iteration
@@ -230,24 +219,20 @@ def plan(cfg):
     # cumulative reward of trajectory at end of each iteration
     final_cum_reward = np.zeros(cfg.n_iter)
 
-    # VD: Added empty lists because they aren't present
-    data_in = []
-    data_out = []
-
     # Step 1: run random base policy to collect data points
-    # get a target to work towards, training is still done on random targets to not affect exploration
-
-    target = np.random.rand(5) * 2 - 1
-    #target = np.array([-0.53819503, -0.39885876, 0.2089623, -0.44964409, -0.13150919])
-
-    log.info(f"Planning towards target: {target}")
-    # collect data through reacher environment
-    log.info("Collecting initial data")
+    # Environment setup
     env_model = cfg.env.name
     env = gym.make(env_model)
+    env.seed(cfg.random_seed)
+    np.random.seed(cfg.random_seed)
+    torch.manual_seed(cfg.random_seed)
+    # Get a target to work towards
+    # Target is cosine and sine of 5 joint angles: length 10
+    target = np.random.rand(10) * 2 - 1
     log.info('Initializing env: %s' % env_model)
+    # collect data through reacher environment
+    log.info("Collecting initial data")
     exper_data = collect_initial_data(cfg, env)
-    #test_data = collect_initial_data(cfg, env)
 
     # Step 2: Learn dynamics model
     # probabilistic model, ensemble training booleans
@@ -258,73 +243,86 @@ def plan(cfg):
     dataset = create_dataset_traj(exper_data,
                                   threshold=0,
                                   t_range=cfg.model.training.t_range)
-    # create and train model
+    # create model object
     model = DynamicsModel(cfg)
+    # retrain for n_iter iterations
     for i in range(cfg.n_iter):
         log.info(f"Training iteration {i}")
         log.info(f"Training model P:{prob}, E:{ens}")
 
+        # shuffle dataset each iteration to avoid retraining on the same data points -> overfitting
         shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
         np.random.shuffle(shuffle_idxs)
-        #training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
+        # config for choosing number of points to train on
         if(cfg.num_training_points == 0):
             training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
         else:
             training_dataset = (dataset[0][shuffle_idxs[:cfg.num_training_points]], dataset[1][shuffle_idxs[:cfg.num_training_points]])
+        # train model
         train_logs, test_logs = model.train(training_dataset, cfg)
+        # initial observation
         obs = env.reset()
         print("Initial observation: " + str(obs))
         initial_reward[i] = get_reward(obs, target, 0)
         final_cum_reward[i] = initial_reward[i]
-        # RUN MPC ONCE EACH TIMESTEP
+        # Code is split between replanning each time step vs. planning a set number of times per iteration
+        # REPLAN ONCE EACH TIMESTEP
         if(cfg.num_MPC_per_iter == 0):
             for j in range(cfg.plan_trial_timesteps-1):
                 log.info(f"Trial timestep: {j}")
-                # Step 3: Plan
-                # Moved obs assignment to the end of the loop
+                # Plan using MPC with random shooting optimizer
                 policy, policy_reward = random_shooting_mpc(cfg, target, model, obs, cfg.horizon)
+                # Only use first action from optimal policy
                 action, _ = policy.act(obs2q(obs))
+                # step in environment
                 next_obs, reward, done, info = env.step(action)
                 if done:
                     break
-                '''
-                TODO: What to add to the dataset here?
-                Running policy for multiple steps?
-                For now, just append one step (transition dynamics)
-                '''
+                # If replanning each time step, using the trajectory model only makes sense without retraining (ie. multiple iterations)
+                # We only add state transition dynamics to the dataset for retraining
                 dat = [obs.squeeze(), 1]
                 dat.extend([policy.get_P() / 5, policy.get_D()])
-                dat.append(target)
+                dat.append(policy.get_target())
                 dataset = (np.append(dataset[0],np.hstack(dat).reshape(1,-1), axis=0), np.append(dataset[1],next_obs.reshape(1,-1), axis=0))
+                # Set next observation
                 obs = next_obs
+                # Calculate the cumulative reward
                 final_cum_reward[i] += get_reward(obs, target, action)
-        # RUN MPC SOME NUMBER OF TIMES IN AN ITERATION
+        # PLAN A SET NUMBER OF TIMES PER ITERATION
         else:
+            # horizon is based on number of times to plan on each trajectory
             horizon = int(cfg.plan_trial_timesteps/cfg.num_MPC_per_iter)
             for j in range(cfg.num_MPC_per_iter):
+                # plan using MPC with random shooting optimizer
                 policy, policy_reward = random_shooting_mpc(cfg, target, model, obs, horizon)
 
+                # collect data on trajectory
                 logs = DotMap()
                 logs.states = []
                 logs.actions = []
                 logs.rewards = []
                 logs.times = []
 
-                logs.target = target
+                #collect data on planned optimal policy
+                logs.target = policy.get_target()
                 logs.P = policy.get_P() / 5
                 logs.I = np.zeros(5)
                 logs.D = policy.get_D()
 
                 for k in range(horizon):
+                    # step in environment
                     action, _ = policy.act(obs2q(obs))
                     next_obs, reward, done, info = env.step(action)
                     if done:
                         break
 
+                    # collect data on trajectory
                     logs.actions.append(action)
                     logs.rewards.append(reward)
                     logs.states.append(obs.squeeze())
+                    # set next observation
                     obs = next_obs
+                    # don't collect last observation, does not make sense when creating dataset
                     if (j == cfg.num_MPC_per_iter-1 and k == horizon-1):
                         continue
                     final_cum_reward[i] += get_reward(obs, target, action)
@@ -333,13 +331,13 @@ def plan(cfg):
                 logs.rewards = np.array(logs.rewards)
                 logs.states = np.array(logs.states)
 
-                data_in, data_out = create_dataset_traj(exper_data,
+                data_in, data_out = create_dataset_traj(logs,
                                               threshold=0,
                                               t_range=cfg.model.training.t_range)
-                #dataset = (data_in, data_out)
                 dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1],data_out, axis=0))
                 if done:
                     break
+        # Calculate the final reward
         final_reward[i] = get_reward(obs, target, 0)
 
         if (cfg.num_MPC_per_iter == 0):

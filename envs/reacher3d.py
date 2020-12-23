@@ -25,6 +25,10 @@ class Reacher3dEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         done = False
         return ob, reward, done, dict(reward_dist=reward_dist, reward_ctrl=reward_ctrl)
 
+    def print_target(self):
+        print(self.get_body_com("target"))
+        print(self.goal)
+
     def viewer_setup(self):
         self.viewer.cam.trackbodyid = 0
         self.viewer.cam.distance = 5
