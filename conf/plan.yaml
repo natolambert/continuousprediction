@@ -24,8 +24,8 @@ num_random_configs: 1000
 # if set to 0, will run MPC once every time step with horizon equal to value set below
 # normally set to 0 or 1
 num_MPC_per_iter: 1
-horizon_step: 15
-horizon_traj: 250
+horizon_step: 20
+horizon_traj: 200
 
 #only used for one-step
 #use PID parameters to plan rather than random actions

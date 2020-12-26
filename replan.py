@@ -148,7 +148,7 @@ def get_reward(output_state, action, target):
     Uses simple np.linalg.norm between joint positions
     '''
     reward_ctrl = - np.square(action).sum() * 0.01
-    theta = [np.arctan2(output_state[5:10], output_state[:5])]
+    theta = np.arctan2(output_state[5:10], output_state[:5])
     reward_dist = - np.linalg.norm(theta - target)
     reward = reward_dist + reward_ctrl
     return reward
@@ -172,7 +172,8 @@ def cum_reward(policies, model, target, initial_obs, horizon):
             dat = [initial_obs, i + 1]
             dat.extend([policies[j].get_P(), policies[j].get_D()])
             dat.append(policies[j].get_target())
-            action, _ = policies[j].act(obs2q(obs[j]))
+            # action, _ = policies[j].act(obs2q(obs[j]))
+            action, _ = policies[j].act(np.arctan2(obs[j][5:10], obs[j][:5]))
             big_action.append(action)
             # print(np.array([np.hstack(dat)]).shape)
             big_dat.append(np.hstack(dat))
@@ -298,7 +299,7 @@ def plan(cfg):
                 # Plan using MPC with random shooting optimizer
                 policy, policy_reward = random_shooting_mpc(cfg, target_env, model, obs, cfg.horizon_traj)
                 # Only use first action from optimal policy
-                action, _ = policy.act(obs2q(obs))
+                action, _ = policy.act(np.arctan2(obs[j][5:10], obs[j][:5]))
                 # step in environment
                 next_obs, reward, done, info = env.step(action)
                 if done:
@@ -313,7 +314,8 @@ def plan(cfg):
                 # Set next observation
                 obs = next_obs
                 # Calculate the cumulative reward
-                final_cum_reward[i] += reward  # get_reward(obs, action, target_env)
+                # final_cum_reward[i] += reward  # get_reward(obs, action, target_env)
+            final_cum_reward[i] += get_reward(obs, action, target_env)
         # PLAN A SET NUMBER OF TIMES PER ITERATION
         else:
             # horizon is based on number of times to plan on each trajectory

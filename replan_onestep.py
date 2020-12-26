@@ -151,7 +151,7 @@ def get_reward(output_state, action, target):
     Uses simple np.linalg.norm between joint positions
     '''
     reward_ctrl = - np.square(action).sum() * 0.01
-    theta = [np.arctan2(output_state[5:10], output_state[:5])]
+    theta = np.arctan2(output_state[5:10], output_state[:5])
     reward_dist = - np.linalg.norm(theta - target)
     reward = reward_dist + reward_ctrl
     return reward
@@ -193,8 +193,9 @@ def cum_reward_stacked(policies, model, target, obs, horizon, PID_plan):
         big_dat = []
         big_action = []
         for j in range(len(policies)):
-            if (PID_plan):
-                action, _ = policies[j].act(obs2q(obs[j]))
+            if (PID_plan): # np.arctan2(obs[j][5:10], obs[j][:5])
+                # action, _ = policies[j].act(obs2q(obs[j]))
+                action, _ = policies[j].act(np.arctan2(obs[j][5:10], obs[j][:5]))
             else:
                 action = policies[j][i]
             dat = np.hstack((obs[j], action))
@@ -225,7 +226,8 @@ def random_shooting_mpc_pool_helper(params):
             policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target_PID)
             policies.append(policy)
         else:
-            action_seq = (np.random.rand(horizon, 5) - 0.5) * 2
+            # nol changed below so actions are in correct region (-1,1)
+            action_seq = np.random.rand(horizon, 5) * 2 - 1
             policies.append(action_seq)
         # Uncomment this line if not using stacked
         # rewards = np.append(rewards, cum_reward(action_seq, model, target, obs, horizon))
@@ -336,9 +338,10 @@ def plan(cfg):
                 action_seq, policy_reward = random_shooting_mpc(cfg, target_env, model, obs, cfg.horizon_step)
                 # get first action from optimal policy
                 if cfg.PID_plan:
-                    action, _ = action_seq.act(obs2q(obs))
+                    action, _ = action_seq.act(np.arctan2(obs[j][5:10], obs[j][:5]))
                 else:
                     action = action_seq[0]
+
                 # step in environment
                 next_obs, reward, done, info = env.step(action)
                 if done:
@@ -351,7 +354,8 @@ def plan(cfg):
                 # set next observation
                 obs = next_obs
                 # calculate final cumulative reward
-                final_cum_reward[i] += reward  # get_reward(obs, action, target_env)
+                # final_cum_reward[i] += reward  # get_reward(obs, action, target_env)
+                final_cum_reward[i] +=  get_reward(obs, action, target_env)
         else:
             # PLAN ONCE EACH ITERATION
             # horizon = number of timesteps of trajectory
