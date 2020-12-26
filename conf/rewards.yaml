@@ -1,5 +1,6 @@
 defaults:
-  - envs: reacher
+  - envs: cartpole #reacher
+  - models: d
 
 exper_dir: false # set to a name to load models from within a subfolder in the models directory
 plot: false

@@ -300,9 +300,9 @@ def reward_rank(cfg):
     reward = [t['rewards'] for t in data_train]
     states = [np.float32(t['states']) for t in data_train]
     actions = [np.float32(t['actions']) for t in data_train]
-    if cfg.model.training.t_range < np.shape(states)[1]:
-        states = [s[:cfg.model.training.t_range, :] for s in states]
-        actions = [a[:cfg.model.training.t_range, :] for a in actions]
+    # if cfg.model.training.t_range < np.shape(states)[1]:
+    #     states = [s[:cfg.model.training.t_range, :] for s in states]
+    #     actions = [a[:cfg.model.training.t_range, :] for a in actions]
 
     if label == 'reacher':
         control = [np.concatenate((t['D'], t['P'], t['target'])) for t in data_train]
@@ -340,6 +340,15 @@ def reward_rank(cfg):
     else:
         gp_y = torch.Tensor(reward)
 
+    # compare a direct NN mappign to the other results (very low data!)
+    import torch.nn as nn
+    loss_fn = nn.MSELoss()
+    from dynamics_model import Net
+    direct_map = Net(torch.stack(gp_x).shape[1], 1, cfg, loss_fn)
+    dataset = (torch.stack(gp_x), np.array(gp_y).reshape(-1,1))
+    direct_map.optimize(dataset, cfg)
+    # End nn
+
     gp_x_train = gp_x[:split]
     gp_y_train = gp_y[:split]
     # model, likelihood = train_gp((torch.stack(gp_x_train), gp_y_train))
@@ -363,9 +372,9 @@ def reward_rank(cfg):
     reward = [t['rewards'] for t in data_test]
     states = [np.float32(t['states']) for t in data_test]
     actions = [np.float32(t['actions']) for t in data_test]
-    if cfg.model.training.t_range < np.shape(states)[1]:
-        states = [s[:cfg.model.training.t_range, :] for s in states]
-        actions = [a[:cfg.model.training.t_range, :] for a in actions]
+    # if cfg.model.training.t_range < np.shape(states)[1]:
+    #     states = [s[:cfg.model.training.t_range, :] for s in states]
+    #     actions = [a[:cfg.model.training.t_range, :] for a in actions]
 
     if label == 'reacher':
         control = [np.concatenate((t['D'], t['P'], t['target'])) for t in data_test]
@@ -383,8 +392,17 @@ def reward_rank(cfg):
 
     reward = [np.sum([r_func(s, a) for s, a in zip(sta, act)]) for sta, act in zip(states, actions)]
 
+        # prediction += n.forward(scaledInput) / len(self.nets)
+
+
     log.info("Evaluating GP")
     gp_x_test = [torch.Tensor(np.concatenate((s[0], c))) for s, c in zip(states, control)]
+
+    # eval nn
+    scaledInput = direct_map.testPreprocess(torch.stack(gp_x_test), cfg)
+    prediction = direct_map.testPostprocess(direct_map.forward(scaledInput))
+
+    # done
     # gp_pred_test = predict_gp(torch.stack(gp_x_test), model, likelihood)
     # gp_pred_test = gp.forward(torch.stack(gp_x_test))
     gp_pred_test = gp.posterior(torch.stack(gp_x_test))
@@ -405,10 +423,11 @@ def reward_rank(cfg):
     _, pred_drift = pred_traj(data_test, models_step, env=cfg.env.label, cfg=cfg, t_range=cfg.model.training.t_range)
 
     # get dict of rewards for type of model
-    if cfg.model.training.t_range < np.shape(states)[1]:
-        for key in pred_drift:
-            pred_drift[key] = pred_drift[key][:, :cfg.model.training.t_range, :]
-        actions = [a[:cfg.model.training.t_range, :] for a in actions]
+    if label == 'reacher':
+        if cfg.model.training.t_range < np.shape(states)[1]:
+            for key in pred_drift:
+                pred_drift[key] = pred_drift[key][:, :cfg.model.training.t_range, :]
+            actions = [a[:cfg.model.training.t_range, :] for a in actions]
 
     pred_rewards_true = get_reward(pred_drift, actions, r_func)
 
