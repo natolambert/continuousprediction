@@ -12,6 +12,7 @@ import hydra
 import logging
 import itertools
 
+import gym
 import torch
 import numpy as np
 
@@ -259,10 +260,25 @@ def mbrl(cfg):
     # model_traj = torch.load(f + cfg.traj_model + '.dat')
 
     # get rewards, control policy, etc for each type, and control parameters
-    data_train = trajectories[0]  # [::10] #+trajectories[1]
-    reward = [t['rewards'] for t in data_train]
-    states = [np.float32(t['states']) for t in data_train]
-    actions = [np.float32(t['actions']) for t in data_train]
+    # data_train = trajectories[0]  # [::10] #+trajectories[1]
+    # reward = [t['rewards'] for t in data_train]
+    # states = [np.float32(t['states']) for t in data_train]
+    # actions = [np.float32(t['actions']) for t in data_train]
+
+    # Environment setup
+    env_model = cfg.env.name
+    env = gym.make(env_model)
+    env.seed(cfg.random_seed)
+    np.random.seed(cfg.random_seed)
+    torch.manual_seed(cfg.random_seed)
+
+    # TODO three scenairos
+    # 1. BO on the direct env (doable)
+    # 2. BO somehow using the traj model to predict reward (can this be a traj model instead of GP?)
+    # 3. CMA-ES (or CEM) on traj model to select parameters
+    # 4. Make 3 into a loop of some kind
+
+
 
 if __name__ == '__main__':
     sys.exit(mbrl())

@@ -16,6 +16,7 @@ import torch
 
 log = logging.getLogger(__name__)
 
+
 def create_dataset_traj(data, threshold=0.0, t_range=0):
     """
     Creates a dataset with entries for PID parameters and number of
@@ -57,6 +58,7 @@ def create_dataset_traj(data, threshold=0.0, t_range=0):
     data_out = np.array(data_out, dtype=np.float32)
     return data_in, data_out
 
+
 def obs2q(obs):
     """
     Helper function that returns the first five values in obs
@@ -67,6 +69,7 @@ def obs2q(obs):
         return obs
     else:
         return obs[0:5]
+
 
 def run_controller(env, horizon, policy):
     """
@@ -103,6 +106,7 @@ def run_controller(env, horizon, policy):
     logs.states = np.array(logs.states)
     return logs
 
+
 def collect_initial_data(cfg, env):
     """
     Collect data for environment model
@@ -137,15 +141,18 @@ def collect_initial_data(cfg, env):
 
     return logs
 
+
 def get_reward(output_state, action, target):
     '''
     Calculates the reward given output_state action and target
     Uses simple np.linalg.norm between joint positions
     '''
     reward_ctrl = - np.square(action).sum() * 0.01
-    reward_dist = - np.linalg.norm(output_state[:10] - target)
+    theta = [np.arctan2(output_state[5:10], output_state[:5])]
+    reward_dist = - np.linalg.norm(theta - target)
     reward = reward_dist + reward_ctrl
     return reward
+
 
 def cum_reward(policies, model, target, initial_obs, horizon):
     '''
@@ -162,7 +169,7 @@ def cum_reward(policies, model, target, initial_obs, horizon):
         big_dat = []
         big_action = []
         for j in range(len(policies)):
-            dat = [initial_obs, i+1]
+            dat = [initial_obs, i + 1]
             dat.extend([policies[j].get_P(), policies[j].get_D()])
             dat.append(policies[j].get_target())
             action, _ = policies[j].act(obs2q(obs[j]))
@@ -176,6 +183,7 @@ def cum_reward(policies, model, target, initial_obs, horizon):
         obs = output_states
     return reward_sum
 
+
 def random_shooting_mpc_pool_helper(params):
     """Helper function used for multiprocessing"""
     num_random_configs, model, obs, horizon, target, seed = params
@@ -185,12 +193,16 @@ def random_shooting_mpc_pool_helper(params):
         P = np.random.rand(5) * 5
         I = np.zeros(5)
         D = np.random.rand(5)
-        target_PID = np.random.rand(10) * 2 - 1
+        # target_PID = np.random.rand(10) * 2 - 1
+        target_PID = np.random.rand(5) * 2 - 1
+        # target_PID = np.clip(target_PID,-1,1)
         policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target_PID)
         policies.append(policy)
     rewards = cum_reward(policies, model, target, obs, horizon)
     optimal_policy = policies[np.argmax(rewards)]
-    return PID(dX=5, dU=5, P=optimal_policy.get_P(), I=np.zeros(5), D=optimal_policy.get_D(), target=optimal_policy.get_target()), np.max(rewards)
+    return PID(dX=5, dU=5, P=optimal_policy.get_P(), I=np.zeros(5), D=optimal_policy.get_D(),
+               target=optimal_policy.get_target()), np.max(rewards)
+
 
 def random_shooting_mpc(cfg, target, model, obs, horizon):
     '''
@@ -204,13 +216,13 @@ def random_shooting_mpc(cfg, target, model, obs, horizon):
     from multiprocessing import Pool
     num_random_configs = cfg.num_random_configs
     with Pool(10) as p:
-        function_inputs = [(num_random_configs//10, model, obs, cfg.horizon, target, i) for i in range(10)]
+        function_inputs = [(num_random_configs // 10, model, obs, cfg.horizon_traj, target, i) for i in range(10)]
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
-    return max(out, key=lambda x:x[1])
+    return max(out, key=lambda x: x[1])
+
 
 @hydra.main(config_path='conf/plan.yaml')
 def plan(cfg):
-
     # Evaluation variables
     # reward at beginning of each iteration
     initial_reward = np.zeros(cfg.n_iter)
@@ -228,7 +240,9 @@ def plan(cfg):
     torch.manual_seed(cfg.random_seed)
     # Get a target to work towards
     # Target is cosine and sine of 5 joint angles: length 10
-    target = np.random.rand(10) * 2 - 1
+    # target = np.random.rand(10) * 2 - 1
+    # target_env = np.random.rand(5) * 2 - 1
+
     log.info('Initializing env: %s' % env_model)
     # collect data through reacher environment
     log.info("Collecting initial data")
@@ -245,33 +259,44 @@ def plan(cfg):
                                   t_range=cfg.model.training.t_range)
     # create model object
     model = DynamicsModel(cfg)
+    if cfg.load_model:
+        label = cfg.env.label
+        f = hydra.utils.get_original_cwd() + '/models/' + label + '/'
+        model_one = torch.load(f + cfg.step_model + '.dat')
+        model = torch.load(f + cfg.traj_model + '.dat')
+
     # retrain for n_iter iterations
     for i in range(cfg.n_iter):
-        log.info(f"Training iteration {i}")
-        log.info(f"Training model P:{prob}, E:{ens}")
+        log.info(f"Iteration {i}")
 
         # shuffle dataset each iteration to avoid retraining on the same data points -> overfitting
         shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
         np.random.shuffle(shuffle_idxs)
         # config for choosing number of points to train on
-        if(cfg.num_training_points == 0):
+        if (cfg.num_training_points == 0):
             training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
         else:
-            training_dataset = (dataset[0][shuffle_idxs[:cfg.num_training_points]], dataset[1][shuffle_idxs[:cfg.num_training_points]])
-        # train model
-        train_logs, test_logs = model.train(training_dataset, cfg)
+            training_dataset = (
+            dataset[0][shuffle_idxs[:cfg.num_training_points]], dataset[1][shuffle_idxs[:cfg.num_training_points]])
+        if not cfg.load_model:
+            log.info(f"Training model P:{prob}, E:{ens}")
+            # train model
+            train_logs, test_logs = model.train(training_dataset, cfg)
+
         # initial observation
         obs = env.reset()
-        print("Initial observation: " + str(obs))
-        initial_reward[i] = get_reward(obs, target, 0)
+        target_env = np.random.rand(5) * 2 - 1
+
+        # print("Initial observation: " + str(obs))
+        initial_reward[i] = get_reward(obs, 0, target_env)
         final_cum_reward[i] = initial_reward[i]
         # Code is split between replanning each time step vs. planning a set number of times per iteration
         # REPLAN ONCE EACH TIMESTEP
-        if(cfg.num_MPC_per_iter == 0):
-            for j in range(cfg.plan_trial_timesteps-1):
+        if (cfg.num_MPC_per_iter == 0):
+            for j in range(cfg.plan_trial_timesteps - 1):
                 log.info(f"Trial timestep: {j}")
                 # Plan using MPC with random shooting optimizer
-                policy, policy_reward = random_shooting_mpc(cfg, target, model, obs, cfg.horizon)
+                policy, policy_reward = random_shooting_mpc(cfg, target_env, model, obs, cfg.horizon_traj)
                 # Only use first action from optimal policy
                 action, _ = policy.act(obs2q(obs))
                 # step in environment
@@ -283,18 +308,19 @@ def plan(cfg):
                 dat = [obs.squeeze(), 1]
                 dat.extend([policy.get_P() / 5, policy.get_D()])
                 dat.append(policy.get_target())
-                dataset = (np.append(dataset[0],np.hstack(dat).reshape(1,-1), axis=0), np.append(dataset[1],next_obs.reshape(1,-1), axis=0))
+                dataset = (np.append(dataset[0], np.hstack(dat).reshape(1, -1), axis=0),
+                           np.append(dataset[1], next_obs.reshape(1, -1), axis=0))
                 # Set next observation
                 obs = next_obs
                 # Calculate the cumulative reward
-                final_cum_reward[i] += get_reward(obs, target, action)
+                final_cum_reward[i] += reward  # get_reward(obs, action, target_env)
         # PLAN A SET NUMBER OF TIMES PER ITERATION
         else:
             # horizon is based on number of times to plan on each trajectory
-            horizon = int(cfg.plan_trial_timesteps/cfg.num_MPC_per_iter)
+            horizon = int(cfg.plan_trial_timesteps / cfg.num_MPC_per_iter)
             for j in range(cfg.num_MPC_per_iter):
                 # plan using MPC with random shooting optimizer
-                policy, policy_reward = random_shooting_mpc(cfg, target, model, obs, horizon)
+                policy, policy_reward = random_shooting_mpc(cfg, target_env, model, obs, horizon)
 
                 # collect data on trajectory
                 logs = DotMap()
@@ -303,7 +329,7 @@ def plan(cfg):
                 logs.rewards = []
                 logs.times = []
 
-                #collect data on planned optimal policy
+                # collect data on planned optimal policy
                 logs.target = policy.get_target()
                 logs.P = policy.get_P() / 5
                 logs.I = np.zeros(5)
@@ -323,31 +349,35 @@ def plan(cfg):
                     # set next observation
                     obs = next_obs
                     # don't collect last observation, does not make sense when creating dataset
-                    if (j == cfg.num_MPC_per_iter-1 and k == horizon-1):
+                    if (j == cfg.num_MPC_per_iter - 1 and k == horizon - 1):
                         continue
-                    final_cum_reward[i] += get_reward(obs, target, action)
+                    final_cum_reward[i] += get_reward(obs, action, target_env)
 
                 logs.actions = np.array(logs.actions)
                 logs.rewards = np.array(logs.rewards)
                 logs.states = np.array(logs.states)
 
-                data_in, data_out = create_dataset_traj(logs,
-                                              threshold=0,
-                                              t_range=cfg.model.training.t_range)
-                dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1],data_out, axis=0))
+                if not cfg.load_model:
+                    data_in, data_out = create_dataset_traj(logs,
+                                                            threshold=0,
+                                                            t_range=cfg.model.training.t_range)
+                    dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1], data_out, axis=0))
                 if done:
                     break
         # Calculate the final reward
-        final_reward[i] = get_reward(obs, target, 0)
+        final_reward[i] = get_reward(obs, 0, target_env)
 
         if (cfg.num_MPC_per_iter == 0):
-            final_cum_reward[i] = final_cum_reward[i]/(cfg.plan_trial_timesteps)
+            final_cum_reward[i] = final_cum_reward[i] / (cfg.plan_trial_timesteps)
         else:
-            final_cum_reward[i] = final_cum_reward[i]/cfg.plan_trial_timesteps
+            final_cum_reward[i] = final_cum_reward[i] / cfg.plan_trial_timesteps
 
-        log.info(f"Initial rewards: {initial_reward}")
-        log.info(f"Final rewards: {final_reward}")
-        log.info(f"Final cumulative rewards: {final_cum_reward}")
+        # log.info(f"Initial rewards: {initial_reward}")
+        # log.info(f"Final rewards: {final_reward}")
+        log.info(f"Final cumulative rewards: {final_cum_reward[i]}")
+
+    log.info(f"Mean cumrew: {np.mean(final_cum_reward)}")
+    log.info(f"stddev cumrew: {np.std(final_cum_reward)}")
 
 if __name__ == '__main__':
     sys.exit(plan())
