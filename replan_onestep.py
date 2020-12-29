@@ -60,19 +60,6 @@ def create_dataset_step(data, delta=True, t_range=0, is_lstm=False, lstm_batch=0
 
     return data_in, data_out
 
-
-def obs2q(obs):
-    """
-    Helper function that returns the first five values in obs
-    :param obs: the 21 length observation array
-    :returns: the first 5 values (the cosine of joint positions)
-    """
-    if len(obs) < 5:
-        return obs
-    else:
-        return obs[0:5]
-
-
 def run_controller(env, horizon, policy):
     """
     Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
@@ -90,7 +77,7 @@ def run_controller(env, horizon, policy):
 
     observation = env.reset()
     for i in range(horizon):
-        action, t = policy.act(obs2q(observation))
+        action, t = policy.act(np.arctan2(observation[j][5:10], observation[j][:5]))
 
         next_obs, reward, done, info = env.step(action)
 
@@ -277,7 +264,6 @@ def plan(cfg):
     env_model = cfg.env.name
     log.info('Initializing env: %s' % env_model)
     env = gym.make(env_model)
-    env.seed(cfg.random_seed)
     np.random.seed(cfg.random_seed)
     torch.manual_seed(cfg.random_seed)
     # get a random target to work towards
@@ -288,6 +274,7 @@ def plan(cfg):
     # collect data through reacher environment
     log.info("Collecting initial data")
     exper_data = collect_initial_data(cfg, env)
+    env.seed(cfg.random_seed)
 
     # Step 2: Learn dynamics model
     # probabilistic model, ensemble training booleans
@@ -372,7 +359,7 @@ def plan(cfg):
                 for k in range(horizon):
                     # get action from optimal policy
                     if cfg.PID_plan:
-                        action, _ = action_seq.act(obs2q(obs))
+                        action, _ = action_seq.act(np.arctan2(obs[j][5:10], obs[j][:5]))
                     else:
                         action = action_seq[k]
                     # step in environment

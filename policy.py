@@ -251,6 +251,9 @@ class LQR(Policy):
         controller = linearController(A=K, B=k)
         return 0
 
+    def get_K(self):
+        return self.K
+
     def _action(self, x, obs, time, noise):
         u = -np.matmul(self.K, x)
         return np.array(u).squeeze()
