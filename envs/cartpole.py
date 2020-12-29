@@ -74,7 +74,7 @@ class CartPoleContEnv(gym.Env):
         # default 12
         self.theta_threshold_radians = 24 * 2 * math.pi / 360
         # default 2.4
-        self.x_threshold = 2*4.8
+        self.x_threshold = 2 * 4.8
 
         # Angle limit set to 2 * theta_threshold_radians so failing observation is still within bounds
         high = np.array([
@@ -111,7 +111,7 @@ class CartPoleContEnv(gym.Env):
                 theta_dot * sintheta) / self.total_mass
         thetaacc = (self.gravity * sintheta - costheta * temp) / (self.length *
                                                                   (
-                                                                              4.0 / 3.0 - self.masspole * costheta * costheta / self.total_mass))
+                                                                          4.0 / 3.0 - self.masspole * costheta * costheta / self.total_mass))
         xacc = temp - self.polemass_length * thetaacc * costheta / self.total_mass
         if self.kinematics_integrator == 'euler':
             x = x + self.tau * x_dot
@@ -143,12 +143,18 @@ class CartPoleContEnv(gym.Env):
             self.steps_beyond_done += 1
             reward = 0.0
 
+        # nol add
+        # if done:
+        #     reward = -10000
+        # else:
+        reward = np.exp(-(self.state[0] ** 2 + self.state[2] ** 2))
         return np.array(self.state), reward, done, {}
 
     def reset(self):
         self.state = self.np_random.uniform(low=-0.05, high=0.05, size=(4,))
-        self.state[0]=self.state[0]*20
-        self.state[2]=self.state[2]*20
+        # nol - use these for training models
+        self.state[0] = self.state[0] * 5
+        self.state[2] = self.state[2] * 5
         self.steps_beyond_done = None
         return self.state
 

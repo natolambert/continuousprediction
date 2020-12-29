@@ -208,14 +208,15 @@ def run_controller(env, horizon, policy, video=False):
 
         observation, reward, done, info = env.step(action)
 
-        if done:
-            return logs
 
         # Log
         # logs.times.append()
         logs.actions.append(action)
         logs.rewards.append(reward)
         logs.states.append(observation.squeeze())
+
+        if done:
+            return logs
 
     # Cluster state
     # print(f"Rollout completed, cumulative reward: {np.sum(logs.rewards)}")

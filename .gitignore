@@ -4,6 +4,7 @@
 MUJOCO_LOG.TXT
 .idea/
 outputs/
+exp/
 trajectories/
 venv/
 temp.txt

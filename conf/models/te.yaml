@@ -20,7 +20,7 @@ model:
     num_traj: 50
     state_indices_lorenz: [0,1,2]
   optimizer:
-    epochs: 30
+    epochs: 12
     batch: 64
     name: Adam
     split: .8

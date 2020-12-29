@@ -32,3 +32,36 @@ model:
       class: sklearn.preprocessing.MinMaxScaler
       params:
         feature_range: [-1.,1.]
+
+# Optimal LQR: [[ -0.70710678  -4.2906244  -37.45394052  -8.06650137]]
+optimal: [[ -0.70710678  -4.2906244  -37.45394052  -8.06650137]]
+problem:
+  name: Cartpole
+  space:
+    k1:
+      type: range
+      bounds: [-1.5,-0.1] #[-5,0]
+      value_type: float
+      log_scale: false
+    k2:
+      type: range
+      bounds: [-7,-2] #[-10,0]
+      value_type: float
+      log_scale: false
+    k3:
+      type: range
+      bounds: [-75, -10] #[-50,0]
+      value_type: float
+      log_scale: false
+    k4:
+      type: range
+      bounds: [-12,-4] #[-25,0]
+      value_type: float
+      log_scale: false
+#  constraints:
+#    Strain:
+#      type: LEQ
+#      value: 0.5e-2
+#    Force:
+#      type: LEQ
+#      value: 15.0e-3
