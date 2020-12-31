@@ -33,7 +33,7 @@ def forward_var(model, x):
     return torch.exp(variance)
 
 
-def test_models(test_data, models, verbose=False, env=None, compute_action=False, ret_var=False, t_range=np.inf):
+def test_models(test_data, models, verbose=False, env=None, compute_action=False, ret_var=False, t_range=np.inf, reform=True):
     """
     Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
     Note: this function uses Numpy arrays to handle multiple tests at once efficiently
@@ -171,12 +171,14 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
     # Iterate through each type of model for evaluation
     predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
     currents = {key: states[:, 0, models[key].state_indices] for key in models}
+    # currents = {key: states[:, 0, :] for key in models}
 
     variances = {key: [] for key in models}
     ind_dict = {}
     for i, key in list(enumerate(models)):
         if verbose and (i + 1) % 10 == 0:
             print("    " + str(i + 1))
+        print(key)
         model = models[key]
         indices = model.state_indices
         traj = model.traj
@@ -240,7 +242,6 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                 predictions[key].append(prediction[0])
                 currents[key] = prediction.squeeze()
             else:
-
                 if traj:
                     dat = [initials[:, indices], i * np.ones((N, 1))]
                     if env == 'reacher' or env == 'lorenz' or env == 'crazyflie':
@@ -250,7 +251,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                             dat.append(target)
                     elif env == 'cartpole':
                         dat.append(K_param)
-                    prediction = np.array(model.predict(np.hstack(dat)).detach())
+                    prediction = np.array(model.predict(np.hstack(dat), reform=reform).detach())
 
 
                 else:
@@ -267,7 +268,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                                     [[p.act(obs2q(currents[key][i, :]))[0]][0] for i, p in enumerate(policies)])
                         else:
                             acts = actions[:, i - 1, :]
-                        prediction = model.predict(np.hstack((currents[key], acts)))
+                        prediction = model.predict(np.hstack((currents[key], acts)),reform=reform)
                         prediction = np.array(prediction.detach())
 
                 # get variances if applicable
@@ -297,7 +298,9 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
             ind_dict[key] = [0, 1, 3, 4]
             pred_key = [0, 1, 3, 4]
         elif env == 'reacher':
-            ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]
+            # change if doing start prediction or reward
+            ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17,18,19,20]
+            # ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17,]
             pred_key = np.arange(np.shape(predictions[key][0])[1])
         else:
             ind_dict[key] = np.arange(D) #np.shape(prediction)[1])

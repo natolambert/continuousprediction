@@ -1,5 +1,5 @@
 model:
-  str: d
+  str: d_opt
   prob: false
   ensemble: false
   traj: false
@@ -16,7 +16,7 @@ model:
     filter_rate: 0.0
     num_traj: 50
   optimizer:
-    epochs: 5  # Default 25
+    epochs: 10  # Default 25
     batch: 32
     name: Adam
     split: .8

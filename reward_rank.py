@@ -29,13 +29,13 @@ def get_reward_reacher(state, action):
     reward_dist = - np.linalg.norm(vec)
     reward_ctrl = - np.square(action).sum() * 0.01
     reward = reward_dist  # + reward_ctrl
-    return reward
+    return reward/500
 
 
 def get_reward_cp(state, action):
     # custom reward for sq error from x=0, theta = 0
     reward = state[0] ** 2 + state[2] ** 2
-    return -reward
+    return -reward/200
 
 
 def get_reward_cf(state, action):
@@ -102,7 +102,11 @@ def pred_traj(test_data, models, control=None, env=None, cfg=None, t_range=None)
             for p, d in zip(P_param, D_param):
                 policies.append(PidPolicy([[p[0], 0, d[0]], [p[1], 0, d[1]]], cfg.pid))
             # policies = [LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0]) for i in range(len(test_data))]
-
+        else:
+            from policy import PID
+            policies = []
+            for p,d,t in zip(P_param, D_param, target):
+                policies.append(PID(dX=5, dU=5, P=p, I=np.zeros(5), D=d, target=t))
 
     elif env == 'cartpole':
         K = []
@@ -175,10 +179,12 @@ def pred_traj(test_data, models, control=None, env=None, cfg=None, t_range=None)
             # act, t = control.act(obs2q(currents[key]))
             if env == 'crazyflie':
                 acts = np.stack([[p.get_action(currents[key][i, 3:6])] for i, p in enumerate(policies)]).reshape(-1, 4)
+            elif env == 'reacher':
+                acts = np.stack([[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)]).reshape(-1,5)
             else:
                 acts = np.stack([[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
 
-            prediction = model.predict(np.hstack((currents[key], acts)))
+            prediction = model.predict(np.hstack((currents[key], acts)),reform=False)
             prediction = np.array(prediction.detach())
 
             predictions[key].append(prediction)
@@ -300,9 +306,12 @@ def reward_rank(cfg):
     reward = [t['rewards'] for t in data_train]
     states = [np.float32(t['states']) for t in data_train]
     actions = [np.float32(t['actions']) for t in data_train]
-    # if cfg.model.training.t_range < np.shape(states)[1]:
-    #     states = [s[:cfg.model.training.t_range, :] for s in states]
-    #     actions = [a[:cfg.model.training.t_range, :] for a in actions]
+    if label == 'reacher': #cfg.model.training.t_range < np.shape(states)[1]:
+        states = [s[:cfg.model.training.t_range, :] for s in states]
+        actions = [a[:cfg.model.training.t_range, :] for a in actions]
+    else:
+        states = [s[:cfg.model.training.t_range, :] for s in states]
+        actions = [a[:cfg.model.training.t_range] for a in actions]
 
     if label == 'reacher':
         control = [np.concatenate((t['D'], t['P'], t['target'])) for t in data_train]
@@ -334,11 +343,18 @@ def reward_rank(cfg):
     split = int(len(data_train) * cfg.split)
     gp_x = [torch.Tensor(np.concatenate((s[0], c))) for s, c in zip(states, control)]
     # [torch.Tensor(np.concatenate((np.array([np.asscalar(np.array(i)) for i in s[0]])), c)) for s,c in zip(states,control)]
-    if label == 'reacher':
-        # gp_y = torch.Tensor(np.sum(np.stack(reward),axis=1))
-        gp_y = torch.Tensor(reward)
-    else:
-        gp_y = torch.Tensor(reward)
+    gp_y = torch.Tensor(reward)
+
+    gp_y = reward
+    gpy_max = np.max(gp_y)
+    gpy_min = np.min(gp_y)
+    gpy_scaled = (gp_y-gpy_min)/(gpy_max - gpy_min)
+    gp_y = torch.Tensor(gpy_scaled)
+
+    # rescale to [0,1]
+
+
+
 
     # compare a direct NN mappign to the other results (very low data!)
     import torch.nn as nn
@@ -346,6 +362,7 @@ def reward_rank(cfg):
     from dynamics_model import Net
     direct_map = Net(torch.stack(gp_x).shape[1], 1, cfg, loss_fn)
     dataset = (torch.stack(gp_x), np.array(gp_y).reshape(-1,1))
+    # Comment out training for debug
     direct_map.optimize(dataset, cfg)
     # End nn
 
@@ -372,9 +389,12 @@ def reward_rank(cfg):
     reward = [t['rewards'] for t in data_test]
     states = [np.float32(t['states']) for t in data_test]
     actions = [np.float32(t['actions']) for t in data_test]
-    # if cfg.model.training.t_range < np.shape(states)[1]:
-    #     states = [s[:cfg.model.training.t_range, :] for s in states]
-    #     actions = [a[:cfg.model.training.t_range, :] for a in actions]
+    if label == 'reacher': #cfg.model.training.t_range < np.shape(states)[1]:
+        states = [s[:cfg.model.training.t_range, :] for s in states]
+        actions = [a[:cfg.model.training.t_range, :] for a in actions]
+    else:
+        states = [s[:cfg.model.training.t_range, :] for s in states]
+        # actions = [a[:cfg.model.training.t_range] for a in actions]
 
     if label == 'reacher':
         control = [np.concatenate((t['D'], t['P'], t['target'])) for t in data_test]
@@ -400,27 +420,35 @@ def reward_rank(cfg):
 
     # eval nn
     scaledInput = direct_map.testPreprocess(torch.stack(gp_x_test), cfg)
-    prediction = direct_map.testPostprocess(direct_map.forward(scaledInput))
+    prediction_nn = direct_map.testPostprocess(direct_map.forward(scaledInput))
 
     # done
     # gp_pred_test = predict_gp(torch.stack(gp_x_test), model, likelihood)
     # gp_pred_test = gp.forward(torch.stack(gp_x_test))
     gp_pred_test = gp.posterior(torch.stack(gp_x_test))
+    gp_pr_test = gp_pred_test.mean.detach().numpy()
+
+    # scale predictions
+    prediction_nn = prediction_nn*(gpy_max - gpy_min) + gpy_min
+    gp_pr_test = gp_pr_test*(gpy_max - gpy_min) + gpy_min
+
     # predict with one step and traj model
-    models = {
-        'p': model_one,
-        't': model_traj,
-    }
-    MSEs, predictions = test_models(data_test, models, env=cfg.env.label, t_range=cfg.model.training.t_range)
-
-    # get dict of rewards for type of model
-    pred_rewards = get_reward(predictions, actions, r_func)
-
     models_step = {
         'p': model_one,
     }
 
     _, pred_drift = pred_traj(data_test, models_step, env=cfg.env.label, cfg=cfg, t_range=cfg.model.training.t_range)
+
+
+    models = {
+        't': model_traj,
+        'p': model_one,
+    }
+    MSEs, predictions = test_models(data_test, models, env=cfg.env.label, t_range=cfg.model.training.t_range, reform=False)
+
+    # get dict of rewards for type of model
+    pred_rewards = get_reward(predictions, actions, r_func)
+
 
     # get dict of rewards for type of model
     if label == 'reacher':
@@ -431,24 +459,26 @@ def reward_rank(cfg):
 
     pred_rewards_true = get_reward(pred_drift, actions, r_func)
 
-    if label == 'reacher' or label == 'crazyflie':
-        cum_reward = [np.sum(rew) for rew in reward]
+    # if label == 'reacher' or label == 'crazyflie':
+    if label == 'crazyflie':
+            cum_reward = [np.sum(rew) for rew in reward]
     else:
         cum_reward = reward
 
-    gp_pr_test = gp_pred_test.mean.detach().numpy()
     nn_step_oracle = pred_rewards['p'][0]
     nn_step_drift = pred_rewards_true['p'][0]
     nn_traj = pred_rewards['t'][0]
     # Load test data
-    print(f"Mean GP reward err: {np.mean((cum_reward - np.array(gp_pr_test)) ** 2)}")
-    print(f" - std dev:{np.std(gp_pr_test - cum_reward)}")
-    print(f"Mean one step oracle reward err: {np.mean((cum_reward - np.array(nn_step_oracle)) ** 2)}")
-    print(f" - std dev:{np.std(np.array(nn_step_oracle) - cum_reward)}")
-    print(f"Mean one step reward err: {np.mean((cum_reward - np.array(nn_step_drift)) ** 2)}")
-    print(f" - std dev:{np.std(np.array(nn_step_drift) - cum_reward)}")
-    print(f"Mean traj reward err: {np.mean((cum_reward - np.array(nn_traj)) ** 2)}")
-    print(f" - std dev:{np.std(np.array(nn_traj) - cum_reward)}")
+    log.info(f"Mean GP reward err: {np.mean((cum_reward - np.array(gp_pr_test)) ** 2)}")
+    log.info(f" - std dev:{np.std(gp_pr_test - cum_reward)}")
+    log.info(f"Mean NN reward err: {np.mean((cum_reward - np.array(prediction_nn)) ** 2)}")
+    log.info(f" - std dev:{np.std(np.array(prediction_nn) - cum_reward)}")
+    log.info(f"Mean one step oracle reward err: {np.mean((cum_reward - np.array(nn_step_oracle)) ** 2)}")
+    log.info(f" - std dev:{np.std(np.array(nn_step_oracle) - cum_reward)}")
+    log.info(f"Mean one step reward err: {np.mean((cum_reward - np.array(nn_step_drift)) ** 2)}")
+    log.info(f" - std dev:{np.std(np.array(nn_step_drift) - cum_reward)}")
+    log.info(f"Mean traj reward err: {np.mean((cum_reward - np.array(nn_traj)) ** 2)}")
+    log.info(f" - std dev:{np.std(np.array(nn_traj) - cum_reward)}")
 
     arr = np.stack(
         sorted(zip(cum_reward, gp_pr_test, np.array(nn_step_oracle), np.array(nn_traj), np.array(nn_step_drift))))

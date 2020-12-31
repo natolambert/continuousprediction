@@ -40,22 +40,22 @@ problem:
   space:
     k1:
       type: range
-      bounds: [-1.5,-0.1] #[-5,0]
+      bounds: [-3,-0.1] #[-5,0]
       value_type: float
       log_scale: false
     k2:
       type: range
-      bounds: [-7,-2] #[-10,0]
+      bounds: [-10,-2] #[-10,0]
       value_type: float
       log_scale: false
     k3:
       type: range
-      bounds: [-75, -10] #[-50,0]
+      bounds: [-150, -5] #[-50,0]
       value_type: float
       log_scale: false
     k4:
       type: range
-      bounds: [-12,-4] #[-25,0]
+      bounds: [-25,-3] #[-25,0]
       value_type: float
       log_scale: false
 #  constraints:

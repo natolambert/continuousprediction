@@ -1,5 +1,5 @@
 model:
-  str: p
+  str: p_opt
   prob: true
   ensemble: false
   traj: false

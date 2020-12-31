@@ -5,10 +5,11 @@ defaults:
 video: false
 
 bo:
-  random: 15
+  random: 50
   optimized: 50
 
-opt: cma #bo #-model
+
+opt: bo #bo #-model
 #train_model: true
 plot_during: false
 

@@ -354,6 +354,7 @@ def eval_cp_model_scaled(parameters):
 
 
 def eval_cp(parameters):
+    # k_param = np.array([ -0.70710678,  -4.2906244,  -37.45394052,  -8.06650137])
     k_param = [parameters["k1"], parameters["k2"], parameters["k3"], parameters["k4"]]
     # These values are replaced and don't matter
     m_c = 1
@@ -384,6 +385,8 @@ def eval_cp(parameters):
     for i in range(1):
         dotmap = run_controller(env, horizon=200, policy=policy, video=False)
         rews.append(np.sum(dotmap.rewards) / 200)
+        # if len(dotmap.actions) < 200:
+        #     rews[-1] += dotmap.rewards[-1]*(200-len(dotmap.actions))
         dotmap.states = np.stack(dotmap.states)
         dotmap.actions = np.stack(dotmap.actions)
         dotmap.K = np.array(policy.K).flatten()
@@ -426,9 +429,35 @@ class CartpoleMetricModel(Metric):
             })
         return Data(df=pd.DataFrame.from_records(records))
 
+def plot_results():
+    labels = ['BO', 'Model BO','Model CMA-ES', 'LQR', 'Random Search']
+    means = [0.9, 0.96, 0.95, 0.9274, 0.7856]
+    stds = [0.1, 0.05, 0.03, 0.07, 0.25]
+    # convert to cost function by multiplying by 200, then taking -log
+    # bo =
+    # bo_std =
+    # bomodel =
+    # bomodel_std =
+    # cmamodel =
+    # cmamodel_std =
+    # randomsearch =
+    # randomsearch_std =
+    # lqr =
+    # lqr_std =
 
 @hydra.main(config_path='conf/mbrl.yaml')
 def mbrl(cfg):
+
+    # bo = [.875,.952,.998,.862,.988,.821,.66,1,.954,.957]
+    # print(np.mean(bo))
+    # print(np.std(bo))
+    # bomodel = [0.997,0.991, 0.929, 0.981, 0.813,  1.0, 0.982, 0.989,  0.984,  0.962]
+    # print(np.mean(bomodel))
+    # print(np.std(bomodel))
+    # cma = [0.919, 0.979, 0.876, 0.995, 0.894,  .987,  0.936,  0.962, 0.943,  0.959]
+    # print(np.mean(cma))
+    # print(np.std(cma))
+    # quit()
     # trajectories = torch.load(hydra.utils.get_original_cwd() + '/trajectories/' + label + '/raw' + cfg.data_dir)
 
     # f = hydra.utils.get_original_cwd() + '/models/' + label + '/'
@@ -532,14 +561,29 @@ def mbrl(cfg):
         # params_dict = [trials[i].arm.parameters for i in range(len(trials))]
         # params = np.array(np.stack([list(p.values()) for p in params_dict]), dtype=float)
         # cat = np.concatenate((rew, params), axis=1)
-        exp_data = get_data(exp)
-        sorted_all = exp_data[exp_data[:, 0].argsort()]
+        load = get_data(exp)
+        sorted_all = load[load[:, 0].argsort()]
         if not cfg.metric.minimize: sorted_all = sorted_all[::-1]  # reverse if minimize
 
         log.info("10 best param, rewards")
         for i in range(10):
             log.info(
                 f"Rew {np.round(sorted_all[i, 0], 4)}, param {np.round(np.array(sorted_all[i, 1:], dtype=float), 3)}")
+
+        log.info("EVAL ON SYSTEM")
+        log.info(f"Final BO params: {sorted_all[0,:]}")
+        final_params = {
+            "k1": sorted_all[0, 1],
+            "k2": sorted_all[0, 2],
+            "k3": sorted_all[0, 3],
+            "k4": sorted_all[0, 4],
+        }
+        r = []
+        for i in range(10):
+            val = eval_cp(final_params)
+            r.append(val["Reward"])
+        log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
+        log.info(r)
 
         log.info(f"Optimal params: {cfg.optimal}")
         plot_learn = plot_learning(exp, cfg)
@@ -603,16 +647,31 @@ def mbrl(cfg):
         # params_dict = [trials[i].arm.parameters for i in range(len(trials))]
         # params = np.array(np.stack([list(p.values()) for p in params_dict]), dtype=float)
         # cat = np.concatenate((rew, params), axis=1)
-        exp_data = get_data(exp, skip=cfg.bo.random)
-        sorted_all = exp_data[exp_data[:, 0].argsort()]
+        bomodel = get_data(exp, skip=cfg.bo.random)
+        sorted_all = bomodel[bomodel[:, 0].argsort()]
         if not cfg.metric.minimize: sorted_all = sorted_all[::-1]  # reverse if minimize
 
         log.info("10 best param, rewards")
         for i in range(10):
             log.info(
                 f"Rew {np.round(sorted_all[i, 0], 4)}, param {np.round(np.array(sorted_all[i, 1:], dtype=float), 3)}")
+        log.info("EVAL ON SYSTEM")
+        log.info(f"Final BO params: {sorted_all[0,:]}")
+        final_params = {
+            "k1": sorted_all[0,1],
+            "k2": sorted_all[0,2],
+            "k3": sorted_all[0,3],
+            "k4": sorted_all[0,4],
+        }
+        r = []
+        for i in range(10):
+            val = eval_cp(final_params)
+            r.append(val["Reward"])
+        log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
+        log.info(r)
 
-        log.info(f"Optimal params: {cfg.optimal}")
+
+
         plot_learn = plot_learning(exp, cfg)
         # go.Figure(plot_learn).show()
         save_fig([plot_learn], "optimize")
@@ -650,11 +709,26 @@ def mbrl(cfg):
         res = es.result.xbest
         res += [-1, -5, -12, -5]
         res = np.multiply([1, 2, 4, 2], res)
+
+        log.info("EVAL ON SYSTEM")
         log.info(f"Final CMA params: {res}")
-
-
+        final_params = {
+            "k1": res[0],
+            "k2": res[1],
+            "k3": res[2],
+            "k4": res[3],
+        }
+        r = []
+        for i in range(10):
+            val = eval_cp(final_params)
+            r.append(val["Reward"])
+        log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
+        log.info(r)
     else:
         raise NotImplementedError("Other types of opt tbd")
+
+    torch.save(r, "final_rews.dat")
+    log.info(f"Optimal params: {cfg.optimal}")
 
 
 def save_fig(plot, dir):
