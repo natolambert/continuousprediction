@@ -7,6 +7,9 @@ load_model: true
 step_model: d
 traj_model: t
 
+#used for cartpole environment
+data_mode: chaotic
+
 #number of training points to randomly sample each retrain
 #set to 0 to train on all data_points
 num_training_points: 0
@@ -29,6 +32,6 @@ horizon_traj: 200
 
 #only used for one-step
 #use PID parameters to plan rather than random actions
-PID_plan: true
+action_plan: true
 
 random_seed: 0

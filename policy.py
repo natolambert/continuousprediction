@@ -225,7 +225,7 @@ class jointsTrajectoryTrackingPID(PID):
 
 
 class LQR(Policy):
-    def __init__(self, A, B, Q, R, actionBounds=None, horizon=10):
+    def __init__(self, A, B, Q, R, actionBounds=None, horizon=10, K = 0):
         '''
         :param n_dof:
         :param trajectory:
@@ -241,7 +241,10 @@ class LQR(Policy):
         self.R = R
         # self.controller = self.compute_controller()
         # self.K = solve_continuous_are(A, B, Q, R)
-        self.K, S, E = lqr(A, B, Q, R)
+        if (K == 0):
+            self.K, S, E = lqr(A, B, Q, R)
+        else:
+            self.K = K
 
     def compute_controller(self):
         # TODO: implement me!!!
@@ -250,6 +253,9 @@ class LQR(Policy):
         k = 0
         controller = linearController(A=K, B=k)
         return 0
+
+    def get_K(self):
+        return self.K
 
     def _action(self, x, obs, time, noise):
         u = -np.matmul(self.K, x)
