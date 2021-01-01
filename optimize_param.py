@@ -244,56 +244,116 @@ def pred_traj(test_data, models, control=None, env=None, cfg=None, t_range=None)
     return 0, predictions
 
 
-def train_gp(data):
-    class ExactGPModel(gpytorch.models.ExactGP):
-        def __init__(self, train_x, train_y, likelihood):
-            super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-            self.mean_module = gpytorch.means.ConstantMean()
-            # self.covar_module = gpytorch.kernels.RBFKernel()
-            # self.scaled_mod = gpytorch.kernels.ScaleKernel(self.covar_module)
-            self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+from policy import PID
 
-        def forward(self, x):
-            mean_x = self.mean_module(x)
-            covar_x = self.covar_module(x)
-            # covar_x = self.scaled_mod(x)
-            return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
-    # initialize likelihood and model
-    likelihood = gpytorch.likelihoods.GaussianLikelihood()
-    train_x = data[0]
-    train_y = data[1]
-    model = ExactGPModel(train_x, train_y, likelihood)
+def eval_rch(parameters):
+    P = np.array([parameters["p1"], parameters["p2"], parameters["p3"], parameters["p4"], parameters["p5"]])
+    I = np.zeros(5)
+    # D = np.array([0.2, 0.2, 2, 0.4, 0.4])
+    D = np.array([parameters["d1"], parameters["d2"], parameters["d3"], parameters["d4"], parameters["d5"]])
+    target = np.array([parameters["t1"], parameters["t2"], parameters["t3"], parameters["t4"], parameters["t5"]])
 
-    # Find optimal model hyperparameters
-    model.train()
-    likelihood.train()
+    policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
+    env = gym.make("Reacher3d-v2")
+    s0 = env.reset()
+    env.goal = rch_goal
+    rews = []
+    for i in range(1):
 
-    # Use the adam optimizer
-    optimizer = torch.optim.Adam([
-        {'params': model.parameters()},  # Includes GaussianLikelihood parameters
-    ], lr=.1)  # was .1
+        # print(type(env))
+        dotmap = run_controller(env, horizon=500, policy=policy, video=False)
 
-    # "Loss" for GPs - the marginal log likelihood
-    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+        dotmap.target = target
+        dotmap.P = P / 5
+        dotmap.I = I
+        dotmap.D = D
 
-    training_iter = 50
-    for i in range(training_iter):
-        # Zero gradients from previous iteration
-        optimizer.zero_grad()
-        # Output from model
-        output = model(train_x)
-        # Calc loss and backprop gradients
-        loss = -mll(output, train_y)
-        loss.backward()
-        print('Iter %d/%d - Loss: %.3f   lengthscale: %.3f   noise: %.3f' % (
-            i + 1, training_iter, loss.item(),
-            model.covar_module.base_kernel.lengthscale.item(),
-            model.likelihood.noise.item()
-        ))
-        optimizer.step()
+        rews.append(np.sum(dotmap.rewards) / 500)
+        # if len(dotmap.actions) < 200:
+        #     rews[-1] += dotmap.rewards[-1]*(200-len(dotmap.actions))
+        dotmap.states = np.stack(dotmap.states)
+        dotmap.rewards = rews[-1]
+        dotmap.actions = np.stack(dotmap.actions)
+        exp_data.append(dotmap)
+    r = np.mean(rews)
+    log.info(
+        f"Parameter eval in env achieved r {np.round(r, 3)}, var {np.round(np.std(rews), 3)}")
 
-    return model, likelihood
+    return {"Reward": (np.mean(rews), 0.01), }
+
+
+def eval_rch_model(parameters):
+    env = gym.make("Reacher3d-v2")
+    P = np.array([parameters["p1"], parameters["p2"], parameters["p3"], parameters["p4"], parameters["p5"]])
+    I = np.zeros(5)
+    # D = np.array([0.2, 0.2, 2, 0.4, 0.4])
+    D = np.array([parameters["d1"], parameters["d2"], parameters["d3"], parameters["d4"], parameters["d5"]])
+    target = np.array([parameters["t1"], parameters["t2"], parameters["t3"], parameters["t4"], parameters["t5"]])
+    k_param = np.concatenate((P, D, target))
+    rews = []
+    for i in range(20):
+
+        s0 = env.reset()
+        env.goal = rch_goal
+
+        # print(type(env))
+        t_range = np.arange(1, 500, 1)
+
+        s_tile = np.tile(s0, 499).reshape(499, -1)
+        k_tile = np.tile(k_param, 499).reshape(499, -1)
+        input = np.concatenate((s_tile, t_range.reshape(-1, 1), k_tile), axis=1)
+        states = traj_model.predict(input)
+        traj = np.concatenate((s0.reshape(1, -1)[:, traj_model.state_indices], states.numpy()), axis=0)
+        rew = 0  # get_reward(np.concatenate((s0.reshape(1,-1),states.numpy()),axis=0),np.zeros(200,1),get_reward_cp)
+        for t in traj:
+            rew += get_reward_reacher(t, 0) / 500
+        rews.append(rew)
+
+    # r = np.mean(rews)
+    log.info(
+        f"Parameter eval in model achieved r {np.round(np.mean(rews), 3)}, var {np.round(np.std(rews), 3)}")
+    return {"Reward": (np.mean(rews), np.std(rews)), }
+
+
+def eval_rch_model_scaled(parameters):
+    env = gym.make("Reacher3d-v2")
+    s0 = env.reset()
+    env.goal = rch_goal
+
+    # P = np.array([parameters["p1"], parameters["p2"], parameters["p3"], parameters["p4"], parameters["p5"]])
+    # I = np.zeros(5)
+    # # D = np.array([0.2, 0.2, 2, 0.4, 0.4])
+    # D = np.array([parameters["d1"], parameters["d2"], parameters["d3"], parameters["d4"], parameters["d5"]])
+    # target = np.array([parameters["t1"], parameters["t2"], parameters["t3"], parameters["t4"], parameters["t5"]])
+    k_param = parameters  # np.concatenate((P, D, target))
+
+    rews = []
+    if np.any(np.abs(k_param[:5]) > 5) or np.any(np.abs(k_param[5:10]) > 1) or np.any(k_param[10:] > 1.5) or np.any(
+            k_param[10:] < -1.5):
+        rews = [1000]
+    else:
+        for i in range(20):
+            s0 = env.reset()
+            env.goal = rch_goal
+
+            # print(type(env))
+            t_range = np.arange(1, 500, 1)
+
+            s_tile = np.tile(s0, 499).reshape(499, -1)
+            k_tile = np.tile(k_param, 499).reshape(499, -1)
+            input = np.concatenate((s_tile, t_range.reshape(-1, 1), k_tile), axis=1)
+            states = traj_model.predict(input)
+            traj = np.concatenate((s0.reshape(1, -1)[:, traj_model.state_indices], states.numpy()), axis=0)
+            rew = 0  # get_reward(np.concatenate((s0.reshape(1,-1),states.numpy()),axis=0),np.zeros(200,1),get_reward_cp)
+            for t in traj:
+                rew += get_reward_reacher(t, 0) / 500
+            rews.append(rew)
+
+    # r = np.mean(rews)
+    log.info(
+        f"Parameter eval in model achieved r {np.round(np.mean(rews), 3)}, var {np.round(np.std(rews), 3)}")
+    return -np.mean(rews)
 
 
 def eval_cp_model(parameters):
@@ -316,21 +376,22 @@ def eval_cp_model(parameters):
 
     log.info(
         f"Parameter eval in model {np.round(k_param, 3)} achieved r {np.round(np.mean(rews), 3)}, var {np.round(np.std(rews), 3)}")
-    return {"Reward": (np.mean(rews), np.max(np.std(rews)),0.01), }
+    return {"Reward": (np.mean(rews), np.std(rews)), }
+
 
 def eval_cp_model_scaled(parameters):
     # TODO scale the parameters for CMA opt
-    k_param = parameters #[parameters["k1"], parameters["k2"], parameters["k3"], parameters["k4"]]
+    k_param = parameters  # [parameters["k1"], parameters["k2"], parameters["k3"], parameters["k4"]]
     # shift and scaling
     k_param += [-1, -5, -12, -10]
-    k_param = np.multiply([1,2,4,2],k_param)
-    if np.any(k_param>0) or np.any(k_param<-75):
-        rews =[1000]
+    k_param = np.multiply([1, 2, 4, 2], k_param)
+    if np.any(k_param > 0) or np.any(k_param < -75):
+        rews = [1000]
     else:
-    # k_param[0] = k_param[0] -1
-    # k_param[1] = 4*k_param[1] - 4
-    # k_param[2] = 20*k_param[2] - 50
-    # k_param[3] = 5*k_param[3] - 10
+        # k_param[0] = k_param[0] -1
+        # k_param[1] = 4*k_param[1] - 4
+        # k_param[2] = 20*k_param[2] - 50
+        # k_param[3] = 5*k_param[3] - 10
         env = gym.make("Cartpole-v0")
         rews = []
         for i in range(20):
@@ -348,14 +409,14 @@ def eval_cp_model_scaled(parameters):
             rews.append(rew)
 
     log.info(
-        f"Parameter eval in model {np.round(k_param, 3)} achieved r {np.round(np.mean(rews), 3)}") #, var {np.round(np.std(rews), 3)}")
+        f"Parameter eval in model {np.round(k_param, 3)} achieved r {np.round(np.mean(rews), 3)}")  # , var {np.round(np.std(rews), 3)}")
     return -np.mean(rews)
-
 
 
 def eval_cp(parameters):
     # k_param = np.array([ -0.70710678,  -4.2906244,  -37.45394052,  -8.06650137])
     k_param = [parameters["k1"], parameters["k2"], parameters["k3"], parameters["k4"]]
+    # k_param = np.array([ -2.062,  -8.75,  -17.412,  -3.   ])
     # These values are replaced and don't matter
     m_c = 1
     m_p = 1
@@ -374,9 +435,6 @@ def eval_cp(parameters):
     Q = np.diag([.5, .05, 1, .05])
     R = np.ones(1)
 
-    n_dof = np.shape(A)[0]
-    modifier = .5 * np.random.random(
-        4) + 1  # np.random.random(4)*1.5 # makes LQR values from 0% to 200% of true value
     policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
     policy.K = np.array(k_param)
     env = gym.make("Cartpole-v0")
@@ -395,7 +453,7 @@ def eval_cp(parameters):
     log.info(
         f"Parameter eval in env {np.round(k_param, 3)} achieved r {np.round(r, 3)}, var {np.round(np.std(rews), 3)}")
 
-    return {"Reward": (np.mean(rews), np.max(np.std(rews)),0.01), }
+    return {"Reward": (np.mean(rews), 0.01), }
 
 
 class CartpoleMetric(Metric):
@@ -429,8 +487,41 @@ class CartpoleMetricModel(Metric):
             })
         return Data(df=pd.DataFrame.from_records(records))
 
+
+class ReacherMetric(Metric):
+    def fetch_trial_data(self, trial):
+        records = []
+        for arm_name, arm in trial.arms_by_name.items():
+            params = arm.parameters
+            mean, sem = eval_rch(params)
+            records.append({
+                "arm_name": arm_name,
+                "metric_name": self.name,
+                "mean": mean,
+                "sem": sem,
+                "trial_index": trial.index,
+            })
+        return Data(df=pd.DataFrame.from_records(records))
+
+
+class ReacherMetricModel(Metric):
+    def fetch_trial_data(self, trial):
+        records = []
+        for arm_name, arm in trial.arms_by_name.items():
+            params = arm.parameters
+            mean, sem = eval_rch_model(params)
+            records.append({
+                "arm_name": arm_name,
+                "metric_name": self.name,
+                "mean": mean,
+                "sem": sem,
+                "trial_index": trial.index,
+            })
+        return Data(df=pd.DataFrame.from_records(records))
+
+
 def plot_results():
-    labels = ['BO', 'Model BO','Model CMA-ES', 'LQR', 'Random Search']
+    labels = ['BO', 'Model BO', 'Model CMA-ES', 'LQR', 'Random Search']
     means = [0.9, 0.96, 0.95, 0.9274, 0.7856]
     stds = [0.1, 0.05, 0.03, 0.07, 0.25]
     # convert to cost function by multiplying by 200, then taking -log
@@ -445,9 +536,9 @@ def plot_results():
     # lqr =
     # lqr_std =
 
+
 @hydra.main(config_path='conf/mbrl.yaml')
 def mbrl(cfg):
-
     # bo = [.875,.952,.998,.862,.988,.821,.66,1,.954,.957]
     # print(np.mean(bo))
     # print(np.std(bo))
@@ -485,6 +576,14 @@ def mbrl(cfg):
     search_space = gen_search_space(cfg.problem)
     if label == "cartpole":
         eval_fn = eval_cp
+        met = CartpoleMetric(name="Reward")
+    elif label == "reacher":
+        eval_fn = eval_rch
+        met = ReacherMetric(name="Reward")
+        env = gym.make("Reacher3d-v2")
+        global rch_goal
+        rch_goal = env.goal
+        log.info(f"Reacher env optimizing to goal {rch_goal}")
 
     # TODO three scenairos
     # 1. BO on the direct env (doable)
@@ -504,7 +603,7 @@ def mbrl(cfg):
 
     optimization_config = OptimizationConfig(
         objective=Objective(
-            metric=CartpoleMetric(name="Reward"),
+            metric=met,
             minimize=cfg.metric.minimize,
         ),
     )
@@ -517,13 +616,6 @@ def mbrl(cfg):
     exp.optimization_config = optimization_config
     from ax.plot.contour import plot_contour
 
-    log.info(f"Running {cfg.bo.random} Sobol initialization trials...")
-    sobol = Models.SOBOL(exp.search_space)
-    num_search = cfg.bo.random
-    for i in range(num_search):
-        exp.new_trial(generator_run=sobol.gen(1))
-        exp.trials[len(exp.trials) - 1].run()
-
     def get_data(exper, skip=0):
         raw_data = exper.fetch_data().df.values
         rew = raw_data[:, 2].reshape(-1, 1)
@@ -533,202 +625,393 @@ def mbrl(cfg):
         cat = np.concatenate((rew[skip:], params[skip:, :]), axis=1)
         return cat
 
-    num_opt = cfg.bo.optimized
-    # rand_data = get_data(exp)
-    sobol_data = exp.eval()
+    if cfg.opt == 'cma-itr':
+        sobol = Models.SOBOL(exp.search_space)
+        num_search = cfg.bo.random
+        exp.new_trial(generator_run=sobol.gen(1))
+        exp.trials[len(exp.trials) - 1].run()
+        rand_data = get_data(exp)
+        sobol_data = exp.eval()
 
-    if cfg.opt == 'bo':
-        gpei = Models.BOTORCH(experiment=exp, data=sobol_data)
-        for i in range(num_opt):
-            # if (i % 5) == 0 and cfg.plot_during:
-            #     plot = plot_contour(model=gpei,
-            #                         param_x="N",
-            #                         param_y="L",
-            #                         metric_name="Energy_(uJ)", )
-            #     data = plot[0]['data']
-            #     lay = plot[0]['layout']
-            #
-            #     render(plot)
+        if label == 'cartpole':
+            from cartpole_lqr import create_dataset_traj
+        else:
+            from reacher_pd import create_dataset_traj
 
-            log.info(f"Running GP+EI optimization trial {i + 1}/{num_opt}...")
-            # Reinitialize GP+EI model at each step with updated data.
-            batch = exp.new_trial(generator_run=gpei.gen(1))
-            gpei = Models.BOTORCH(experiment=exp, data=exp.eval())
-
-        # raw_data = exp.fetch_data().df.values
-        # rew = raw_data[:, 2].reshape(-1, 1)
-        # trials = exp.trials
-        # params_dict = [trials[i].arm.parameters for i in range(len(trials))]
-        # params = np.array(np.stack([list(p.values()) for p in params_dict]), dtype=float)
-        # cat = np.concatenate((rew, params), axis=1)
-        load = get_data(exp)
-        sorted_all = load[load[:, 0].argsort()]
-        if not cfg.metric.minimize: sorted_all = sorted_all[::-1]  # reverse if minimize
-
-        log.info("10 best param, rewards")
-        for i in range(10):
-            log.info(
-                f"Rew {np.round(sorted_all[i, 0], 4)}, param {np.round(np.array(sorted_all[i, 1:], dtype=float), 3)}")
-
-        log.info("EVAL ON SYSTEM")
-        log.info(f"Final BO params: {sorted_all[0,:]}")
-        final_params = {
-            "k1": sorted_all[0, 1],
-            "k2": sorted_all[0, 2],
-            "k3": sorted_all[0, 3],
-            "k4": sorted_all[0, 4],
-        }
-        r = []
-        for i in range(10):
-            val = eval_cp(final_params)
-            r.append(val["Reward"])
-        log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
-        log.info(r)
-
-        log.info(f"Optimal params: {cfg.optimal}")
-        plot_learn = plot_learning(exp, cfg)
-        # go.Figure(plot_learn).show()
-        save_fig([plot_learn], "optimize")
-
-        plot = plot_contour(model=gpei,
-                            param_x="k1",
-                            param_y="k2",
-                            metric_name="Reward",
-                            lower_is_better=cfg.metric.minimize)
-        save_fig(plot, dir=f"k1k2rew")
-
-        plot = plot_contour(model=gpei,
-                            param_x="k3",
-                            param_y="k4",
-                            metric_name="Reward",
-                            lower_is_better=cfg.metric.minimize)
-        save_fig(plot, dir=f"k3k4rew")
-
-    elif cfg.opt == 'bo-model':
-        from cartpole_lqr import create_dataset_traj
         from dynamics_model import DynamicsModel
-        dataset = create_dataset_traj(exp_data, control_params=cfg.model.training.control_params,
-                                      train_target=cfg.model.training.train_target,
-                                      threshold=cfg.model.training.filter_rate,
-                                      t_range=cfg.model.training.t_range)
 
-        traj_model = DynamicsModel(cfg)
-        train_logs, test_logs = traj_model.train(dataset, cfg)
+        if label == 'cartpole':
+            from cartpole_lqr import create_dataset_traj
+            eval_fn_cma = eval_cp_model_scaled
+            n_opt = 4
+            sig0 = 1
 
-        # change to model evaluation!
-        exp.evaluation_function = eval_cp_model
-        optimization_config_model = OptimizationConfig(
-            objective=Objective(
-                metric=CartpoleMetricModel(name="Reward"),
-                minimize=cfg.metric.minimize,
-            ),
-        )
-        exp.optimization_config = optimization_config_model
-        gpei = Models.BOTORCH(experiment=exp, data=sobol_data)
-        for i in range(num_opt):
-            # if (i % 5) == 0 and cfg.plot_during:
-            #     plot = plot_contour(model=gpei,
-            #                         param_x="N",
-            #                         param_y="L",
-            #                         metric_name="Energy_(uJ)", )
-            #     data = plot[0]['data']
-            #     lay = plot[0]['layout']
-            #
-            #     render(plot)
+            def scale(x):
+                x += [-1, -5, -12, -5]
+                x = np.multiply([1, 2, 4, 2], x)
+                return x
+        else:
+            from reacher_pd import create_dataset_traj
+            eval_fn_cma = eval_rch_model_scaled
+            n_opt = 15
+            sig0 = .5
 
-            log.info(f"Running GP+EI optimization trial {i + 1}/{num_opt}...")
-            # Reinitialize GP+EI model at each step with updated data.
-            batch = exp.new_trial(generator_run=gpei.gen(1))
-            gpei = Models.BOTORCH(experiment=exp, data=exp.eval())
+            def scale(x):
+                x += [0, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0]
+                x = np.multiply([3, 3, 3, 3, 3, .66, .66, .66, .66, .66, 1, 1, 1, 1, 1], x)
+                return x
 
-        # raw_data = exp.fetch_data().df.values
-        # rew = raw_data[:, 2].reshape(-1, 1)
-        # trials = exp.trials
-        # params_dict = [trials[i].arm.parameters for i in range(len(trials))]
-        # params = np.array(np.stack([list(p.values()) for p in params_dict]), dtype=float)
-        # cat = np.concatenate((rew, params), axis=1)
-        bomodel = get_data(exp, skip=cfg.bo.random)
-        sorted_all = bomodel[bomodel[:, 0].argsort()]
-        if not cfg.metric.minimize: sorted_all = sorted_all[::-1]  # reverse if minimize
+        for n in range(cfg.bo.optimized):
+            log.info(f"Optimizing traj {n}")
+            dataset = create_dataset_traj(exp_data, control_params=cfg.model.training.control_params,
+                                          train_target=cfg.model.training.train_target,
+                                          threshold=cfg.model.training.filter_rate,
+                                          t_range=cfg.model.training.t_range)
 
-        log.info("10 best param, rewards")
-        for i in range(10):
-            log.info(
-                f"Rew {np.round(sorted_all[i, 0], 4)}, param {np.round(np.array(sorted_all[i, 1:], dtype=float), 3)}")
-        log.info("EVAL ON SYSTEM")
-        log.info(f"Final BO params: {sorted_all[0,:]}")
-        final_params = {
-            "k1": sorted_all[0,1],
-            "k2": sorted_all[0,2],
-            "k3": sorted_all[0,3],
-            "k4": sorted_all[0,4],
-        }
-        r = []
-        for i in range(10):
-            val = eval_cp(final_params)
-            r.append(val["Reward"])
+            traj_model = DynamicsModel(cfg)
+            train_logs, test_logs = traj_model.train(dataset, cfg)
+            es = cma.CMAEvolutionStrategy(n_opt * [0], sig0, {'verbose': 0})
+            es.optimize(eval_fn_cma)
+            # es.result_pretty()
+            res = es.result.xbest
+            res = scale(res)
+
+            log.info("Trial")
+            # log.info(f"Final CMA params: {res}")
+            if label == 'cartpole':
+                final_params = {
+                    "k1": res[0],
+                    "k2": res[1],
+                    "k3": res[2],
+                    "k4": res[3],
+                }
+            else:
+                final_params = {
+                    'p1': res[0],
+                    'p2': res[1],
+                    'p3': res[2],
+                    'p4': res[3],
+                    'p5': res[4],
+                    'd1': res[5],
+                    'd2': res[6],
+                    'd3': res[7],
+                    'd4': res[8],
+                    'd5': res[9],
+                    't1': res[10],
+                    't2': res[11],
+                    't3': res[12],
+                    't4': res[13],
+                    't5': res[14]}
+            r = []
+            if label == 'cartpole':
+                val = eval_cp(final_params)
+            else:
+                val = eval_rch(final_params)
+            r.append(val["Reward"][0])
+
         log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
         log.info(r)
 
 
 
-        plot_learn = plot_learning(exp, cfg)
-        # go.Figure(plot_learn).show()
-        save_fig([plot_learn], "optimize")
-
-        plot = plot_contour(model=gpei,
-                            param_x="k1",
-                            param_y="k2",
-                            metric_name="Reward",
-                            lower_is_better=cfg.metric.minimize)
-        save_fig(plot, dir=f"k1k2rew")
-
-        plot = plot_contour(model=gpei,
-                            param_x="k3",
-                            param_y="k4",
-                            metric_name="Reward",
-                            lower_is_better=cfg.metric.minimize)
-        save_fig(plot, dir=f"k3k4rew")
-        # raise NotImplementedError("TODO")
-
-    elif cfg.opt == 'cma':
-        from cartpole_lqr import create_dataset_traj
-        from dynamics_model import DynamicsModel
-        dataset = create_dataset_traj(exp_data, control_params=cfg.model.training.control_params,
-                                      train_target=cfg.model.training.train_target,
-                                      threshold=cfg.model.training.filter_rate,
-                                      t_range=cfg.model.training.t_range)
-        # global traj_model
-
-        traj_model = DynamicsModel(cfg)
-        train_logs, test_logs = traj_model.train(dataset, cfg)
-
-        es = cma.CMAEvolutionStrategy(4 * [0], 1, {'verbose': 1})
-        es.optimize(eval_cp_model_scaled)
-        # es.result_pretty()
-        res = es.result.xbest
-        res += [-1, -5, -12, -5]
-        res = np.multiply([1, 2, 4, 2], res)
-
-        log.info("EVAL ON SYSTEM")
-        log.info(f"Final CMA params: {res}")
-        final_params = {
-            "k1": res[0],
-            "k2": res[1],
-            "k3": res[2],
-            "k4": res[3],
-        }
-        r = []
-        for i in range(10):
-            val = eval_cp(final_params)
-            r.append(val["Reward"])
-        log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
-        log.info(r)
     else:
-        raise NotImplementedError("Other types of opt tbd")
+        log.info(f"Running {cfg.bo.random} Sobol initialization trials...")
+        sobol = Models.SOBOL(exp.search_space)
+        num_search = cfg.bo.random
+        for i in range(num_search):
+            exp.new_trial(generator_run=sobol.gen(1))
+            exp.trials[len(exp.trials) - 1].run()
+
+        num_opt = cfg.bo.optimized
+        rand_data = get_data(exp)
+        sobol_data = exp.eval()
+        log.info(f"Completed random search with mean reward {np.mean(rand_data[:,0])}")
+
+        if cfg.opt == 'bo':
+            gpei = Models.BOTORCH(experiment=exp, data=sobol_data)
+            for i in range(num_opt):
+                # if (i % 5) == 0 and cfg.plot_during:
+                #     plot = plot_contour(model=gpei,
+                #                         param_x="N",
+                #                         param_y="L",
+                #                         metric_name="Energy_(uJ)", )
+                #     data = plot[0]['data']
+                #     lay = plot[0]['layout']
+                #
+                #     render(plot)
+
+                log.info(f"Running GP+EI optimization trial {i + 1}/{num_opt}...")
+                # Reinitialize GP+EI model at each step with updated data.
+                batch = exp.new_trial(generator_run=gpei.gen(1))
+                gpei = Models.BOTORCH(experiment=exp, data=exp.eval())
+
+            # raw_data = exp.fetch_data().df.values
+            # rew = raw_data[:, 2].reshape(-1, 1)
+            # trials = exp.trials
+            # params_dict = [trials[i].arm.parameters for i in range(len(trials))]
+            # params = np.array(np.stack([list(p.values()) for p in params_dict]), dtype=float)
+            # cat = np.concatenate((rew, params), axis=1)
+            load = get_data(exp)
+            sorted_all = load[load[:, 0].argsort()]
+            if not cfg.metric.minimize: sorted_all = sorted_all[::-1]  # reverse if minimize
+
+            # def print_results(label, values):
+            # if label == 'cartpole':
+            log.info("10 best param, rewards")
+            for i in range(5):
+                log.info(
+                    f"Rew {np.round(sorted_all[i, 0], 4)}, param {np.round(np.array(sorted_all[i, 1:], dtype=float), 3)}")
+
+            log.info("EVAL ON SYSTEM")
+            log.info(f"Final BO params: {sorted_all[0, :]}")
+            if label == 'cartpole':
+                final_params = {
+                    "k1": sorted_all[0, 1],
+                    "k2": sorted_all[0, 2],
+                    "k3": sorted_all[0, 3],
+                    "k4": sorted_all[0, 4],
+                }
+            else:
+                final_params = {
+                    'p1': sorted_all[0, 0],
+                    'p2': sorted_all[0, 1],
+                    'p3': sorted_all[0, 2],
+                    'p4': sorted_all[0, 3],
+                    'p5': sorted_all[0, 4],
+                    'd1': sorted_all[0, 5],
+                    'd2': sorted_all[0, 6],
+                    'd3': sorted_all[0, 7],
+                    'd4': sorted_all[0, 8],
+                    'd5': sorted_all[0, 9],
+                    't1': sorted_all[0, 10],
+                    't2': sorted_all[0, 11],
+                    't3': sorted_all[0, 12],
+                    't4': sorted_all[0, 13],
+                    't5': sorted_all[0, 14]}
+            r = []
+            for i in range(cfg.bo.num_eval):
+                if label == 'cartpole':
+                    val = eval_cp(final_params)
+                else:
+                    val = eval_rch(final_params)
+                r.append(val["Reward"][0])
+            log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
+
+            # log.info(r)
+
+            # plot_learn = plot_learning(exp, cfg)
+            # # go.Figure(plot_learn).show()
+            # save_fig([plot_learn], "optimize")
+            #
+            # plot = plot_contour(model=gpei,
+            #                     param_x="k1",
+            #                     param_y="k2",
+            #                     metric_name="Reward",
+            #                     lower_is_better=cfg.metric.minimize)
+            # save_fig(plot, dir=f"k1k2rew")
+            #
+            # plot = plot_contour(model=gpei,
+            #                     param_x="k3",
+            #                     param_y="k4",
+            #                     metric_name="Reward",
+            #                     lower_is_better=cfg.metric.minimize)
+            # save_fig(plot, dir=f"k3k4rew")
+
+        elif cfg.opt == 'bo-model':
+            if label == 'cartpole':
+                from cartpole_lqr import create_dataset_traj
+            else:
+                from reacher_pd import create_dataset_traj
+
+            from dynamics_model import DynamicsModel
+            dataset = create_dataset_traj(exp_data, control_params=cfg.model.training.control_params,
+                                          train_target=cfg.model.training.train_target,
+                                          threshold=cfg.model.training.filter_rate,
+                                          t_range=cfg.model.training.t_range)
+
+            traj_model = DynamicsModel(cfg)
+            train_logs, test_logs = traj_model.train(dataset, cfg)
+
+            # change to model evaluation!
+            if label == 'cartpole':
+                met = CartpoleMetricModel(name="Reward")
+                exp.evaluation_function = eval_cp_model
+            else:
+                met = ReacherMetricModel(name="Reward")
+                exp.evaluation_function = eval_rch_model
+
+            optimization_config_model = OptimizationConfig(
+                objective=Objective(
+                    metric=met,
+                    minimize=cfg.metric.minimize,
+                ),
+            )
+
+            exp.optimization_config = optimization_config_model
+            gpei = Models.BOTORCH(experiment=exp, data=sobol_data)
+            for i in range(num_opt):
+                # if (i % 5) == 0 and cfg.plot_during:
+                #     plot = plot_contour(model=gpei,
+                #                         param_x="N",
+                #                         param_y="L",
+                #                         metric_name="Energy_(uJ)", )
+                #     data = plot[0]['data']
+                #     lay = plot[0]['layout']
+                #
+                #     render(plot)
+
+                log.info(f"Running GP+EI optimization trial {i + 1}/{num_opt}...")
+                # Reinitialize GP+EI model at each step with updated data.
+                batch = exp.new_trial(generator_run=gpei.gen(1))
+                gpei = Models.BOTORCH(experiment=exp, data=exp.eval())
+
+            # raw_data = exp.fetch_data().df.values
+            # rew = raw_data[:, 2].reshape(-1, 1)
+            # trials = exp.trials
+            # params_dict = [trials[i].arm.parameters for i in range(len(trials))]
+            # params = np.array(np.stack([list(p.values()) for p in params_dict]), dtype=float)
+            # cat = np.concatenate((rew, params), axis=1)
+            bomodel = get_data(exp, skip=cfg.bo.random)
+            sorted_all = bomodel[bomodel[:, 0].argsort()]
+            if not cfg.metric.minimize: sorted_all = sorted_all[::-1]  # reverse if minimize
+
+            log.info(f"{5} best param, rewards")
+            for i in range(5):
+                log.info(
+                    f"Rew {np.round(sorted_all[i, 0], 4)}, param {np.round(np.array(sorted_all[i, 1:], dtype=float), 3)}")
+            log.info("EVAL ON SYSTEM")
+            log.info(f"Final BO params: {sorted_all[0, :]}")
+            if label == 'cartpole':
+                final_params = {
+                    "k1": sorted_all[0, 1],
+                    "k2": sorted_all[0, 2],
+                    "k3": sorted_all[0, 3],
+                    "k4": sorted_all[0, 4],
+                }
+            else:
+                final_params = {
+                    'p1': sorted_all[0, 0],
+                    'p2': sorted_all[0, 1],
+                    'p3': sorted_all[0, 2],
+                    'p4': sorted_all[0, 3],
+                    'p5': sorted_all[0, 4],
+                    'd1': sorted_all[0, 5],
+                    'd2': sorted_all[0, 6],
+                    'd3': sorted_all[0, 7],
+                    'd4': sorted_all[0, 8],
+                    'd5': sorted_all[0, 9],
+                    't1': sorted_all[0, 10],
+                    't2': sorted_all[0, 11],
+                    't3': sorted_all[0, 12],
+                    't4': sorted_all[0, 13],
+                    't5': sorted_all[0, 14]}
+            r = []
+            for i in range(cfg.bo.num_eval):
+                if label == 'cartpole':
+                    val = eval_cp(final_params)
+                else:
+                    val = eval_rch(final_params)
+                r.append(val["Reward"][0])
+            log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
+            log.info(r)
+
+            plot_learn = plot_learning(exp, cfg)
+            # go.Figure(plot_learn).show()
+            save_fig([plot_learn], "optimize")
+
+            plot = plot_contour(model=gpei,
+                                param_x="k1",
+                                param_y="k2",
+                                metric_name="Reward",
+                                lower_is_better=cfg.metric.minimize)
+            save_fig(plot, dir=f"k1k2rew")
+
+            plot = plot_contour(model=gpei,
+                                param_x="k3",
+                                param_y="k4",
+                                metric_name="Reward",
+                                lower_is_better=cfg.metric.minimize)
+            save_fig(plot, dir=f"k3k4rew")
+            # raise NotImplementedError("TODO")
+
+        elif cfg.opt == 'cma':
+            if label == 'cartpole':
+                from cartpole_lqr import create_dataset_traj
+                eval_fn_cma = eval_cp_model_scaled
+                n_opt = 4
+                sig0 = 1
+
+                def scale(x):
+                    x += [-1, -5, -12, -5]
+                    x = np.multiply([1, 2, 4, 2], x)
+                    return x
+            else:
+                from reacher_pd import create_dataset_traj
+                eval_fn_cma = eval_rch_model_scaled
+                n_opt = 15
+                sig0 = .5
+
+                def scale(x):
+                    x += [0, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0]
+                    x = np.multiply([3, 3, 3, 3, 3, .66, .66, .66, .66, .66, 1, 1, 1, 1, 1], x)
+                    return x
+
+            from dynamics_model import DynamicsModel
+            dataset = create_dataset_traj(exp_data, control_params=cfg.model.training.control_params,
+                                          train_target=cfg.model.training.train_target,
+                                          threshold=cfg.model.training.filter_rate,
+                                          t_range=cfg.model.training.t_range)
+            # global traj_model
+
+            traj_model = DynamicsModel(cfg)
+            train_logs, test_logs = traj_model.train(dataset, cfg)
+
+            es = cma.CMAEvolutionStrategy(n_opt * [0], sig0, {'verbose': 1})
+            es.optimize(eval_fn_cma)
+            # es.result_pretty()
+            res = es.result.xbest
+            res = scale(res)
+
+            log.info("EVAL ON SYSTEM")
+            log.info(f"Final CMA params: {res}")
+            if label == 'cartpole':
+                final_params = {
+                    "k1": res[0],
+                    "k2": res[1],
+                    "k3": res[2],
+                    "k4": res[3],
+                }
+            else:
+                final_params = {
+                    'p1': res[0],
+                    'p2': res[1],
+                    'p3': res[2],
+                    'p4': res[3],
+                    'p5': res[4],
+                    'd1': res[5],
+                    'd2': res[6],
+                    'd3': res[7],
+                    'd4': res[8],
+                    'd5': res[9],
+                    't1': res[10],
+                    't2': res[11],
+                    't3': res[12],
+                    't4': res[13],
+                    't5': res[14]}
+            r = []
+            for i in range(cfg.bo.num_eval):
+                if label == 'cartpole':
+                    val = eval_cp(final_params)
+                else:
+                    val = eval_rch(final_params)
+                r.append(val["Reward"][0])
+            log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
+            log.info(r)
+        else:
+            raise NotImplementedError("Other types of opt tbd")
 
     torch.save(r, "final_rews.dat")
-    log.info(f"Optimal params: {cfg.optimal}")
+    if label == 'cartpole': log.info(f"Optimal params: {cfg.optimal}")
 
 
 def save_fig(plot, dir):

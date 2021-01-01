@@ -13,7 +13,7 @@ class Reacher3dEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.reward_threshold = -200
 
     def step(self, a):
-        vec = self.get_body_com("fingertip") - self.get_body_com("target")
+        vec = self.get_body_com("fingertip") - self.goal #self.get_body_com("target")
         reward_dist = - np.linalg.norm(vec)
         reward_ctrl = - np.square(a).sum() * 0.01
         reward = reward_dist + reward_ctrl

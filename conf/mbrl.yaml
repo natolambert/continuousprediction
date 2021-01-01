@@ -1,13 +1,13 @@
 defaults:
-  - models: te
+  - models: t
   - envs: cartpole
 
 video: false
 
 bo:
-  random: 50
-  optimized: 50
-
+  random: 15
+  optimized: 30
+  num_eval: 25
 
 opt: bo #bo #-model
 #train_model: true
