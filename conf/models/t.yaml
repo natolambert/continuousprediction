@@ -44,4 +44,4 @@ model:
     color: '#ff0000'
     color_plotly: rgb(200,0,0)
     marker: s
-    marker_plotly: cross-open-dot
+    marker_plotly: cross #-open-dot

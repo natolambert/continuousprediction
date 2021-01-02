@@ -436,7 +436,8 @@ def plot_states(ground_truth, predictions, variances=None, idx_plot=None, plot_a
             plt.close()
 
     for i in idx_plot:
-        import pdb ; pdb.set_trace()
+        import pdb;
+        pdb.set_trace()
         fig, ax = plt.subplots()
         gt = ground_truth[:, i]
         # plt.title("Predictions on one dimension")
@@ -583,10 +584,11 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
 
 
 def add_marker(err_traces, color=[], symbol=None, skip=None):
-    mark_every = 50
+    mark_every = 3  # 50
     size = 50
     l = len(err_traces[0]['x'])
-    skip = np.random.randint(mark_every - 10) + 15
+    # skip = np.random.randint(mark_every - 10) + 15
+    skip = np.random.randint(3)  # + 15
     # skip = np.random.randint(mark_every)
     if skip is not None:
         size_list = [0] * skip + [size] + [0] * (mark_every - skip)
@@ -618,7 +620,6 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
             temp.append(data[k])
         arrays.append(np.stack(temp))
 
-
     colors_temp = ['rgb(12, 7, 134)', 'rgb(64, 3, 156)', 'rgb(106, 0, 167)',
                    'rgb(143, 13, 163)', 'rgb(176, 42, 143)', 'rgb(203, 71, 119)', 'rgb(224, 100, 97)',
                    'rgb(242, 132, 75)', 'rgb(252, 166, 53)', 'rgb(252, 206, 37)']
@@ -629,7 +630,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         #     continue
         tr, xs, ys = generate_errorbar_traces(ar, xs=[np.arange(1, np.shape(ar)[1] + 1).tolist()], percentiles='66+90',
                                               color=color_dict_plotly[k],
-                                              name=label_dict[k]+str(n))
+                                              name=label_dict[k] + str(n))
         w_marker = []
         # for t in tr:
         m = add_marker(tr, color=color_dict_plotly[k], symbol=marker_dict_plotly[k], skip=30)
@@ -1011,6 +1012,57 @@ def plot_evaluations_3d(data, x, y, ylabel=None, xlabel=None, zlabel=None, title
     #         plt.show()
     #     else:
     #         plt.close()
+
+
+def plot_rewards_over_trials(rewards, env_name, save=False, limits=None):
+    import plotly.graph_objects as go
+    traces = []
+    colors = plt.get_cmap('tab10').colors
+    markers = ["cross", "circle"]
+
+    for i in range(len(rewards)):
+        print(i)
+        data = []
+        cs_str = 'rgb' + str(colors[i])
+        ys = np.stack(rewards[i])
+        data.append(ys)
+        # print(np.shape(ys))
+        err_traces, xs, ys = generate_errorbar_traces(np.asarray(ys), color=cs_str, name=f"simulation_{i}")
+        m = add_marker(err_traces, color=cs_str, symbol=markers[i])
+        # w_marker.append(m)
+        [traces.append(t) for t in m]
+
+        # for t in err_traces:
+
+        # traces.append(t)
+
+    layout = dict(title=f"",  # Learning Curve Reward vs Number of Trials (Env: {env_name})",
+                  xaxis={'title': 'Trial Num'},
+                  yaxis={'title': 'Average Reward per Step'},
+                  plot_bgcolor='white',
+                  showlegend=False,
+                  font=dict(family='Times New Roman', size=30, color='#000000'),
+                  height=900,
+                  # yaxis_type="log",
+                  width=1500,
+                  margin=dict(r=0, t=5),
+                  legend={'x': .83, 'y': .05, 'bgcolor': 'rgba(50, 50, 50, .03)'})
+
+    fig = {
+        'data': traces,
+        'layout': layout
+    }
+
+    fig = go.Figure(fig)
+    # fig.update_yaxes(type="log")
+    if limits is not None:
+        fig.update_yaxes(range=limits)  # , type="log")
+    if save:
+        fig.write_image(os.getcwd() + "/learning.pdf")
+    else:
+        fig.show()
+
+    return fig
 
 
 @hydra.main(config_path='config-plot.yaml')

@@ -39,4 +39,4 @@ model:
     color: '#0033ff'
     color_plotly: rgb(0,0,200)
     marker: o
-    marker_plotly: circle-open-dot
+    marker_plotly: circle #-open-dot
