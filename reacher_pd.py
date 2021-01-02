@@ -188,6 +188,8 @@ def run_controller(env, horizon, policy, video=False):
     def obs2q(obs):
         if len(obs) < 5:
             return obs
+        elif len(obs) == 21:
+            return np.arctan2(obs[5:10], obs[:5])
         else:
             return obs[0:5]
 
@@ -215,8 +217,8 @@ def run_controller(env, horizon, policy, video=False):
         logs.rewards.append(reward)
         logs.states.append(observation.squeeze())
 
-        if done:
-            return logs
+        # if done:
+        #     return logs
 
     # Cluster state
     # print(f"Rollout completed, cumulative reward: {np.sum(logs.rewards)}")

@@ -122,128 +122,6 @@ def get_reward(predictions, actions, r_function):
     return rewards
 
 
-def pred_traj(test_data, models, control=None, env=None, cfg=None, t_range=None):
-    # for a one-step model, predicts a trajectory from initial state all in simulation
-    log.info("Beginning testing of predictions")
-
-    states, actions, initials = [], [], []
-
-    if env == 'reacher' or env == 'crazyflie':
-        P, D, target = [], [], []
-
-        # Compile the various trajectories into arrays
-        for traj in test_data:
-            states.append(traj.states)
-            actions.append(traj.actions)
-            initials.append(traj.states[0, :])
-            P.append(traj.P)
-            D.append(traj.D)
-            target.append(traj.target)
-
-        P_param = np.array(P)
-        P_param = P_param.reshape((len(test_data), -1))
-        D_param = np.array(D)
-        D_param = D_param.reshape((len(test_data), -1))
-        target = np.array(target)
-        target = target.reshape((len(test_data), -1))
-
-        parameters = [[P[0], 0, D[0]],
-                      [P[1], 0, D[1]]]
-        if env == 'crazyflie':
-            from crazyflie_pd import PidPolicy
-            policy = PidPolicy(parameters, cfg.pid)
-            policies = []
-            for p, d in zip(P_param, D_param):
-                policies.append(PidPolicy([[p[0], 0, d[0]], [p[1], 0, d[1]]], cfg.pid))
-            # policies = [LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0]) for i in range(len(test_data))]
-
-
-    elif env == 'cartpole':
-        K = []
-
-        # Compile the various trajectories into arrays
-        for traj in test_data:
-            states.append(traj.states)
-            actions.append(traj.actions)
-            initials.append(traj.states[0, :])
-            K.append(traj.K)
-
-        K_param = np.array(K)
-        K_param = K_param.reshape((len(test_data), -1))
-
-        # create LQR controllers to propogate predictions in one-step
-        from policy import LQR
-
-        # These values are replaced an don't matter
-        m_c = 1
-        m_p = 1
-        m_t = m_c + m_p
-        g = 9.8
-        l = .01
-        A = np.array([
-            [0, 1, 0, 0],
-            [0, g * m_p / m_c, 0, 0],
-            [0, 0, 0, 1],
-            [0, 0, g * m_t / (l * m_c), 0],
-        ])
-        B = np.array([
-            [0, 1 / m_c, 0, -1 / (l * m_c)],
-        ])
-        Q = np.diag([.5, .05, 1, .05])
-        R = np.ones(1)
-
-        n_dof = np.shape(A)[0]
-        modifier = .5 * np.random.random(
-            4) + 1  # np.random.random(4)*1.5 # makes LQR values from 0% to 200% of true value
-        policies = [LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0]) for i in range(len(test_data))]
-        for p, K in zip(policies, K_param):
-            p.K = K
-
-    # Convert to numpy arrays
-    states = np.stack(states)
-    actions = np.stack(actions)
-
-    initials = np.array(initials)
-    N, T, D = states.shape
-    if len(np.shape(actions)) == 2:
-        actions = np.expand_dims(actions, axis=2)
-    # Iterate through each type of model for evaluation
-    predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
-    currents = {key: states[:, 0, models[key].state_indices] for key in models}
-
-    ind_dict = {}
-    for i, key in list(enumerate(models)):
-        model = models[key]
-        if model.traj:
-            raise ValueError("Traj model conditioned on predicted states is invalid")
-        indices = model.state_indices
-        traj = model.traj
-
-        ind_dict[key] = indices
-
-        for i in range(1, T):
-            if i >= t_range:
-                continue
-            # if control:
-            # policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
-            # act, t = control.act(obs2q(currents[key]))
-            if env == 'crazyflie':
-                acts = np.stack([[p.get_action(currents[key][i, 3:6])] for i, p in enumerate(policies)]).reshape(-1, 4)
-            else:
-                acts = np.stack([[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
-
-            prediction = model.predict(np.hstack((currents[key], acts)))
-            prediction = np.array(prediction.detach())
-
-            predictions[key].append(prediction)
-            currents[key] = prediction.squeeze()
-
-    predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
-    # MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
-
-    return 0, predictions
-
-
 from policy import PID
 
 
@@ -255,12 +133,11 @@ def eval_rch(parameters):
     target = np.array([parameters["t1"], parameters["t2"], parameters["t3"], parameters["t4"], parameters["t5"]])
 
     policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target)
-    env = gym.make("Reacher3d-v2")
+    # env = gym.make("Reacher3d-v2")
     s0 = env.reset()
     env.goal = rch_goal
     rews = []
     for i in range(1):
-
         # print(type(env))
         dotmap = run_controller(env, horizon=500, policy=policy, video=False)
 
@@ -284,7 +161,7 @@ def eval_rch(parameters):
 
 
 def eval_rch_model(parameters):
-    env = gym.make("Reacher3d-v2")
+    # env = gym.make("Reacher3d-v2")
     P = np.array([parameters["p1"], parameters["p2"], parameters["p3"], parameters["p4"], parameters["p5"]])
     I = np.zeros(5)
     # D = np.array([0.2, 0.2, 2, 0.4, 0.4])
@@ -313,13 +190,18 @@ def eval_rch_model(parameters):
     # r = np.mean(rews)
     log.info(
         f"Parameter eval in model achieved r {np.round(np.mean(rews), 3)}, var {np.round(np.std(rews), 3)}")
-    return {"Reward": (np.mean(rews), np.std(rews)), }
+    # THIS LINE IS WEIRD
+    return {"Reward": (np.mean(rews), np.max(np.std(rews)), 0.01), }
+
+    # return {"Reward": (np.mean(rews), np.std(rews)), }
 
 
 def eval_rch_model_scaled(parameters):
-    env = gym.make("Reacher3d-v2")
+    # env = gym.make("Reacher3d-v2")
     s0 = env.reset()
     env.goal = rch_goal
+    parameters = np.multiply([3, 3, 3, 3, 3, .66, .66, .66, .66, .66, 1, 1, 1, 1, 1], parameters)
+    parameters += [2.5, 2.5, 2.5, 2.5, 2.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0]
 
     # P = np.array([parameters["p1"], parameters["p2"], parameters["p3"], parameters["p4"], parameters["p5"]])
     # I = np.zeros(5)
@@ -329,11 +211,11 @@ def eval_rch_model_scaled(parameters):
     k_param = parameters  # np.concatenate((P, D, target))
 
     rews = []
-    if np.any(np.abs(k_param[:5]) > 5) or np.any(np.abs(k_param[5:10]) > 1) or np.any(k_param[10:] > 1.5) or np.any(
-            k_param[10:] < -1.5):
-        rews = [1000]
+    if np.any(k_param[:5]) > 5 or np.any(k_param[5:10] > 1) or np.any(k_param[:10] < 0) \
+            or np.any(k_param[10:] > 1.5) or np.any(k_param[10:] < -1.5):
+        rews = [-1000]
     else:
-        for i in range(20):
+        for i in range(1):
             s0 = env.reset()
             env.goal = rch_goal
 
@@ -353,14 +235,15 @@ def eval_rch_model_scaled(parameters):
     # r = np.mean(rews)
     log.info(
         f"Parameter eval in model achieved r {np.round(np.mean(rews), 3)}, var {np.round(np.std(rews), 3)}")
+    # return -np.mean(rews)
     return -np.mean(rews)
 
 
 def eval_cp_model(parameters):
     k_param = [parameters["k1"], parameters["k2"], parameters["k3"], parameters["k4"]]
-    env = gym.make("Cartpole-v0")
+    # env = gym.make("Cartpole-v0")
     rews = []
-    for i in range(20):
+    for i in range(1):  # 20):
         s0 = env.reset()
         t_range = np.arange(1, 200, 1)
 
@@ -380,19 +263,18 @@ def eval_cp_model(parameters):
 
 
 def eval_cp_model_scaled(parameters):
-    # TODO scale the parameters for CMA opt
     k_param = parameters  # [parameters["k1"], parameters["k2"], parameters["k3"], parameters["k4"]]
     # shift and scaling
     k_param += [-1, -5, -12, -10]
     k_param = np.multiply([1, 2, 4, 2], k_param)
     if np.any(k_param > 0) or np.any(k_param < -75):
-        rews = [1000]
+        rews = [-1000]
     else:
         # k_param[0] = k_param[0] -1
         # k_param[1] = 4*k_param[1] - 4
         # k_param[2] = 20*k_param[2] - 50
         # k_param[3] = 5*k_param[3] - 10
-        env = gym.make("Cartpole-v0")
+        # env = gym.make("Cartpole-v0")
         rews = []
         for i in range(20):
             s0 = env.reset()
@@ -408,8 +290,8 @@ def eval_cp_model_scaled(parameters):
                 rew += np.exp(get_reward_cp(t, 0)) / 200
             rews.append(rew)
 
-    log.info(
-        f"Parameter eval in model {np.round(k_param, 3)} achieved r {np.round(np.mean(rews), 3)}")  # , var {np.round(np.std(rews), 3)}")
+    # log.info(
+    #     f"Parameter eval in model {np.round(k_param, 3)} achieved r {np.round(np.mean(rews), 3)}")  # , var {np.round(np.std(rews), 3)}")
     return -np.mean(rews)
 
 
@@ -437,7 +319,7 @@ def eval_cp(parameters):
 
     policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
     policy.K = np.array(k_param)
-    env = gym.make("Cartpole-v0")
+    # env = gym.make("Cartpole-v0")
     s0 = env.reset()
     rews = []
     for i in range(1):
@@ -447,6 +329,7 @@ def eval_cp(parameters):
         #     rews[-1] += dotmap.rewards[-1]*(200-len(dotmap.actions))
         dotmap.states = np.stack(dotmap.states)
         dotmap.actions = np.stack(dotmap.actions)
+        dotmap.rewards = rews[-1]
         dotmap.K = np.array(policy.K).flatten()
         exp_data.append(dotmap)
     r = np.mean(rews)
@@ -539,6 +422,73 @@ def plot_results():
 
 @hydra.main(config_path='conf/mbrl.yaml')
 def mbrl(cfg):
+    # Environment setup
+    global env
+    env_model = cfg.env.name
+    label = cfg.env.label
+    env = gym.make(env_model)
+    env.seed(cfg.random_seed)
+    np.random.seed(cfg.random_seed)
+    torch.manual_seed(cfg.random_seed)
+
+    if cfg.plot:
+        dirs = os.listdir(hydra.utils.get_original_cwd() + cfg.dir1)
+        r1 = []
+        if 'cartpole' in cfg.dir1:
+            label = 'cartpole'
+            lims = [0.9, 1.0]
+            ind = 15
+        else:
+            label = 'reacher'
+            lims = [-2, -0.5]
+
+        for d in dirs:
+            files = glob.glob(hydra.utils.get_original_cwd() + cfg.dir1 + '/' + d + '/**.dat')
+            r1_sub = []
+            for g in files:
+                rew_trial = torch.load(g)
+                # if label== 'cartpole':
+                #     # switch to cost
+                #     # rew_trial = -np.log(rew_trial)
+                #     rew_trial *= 200 #-np.log(rew_trial)
+                if label == 'cartpole':
+                    # rew_trial = rew_trial.tolist()
+                    print(rew_trial[0])
+                    print([r for r in rew_trial])
+                if type(rew_trial) == list:
+                    for t in rew_trial:
+                        r1_sub.append(t)
+                else:
+                    r1_sub.append(rew_trial)
+            r1.append(np.maximum.accumulate(r1_sub).tolist())
+
+        dirs = os.listdir(hydra.utils.get_original_cwd() + cfg.dir2)
+        r2 = []
+        for d in dirs:
+            files = glob.glob(hydra.utils.get_original_cwd() + cfg.dir2 + '/' + d + '/**.dat')
+            r2_sub = []
+            for g in files:
+                rew_trial = torch.load(g)
+                # if label== 'cartpole':
+                #     # switch to cost
+                #     # rew_trial = -np.log(rew_trial)
+                #     rew_trial *= 200 #-np.log(rew_trial)
+                if type(rew_trial) == list:
+                    for t in rew_trial:
+                        r2_sub.append(t)
+                else:
+                    r2_sub.append(rew_trial)
+            r2.append(np.maximum.accumulate(r2_sub).tolist())
+        plotly.io.orca.config.executable = '/home/hiro/miniconda3/envs/ml_clean/lib/orca_app/orca'
+        import plotly.io as pio
+        pio.orca.config.use_xvfb = True
+
+        from plot import plot_rewards_over_trials
+        # if label == 'cartpole':
+        plot_rewards_over_trials([np.stack(r1)[:, :ind].tolist(), np.stack(r2)[:, :ind].tolist()], "name", save=True,
+                                 limits=lims)
+        # plot_rewards_over_trials(np.stack(r1).tolist(), "name", save=True)
+        quit()
     # bo = [.875,.952,.998,.862,.988,.821,.66,1,.954,.957]
     # print(np.mean(bo))
     # print(np.std(bo))
@@ -561,14 +511,6 @@ def mbrl(cfg):
     # states = [np.float32(t['states']) for t in data_train]
     # actions = [np.float32(t['actions']) for t in data_train]
 
-    # Environment setup
-    env_model = cfg.env.name
-    label = cfg.env.label
-    env = gym.make(env_model)
-    env.seed(cfg.random_seed)
-    np.random.seed(cfg.random_seed)
-    torch.manual_seed(cfg.random_seed)
-
     global exp_data
     global traj_model
     exp_data = []
@@ -580,7 +522,7 @@ def mbrl(cfg):
     elif label == "reacher":
         eval_fn = eval_rch
         met = ReacherMetric(name="Reward")
-        env = gym.make("Reacher3d-v2")
+        # env = gym.make("Reacher3d-v2")
         global rch_goal
         rch_goal = env.goal
         log.info(f"Reacher env optimizing to goal {rch_goal}")
@@ -632,6 +574,7 @@ def mbrl(cfg):
         exp.trials[len(exp.trials) - 1].run()
         rand_data = get_data(exp)
         sobol_data = exp.eval()
+        # torch.save(get_data(exp)[-1, 0], f"rew_{0}.dat")
 
         if label == 'cartpole':
             from cartpole_lqr import create_dataset_traj
@@ -657,24 +600,32 @@ def mbrl(cfg):
             sig0 = .5
 
             def scale(x):
-                x += [0, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0]
                 x = np.multiply([3, 3, 3, 3, 3, .66, .66, .66, .66, .66, 1, 1, 1, 1, 1], x)
+                x += [2.5, 2.5, 2.5, 2.5, 2.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0]
                 return x
 
-        for n in range(cfg.bo.optimized):
+        for n in range(cfg.bo.cma):
             log.info(f"Optimizing traj {n}")
             dataset = create_dataset_traj(exp_data, control_params=cfg.model.training.control_params,
                                           train_target=cfg.model.training.train_target,
                                           threshold=cfg.model.training.filter_rate,
                                           t_range=cfg.model.training.t_range)
 
+            def unison_shuffled_copies(a, b):
+                assert len(a) == len(b)
+                p = np.random.permutation(len(a))
+                return a[p], b[p]
+
+            d1, d2 = unison_shuffled_copies(dataset[0], dataset[1])
             traj_model = DynamicsModel(cfg)
-            train_logs, test_logs = traj_model.train(dataset, cfg)
-            es = cma.CMAEvolutionStrategy(n_opt * [0], sig0, {'verbose': 0})
+            train_logs, test_logs = traj_model.train((d1, d2), cfg)
+            es = cma.CMAEvolutionStrategy(n_opt * [0], sig0, {'verbose': 0, 'maxiter': 10})
             es.optimize(eval_fn_cma)
             # es.result_pretty()
             res = es.result.xbest
             res = scale(res)
+            # torch.save(exp_data[-1].rewards, f"rew_{n + 1}.dat")
+            torch.save([exp_d.rewards for exp_d in exp_data], f"rew_full.dat")
 
             log.info("Trial")
             # log.info(f"Final CMA params: {res}")
@@ -721,11 +672,12 @@ def mbrl(cfg):
         for i in range(num_search):
             exp.new_trial(generator_run=sobol.gen(1))
             exp.trials[len(exp.trials) - 1].run()
+            # torch.save(get_data(exp)[-1, 0], f"rew_{i}.dat")
 
         num_opt = cfg.bo.optimized
         rand_data = get_data(exp)
         sobol_data = exp.eval()
-        log.info(f"Completed random search with mean reward {np.mean(rand_data[:,0])}")
+        log.info(f"Completed random search with mean reward {np.mean(rand_data[:, 0])}")
 
         if cfg.opt == 'bo':
             gpei = Models.BOTORCH(experiment=exp, data=sobol_data)
@@ -744,6 +696,7 @@ def mbrl(cfg):
                 # Reinitialize GP+EI model at each step with updated data.
                 batch = exp.new_trial(generator_run=gpei.gen(1))
                 gpei = Models.BOTORCH(experiment=exp, data=exp.eval())
+                # torch.save(get_data(exp)[-1, 0], f"rew_{i + cfg.bo.random}.dat")
 
             # raw_data = exp.fetch_data().df.values
             # rew = raw_data[:, 2].reshape(-1, 1)
@@ -761,6 +714,7 @@ def mbrl(cfg):
             for i in range(5):
                 log.info(
                     f"Rew {np.round(sorted_all[i, 0], 4)}, param {np.round(np.array(sorted_all[i, 1:], dtype=float), 3)}")
+            torch.save(get_data(exp)[:, 0], f"rew_full.dat")
 
             log.info("EVAL ON SYSTEM")
             log.info(f"Final BO params: {sorted_all[0, :]}")
@@ -795,6 +749,7 @@ def mbrl(cfg):
                 else:
                     val = eval_rch(final_params)
                 r.append(val["Reward"][0])
+
             log.info(f"Reward of final values {np.mean(r)}, std {np.std(r)}")
 
             # log.info(r)
@@ -966,7 +921,7 @@ def mbrl(cfg):
             traj_model = DynamicsModel(cfg)
             train_logs, test_logs = traj_model.train(dataset, cfg)
 
-            es = cma.CMAEvolutionStrategy(n_opt * [0], sig0, {'verbose': 1})
+            es = cma.CMAEvolutionStrategy(n_opt * [0], sig0, {'verbose': 0, 'maxiter': 10})
             es.optimize(eval_fn_cma)
             # es.result_pretty()
             res = es.result.xbest
@@ -1010,7 +965,7 @@ def mbrl(cfg):
         else:
             raise NotImplementedError("Other types of opt tbd")
 
-    torch.save(r, "final_rews.dat")
+    # torch.save(r, "final_rews.dat")
     if label == 'cartpole': log.info(f"Optimal params: {cfg.optimal}")
 
 

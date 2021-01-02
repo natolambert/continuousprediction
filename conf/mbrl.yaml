@@ -3,15 +3,20 @@ defaults:
   - envs: cartpole
 
 video: false
-
+#dir1: /exp/Reacher3d-v2/2021.01.01/111834/envs=reacher,opt=bo
+#dir2: /exp/Reacher3d-v2/2021.01.01/113641/envs=reacher,opt=cma-itr
+dir1: /exp/Cartpole-v0/2021.01.02/05/1434/envs=cartpole,opt=bo
+dir2: /exp/Cartpole-v0/2021.01.01/13/0524/bo.cma=50,bo.optimized=49,envs=cartpole,opt=cma-itr
 bo:
-  random: 15
-  optimized: 30
-  num_eval: 25
+  random: 1
+  optimized: 24
+  cma: 25
+  num_eval: 3 #25
 
 opt: bo #bo #-model
 #train_model: true
 plot_during: false
+plot: false
 
 metric:
   name: Reward
@@ -21,9 +26,9 @@ random_seed: 0
 
 hydra:
   run:
-    dir: ./exp/${env.name}/${now:%Y.%m.%d}/${now:%H%M%S}
+    dir: ./exp/${env.name}/${now:%Y.%m.%d}/${now:%H}/${now:%M%S}
   sweep:
-    dir: ./exp/${env.name}/${now:%Y.%m.%d}/${now:%H%M%S}
+    dir: ./exp/${env.name}/${now:%Y.%m.%d}/${now:%H}/${now:%M%S}
     subdir: ${hydra.job.override_dirname}/${hydra.job.num}
   job:
     config:
