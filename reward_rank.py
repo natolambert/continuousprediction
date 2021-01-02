@@ -383,7 +383,6 @@ def reward_rank(cfg):
     # from dynamics_model import Net
     # supervised = Net(np.shape(gp_x)[1], np.shape(reward)[1], env=None)
 
-    ## TEST SET WORK
     log.info("Testing models")
     data_test = trajectories[0]  # [::10]
     reward = [t['rewards'] for t in data_test]
