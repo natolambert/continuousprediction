@@ -1043,9 +1043,10 @@ def plot_rewards_over_trials(rewards, env_name, save=False, limits=None):
                   showlegend=False,
                   font=dict(family='Times New Roman', size=30, color='#000000'),
                   height=900,
+                  xaxis_showgrid=False, yaxis_showgrid=False,
                   # yaxis_type="log",
                   width=1500,
-                  margin=dict(r=0, t=5),
+                  margin=dict(r=0, l=0, t=5),
                   legend={'x': .83, 'y': .05, 'bgcolor': 'rgba(50, 50, 50, .03)'})
 
     fig = {

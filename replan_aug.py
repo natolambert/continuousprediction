@@ -70,6 +70,7 @@ def create_dataset_traj(data, threshold=0.0, t_range=0, env_label="reacher"):
     data_out = np.array(data_out, dtype=np.float32)
     return data_in, data_out
 
+
 def create_dataset_step(data, delta=True, t_range=0):
     """
     Creates a dataset for learning how one state progresses to the next
@@ -110,6 +111,7 @@ def create_dataset_step(data, delta=True, t_range=0):
 
     return data_in, data_out
 
+
 def run_controller(env, horizon, policy):
     """
     Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
@@ -145,6 +147,7 @@ def run_controller(env, horizon, policy):
     logs.rewards = np.array(logs.rewards)
     logs.states = np.array(logs.states)
     return logs
+
 
 def collect_data_lqr(cfg, env):  # Creates horizon^2/2 points
     """
@@ -228,6 +231,7 @@ def collect_data_lqr(cfg, env):  # Creates horizon^2/2 points
 
     return logs
 
+
 def collect_data_reacher(cfg, env):
     """
     Collect data for environment model
@@ -262,17 +266,19 @@ def collect_data_reacher(cfg, env):
 
     return logs
 
-def get_reward_cartpole(output_state):
-    x_threshold = 9.6
-    theta_threshold_radians = .418879 #24 * 2 * math.pi / 360
-    x = output_state[0]
-    theta = output_state[2]
-    done = bool(x < -self.x_threshold \
-           or x > self.x_threshold \
-           or theta < -self.theta_threshold_radians \
-           or theta > self.theta_threshold_radians)
-    return 1 if done else 0
 
+def get_reward_cartpole(output_state):
+    # x_threshold = 9.6
+    # theta_threshold_radians = .418879  # 24 * 2 * math.pi / 360
+    # x = output_state[0]
+    # theta = output_state[2]
+    # done = bool(x < -self.x_threshold \
+    #             or x > self.x_threshold \
+    #             or theta < -self.theta_threshold_radians \
+    #             or theta > self.theta_threshold_radians)
+    # return 1 if done else 0
+    reward = output_state[0] ** 2 + output_state[2] ** 2
+    return -reward/200
 
 
 def get_reward(output_state, action):
@@ -283,10 +289,10 @@ def get_reward(output_state, action):
     reward_ctrl = - np.square(action).sum() * 0.01
     reward_dist = - np.linalg.norm(output_state[-3:])
     reward = reward_dist + reward_ctrl
-    return reward
+    return reward/500
 
 
-def cum_reward(policies, model, initial_obs, traj, action_plan, env_label):
+def cum_reward(policies, model, initial_obs, horizon, traj, action_plan, env_label):
     '''
     Calculates the cumulative reward of a run with a given policy and target
     :param policy: policy used to get actions
@@ -303,11 +309,15 @@ def cum_reward(policies, model, initial_obs, traj, action_plan, env_label):
             if (action_plan):
                 action = policies[j][i]
             else:
-                action, _ = policies[j].act(np.arctan2(obs[j][5:10], obs[j][:5]))
+                if (env_label == "reacher"):
+                    action, _ = policies[j].act(np.arctan2(obs[j][5:10], obs[j][:5]))
+                else:
+                    action, _ = policies[j].act(obs[j])
+
             if (traj):
                 dat = [initial_obs, i + 1]
                 if (env_label == "reacher"):
-                    dat.extend([policies[j].get_P(), policies[j].get_D()])
+                    dat.extend([policies[j].get_P() / 5, policies[j].get_D()])
                     dat.append(policies[j].get_target())
                 elif (env_label == "cartpole"):
                     dat.append(policies[j].get_K())
@@ -320,7 +330,7 @@ def cum_reward(policies, model, initial_obs, traj, action_plan, env_label):
         if (traj):
             output_states = model.predict(big_dat).numpy()
         else:
-            output_states = model.predict(big_dat, reform = (i==0)).numpy()
+            output_states = model.predict(big_dat, reform=(i == 0)).numpy()
         if (env_label == "reacher"):
             reward_sum += np.array([get_reward(output_states[j], big_action[j]) for j in range(len(policies))])
         elif (env_label == "cartpole"):
@@ -328,32 +338,69 @@ def cum_reward(policies, model, initial_obs, traj, action_plan, env_label):
         obs = output_states
     return reward_sum
 
+def cum_reward_stacked(policies, model, obs, horizon, action_plan, env_label):
+    '''
+    Parallelizes cum_reward by concatenating inputs along batch dimension
+    Calculates the cumulative reward of a run with a given policy and target
+    :param policies: sequence of actions, length: horizon
+    :param model: model used to estimate dynamics
+    :param obs: observation to start calculating from
+    :param horizon: number of time steps to calculate for
+    :param PID_plan: use random PID parameters, instead of random actions to plan
+    '''
+    reward_sum = np.zeros(len(policies))
+    obs = np.full((len(policies), obs.shape[0]), obs)
+    for i in range(horizon):
+        big_dat = []
+        big_action = []
+        for j in range(len(policies)):
+            if not action_plan: # np.arctan2(obs[j][5:10], obs[j][:5])
+                # action, _ = policies[j].act(obs2q(obs[j]))
+                if (env_label == "reacher"):
+                    action, _ = policies[j].act(np.arctan2(obs[j][5:10], obs[j][:5]))
+                else:
+                    action, _ = policies[j].act(obs[j])
+            else:
+                action = policies[j][i]
+            dat = np.hstack((obs[j], action))
+            big_action.append(action)
+            # print(np.array([np.hstack(dat)]).shape)
+            big_dat.append(dat)
+        big_dat = np.vstack(big_dat)
+        output_states = model.predict(big_dat, reform=(i == 0)).numpy()
+        reward_sum += np.array([get_reward(output_states[k], big_action[k]) for k in range(len(policies))])
+        obs = output_states
+    return reward_sum
 
 def random_shooting_mpc_pool_helper(params):
     """Helper function used for multiprocessing"""
-    num_random_configs, model, obs, horizon, traj, action_plan, env_label, LQR_optimal, seed = params
+    num_random_configs, model, obs, horizon, traj, action_plan, env_label, seed = params
+    LQR_optimal = np.array([-0.70710678, -4.2906244, -37.45394052, -8.06650137])
     np.random.seed(seed)
     policies = []
     for i in range(num_random_configs):
         if (action_plan):
-            if (env_label=="reacher"):
+            if (env_label == "reacher"):
                 # nol changed below so actions are in correct region (-1,1)
                 action_seq = np.random.rand(horizon, 5) * 2 - 1
-            elif (env_label=="cartpole"):
+            elif (env_label == "cartpole"):
                 action_seq = np.random.rand(horizon, 1) * 2 - 1
             policies.append(action_seq)
         else:
-            if (env_label=="reacher"):
+            if (env_label == "reacher"):
                 P = np.random.rand(5) * 5
                 I = np.zeros(5)
                 D = np.random.rand(5)
                 target_PID = np.random.rand(5) * 2 - 1
                 policy = PID(dX=5, dU=5, P=P, I=I, D=D, target=target_PID)
-            elif (env_label=="cartpole"):
-                K = np.random.uniform(LQR_optimal*1.5, LQR_optimal*.5)
-                policy = LQR(np.zeros((4, 4)), np.zeros((4, 1)), np.zeros(4), 0, K = K)
+            elif (env_label == "cartpole"):
+                K = np.random.uniform(LQR_optimal * 1.5, LQR_optimal * .5)
+                policy = LQR(np.zeros((4, 4)), np.zeros((4, 1)), np.zeros(4), 0, K=K)
             policies.append(policy)
-    rewards = cum_reward(policies, model, obs, horizon, traj, action_plan, env_label)
+    if traj:
+        rewards = cum_reward(policies, model, obs, horizon, traj, action_plan, env_label)
+    else:
+        rewards = cum_reward_stacked(policies, model, obs, horizon, action_plan, env_label)
     optimal_policy = policies[np.argmax(rewards)]
     if (action_plan or env_label == "cartpole"):
         return policies[np.argmax(rewards)], np.max(rewards)
@@ -374,7 +421,8 @@ def random_shooting_mpc(cfg, model, obs, horizon):
     from multiprocessing import Pool
     num_random_configs = cfg.num_random_configs
     with Pool(10) as p:
-        function_inputs = [(num_random_configs // 10, model, obs, cfg.horizon_traj, cfg.model.traj, cfg.action_plan, cfg.env.label, cfg.env.optimal, i) for i in range(10)]
+        function_inputs = [(num_random_configs // 10, model, obs, horizon, cfg.model.traj, cfg.action_plan,
+                            cfg.env.label, i) for i in range(10)]
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
     return max(out, key=lambda x: x[1])
 
@@ -396,51 +444,55 @@ def plan(cfg):
     env = gym.make(env_model)
     np.random.seed(cfg.random_seed)
     torch.manual_seed(cfg.random_seed)
+    env.seed(cfg.random_seed)
+
+    traj = cfg.model.traj
+    prob = cfg.model.prob
+    ens = cfg.model.ensemble
 
     log.info('Initializing env: %s' % env_model)
     # collect data through reacher environment
-    log.info("Collecting initial data")
-
-    if (env_label == "reacher"):
-        exper_data = collect_data_reacher(cfg, env)
-    elif (env_label == "cartpole"):
-        exper_data = collect_data_lqr(cfg, env)
-    env.seed(cfg.random_seed)
-
-    # Step 2: Learn dynamics model
-    # probabilistic model, ensemble training booleans
-    prob = cfg.model.prob
-    ens = cfg.model.ensemble
-    traj = cfg.model.traj
-    # create dataset for model input/output
-    log.info("Creating initial dataset for model training")
-    model = DynamicsModel(cfg)
-    if (traj):
-        dataset = create_dataset_traj(exper_data,
-                                  threshold=0,
-                                  t_range=cfg.model.training.t_range,
-                                  env_label=env_label)
-    else:
-        dataset = create_dataset_step(exper_data,
-                                  t_range=cfg.model.training.t_range)
     if cfg.load_model:
         f = hydra.utils.get_original_cwd() + '/models/' + env_label + '/'
-        model = torch.load(f + cfg.traj_model if traj else cfg.step_model + '.dat')
+        model = torch.load(f + cfg.traj_model + '.dat' if traj else f+ cfg.step_model + '.dat')
+    else:
+        log.info("Collecting initial data")
+
+        if (env_label == "reacher"):
+            exper_data = collect_data_reacher(cfg, env)
+        elif (env_label == "cartpole"):
+            exper_data = collect_data_lqr(cfg, env)
+
+        # Step 2: Learn dynamics model
+        # probabilistic model, ensemble training booleans
+        # create dataset for model input/output
+        log.info("Creating initial dataset for model training")
+        model = DynamicsModel(cfg)
+        if (traj):
+            dataset = create_dataset_traj(exper_data,
+                                          threshold=0,
+                                          t_range=cfg.model.training.t_range,
+                                          env_label=env_label)
+        else:
+            dataset = create_dataset_step(exper_data,
+                                          t_range=cfg.model.training.t_range)
 
     # retrain for n_iter iterations
+    rews = np.zeros(cfg.n_iter)
     for i in range(cfg.n_iter):
         log.info(f"Iteration {i}")
 
-        # shuffle dataset each iteration to avoid retraining on the same data points -> overfitting
-        shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
-        np.random.shuffle(shuffle_idxs)
-        # config for choosing number of points to train on
-        if (cfg.num_training_points == 0):
-            training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
-        else:
-            training_dataset = (
-            dataset[0][shuffle_idxs[:cfg.num_training_points]], dataset[1][shuffle_idxs[:cfg.num_training_points]])
         if not cfg.load_model:
+            # shuffle dataset each iteration to avoid retraining on the same data points -> overfitting
+            shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
+            np.random.shuffle(shuffle_idxs)
+            # config for choosing number of points to train on
+            if (cfg.num_training_points == 0):
+                training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
+            else:
+                training_dataset = (
+                    dataset[0][shuffle_idxs[:cfg.num_training_points]],
+                    dataset[1][shuffle_idxs[:cfg.num_training_points]])
             log.info(f"Training model P:{prob}, E:{ens}")
             # train model
             train_logs, test_logs = model.train(training_dataset, cfg)
@@ -448,45 +500,52 @@ def plan(cfg):
         # initial observation
         obs = env.reset()
         if (env_label == "reacher"):
+            log.info(f"Reacher goal {env.goal}")
             initial_reward[i] = get_reward(obs, 0)
             final_cum_reward[i] = initial_reward[i]
+
         # Code is split between replanning each time step vs. planning a set number of times per iteration
         # REPLAN ONCE EACH TIMESTEP
         if (cfg.num_MPC_per_iter == 0):
-            for j in range(cfg.plan_trial_timesteps - 1):
-                log.info(f"Trial timestep: {j}")
+            for j in range(cfg.trial_timesteps - 1):
+                if (j%50 == 0): log.info(f"Trial timestep: {j}")
                 # Plan using MPC with random shooting optimizer
 
-                policy, policy_reward = random_shooting_mpc(cfg, model, obs, cfg.horizon_traj if traj else cfg.horizon_step)
+                policy, policy_reward = random_shooting_mpc(cfg, model, obs,
+                                                            cfg.horizon_traj if traj else cfg.horizon_step)
                 # Only use first action from optimal policy
                 if (cfg.action_plan):
                     action = policy[0]
                 else:
                     if (env_label == "reacher"):
-                        action, _ = policy.act(np.arctan2(obs[j][5:10], obs[j][:5]))
+                        print(np.arctan2(obs[5:10], obs[:5]))
+                        action, _ = policy.act(np.arctan2(obs[5:10], obs[:5]))
                     elif (env_label == "cartpole"):
                         action, _ = policy.act(obs)
+                    action = np.clip(action, -1, 1)
 
                 # step in environment
                 next_obs, reward, done, info = env.step(action)
+                rews[i] += reward/cfg.trial_timesteps
                 if done:
                     break
                 # If replanning each time step, using the trajectory model only makes sense without retraining (ie. multiple iterations)
                 # We only add state transition dynamics to the dataset for retraining
-                if (traj):
-                    dat = [obs.squeeze(), 1]
-                    if (env_label == "reacher"):
-                        dat.extend([policy.get_P() / 5, policy.get_D()])
-                        dat.append(policy.get_target())
-                    elif (env_label == "cartpole"):
-                        dat.append(policy.get_K())
-                    data_in = np.hstack(dat).reshape(1, -1)
-                    data_out = next_obs.reshape(1, -1)
-                else:
-                    data_in = np.hstack((obs, action)).reshape(1, -1)
-                    data_out = (next_obs - obs).reshape(1, -1)
-                dataset = (np.append(dataset[0], data_in, axis=0),
-                           np.append(dataset[1], data_out, axis=0))
+                if not cfg.load_model:
+                    if (traj):
+                        dat = [obs.squeeze(), 1]
+                        if (env_label == "reacher"):
+                            dat.extend([policy.get_P() / 5, policy.get_D()])
+                            dat.append(policy.get_target())
+                        elif (env_label == "cartpole"):
+                            dat.append(policy.get_K())
+                        data_in = np.hstack(dat).reshape(1, -1)
+                        data_out = next_obs.reshape(1, -1)
+                    else:
+                        data_in = np.hstack((obs, action)).reshape(1, -1)
+                        data_out = (next_obs - obs).reshape(1, -1)
+                    dataset = (np.append(dataset[0], data_in, axis=0),
+                               np.append(dataset[1], data_out, axis=0))
                 # Set next observation
                 obs = next_obs
                 # Calculate the cumulative reward
@@ -495,7 +554,7 @@ def plan(cfg):
         # PLAN A SET NUMBER OF TIMES PER ITERATION
         else:
             # horizon is based on number of times to plan on each trajectory
-            horizon = int(cfg.plan_trial_timesteps / cfg.num_MPC_per_iter)
+            horizon = int(cfg.trial_timesteps / cfg.num_MPC_per_iter)
             for j in range(cfg.num_MPC_per_iter):
                 # plan using MPC with random shooting optimizer
                 policy, policy_reward = random_shooting_mpc(cfg, model, obs, horizon)
@@ -508,22 +567,29 @@ def plan(cfg):
                 logs.times = []
 
                 # collect data on planned optimal policy
-                if (env_label == "reacher"):
-                    logs.target = policy.get_target()
-                    logs.P = policy.get_P() / 5
-                    logs.I = np.zeros(5)
-                    logs.D = policy.get_D()
-                elif (env_label == "cartpole"):
-                    logs.K = policy.get_K()
+                if not cfg.action_plan:
+                    if (env_label == "reacher"):
+                        logs.target = policy.get_target()
+                        logs.P = policy.get_P() / 5
+                        logs.I = np.zeros(5)
+                        logs.D = policy.get_D()
+                    elif (env_label == "cartpole"):
+                        logs.K = policy.get_K()
 
                 for k in range(horizon):
                     # step in environment
                     if (cfg.action_plan):
                         action = policy[k]
                     else:
-                        action, _ = policy.act(np.arctan2(obs[j][5:10], obs[j][:5]))
+                        if (env_label == "reacher"):
+                            action, _ = policy.act(np.arctan2(obs[5:10], obs[:5]))
+                        else:
+                            action, _ = policy.act(obs)
+                        action = np.clip(action, -1, 1)
 
                     next_obs, reward, done, info = env.step(action)
+                    rews[i] += reward/cfg.trial_timesteps
+
                     if done:
                         break
 
@@ -554,14 +620,13 @@ def plan(cfg):
                     dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1], data_out, axis=0))
                 if done:
                     break
-        # Calculate the final reward
-        if (env_label == "reacher"):
-            final_reward[i] = get_reward(obs, 0)
-        final_cum_reward[i] = final_cum_reward[i] / cfg.plan_trial_timesteps
-        log.info(f"Final cumulative rewards: {final_cum_reward[i]}")
 
-    log.info(f"Mean cumrew: {np.mean(final_cum_reward)}")
-    log.info(f"stddev cumrew: {np.std(final_cum_reward)}")
+
+        log.info(f"Final cumulative rewards: {rews[i]}")
+
+    log.info(f"Mean cumrew: {np.mean(rews)}")
+    log.info(f"stddev cumrew: {np.std(rews)}")
+
 
 if __name__ == '__main__':
     sys.exit(plan())
