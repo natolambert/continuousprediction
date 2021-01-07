@@ -4,8 +4,8 @@ defaults:
 
 video: false
 load_model: true
-step_model: d
-traj_model: t
+step_model: d_opt
+traj_model: t_opt2
 
 #used for cartpole environment
 data_mode: chaotic
@@ -18,7 +18,7 @@ n_iter: 1
 #initial number of trajectories to train on
 initial_num_trials: 5
 initial_num_trial_length: 250
-plan_trial_timesteps: 250
+#plan_trial_timesteps: 250
 #MPC samples
 num_random_configs: 1000
 
@@ -32,6 +32,19 @@ horizon_traj: 200
 
 #only used for one-step
 #use PID parameters to plan rather than random actions
-action_plan: true
+action_plan: false
 
 random_seed: 0
+
+hydra:
+  run:
+    dir: ./exp/${env.name}/${now:%Y.%m.%d}/${now:%H}/${now:%M%S}
+  sweep:
+    dir: ./exp/${env.name}/${now:%Y.%m.%d}/${now:%H}/${now:%M%S}
+    subdir: ${hydra.job.override_dirname}/${hydra.job.num}
+  job:
+    config:
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: [ 'random_seed' ]

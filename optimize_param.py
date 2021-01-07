@@ -212,10 +212,10 @@ def eval_rch_model_scaled(parameters):
 
     rews = []
     if np.any(k_param[:5]) > 5 or np.any(k_param[5:10] > 1) or np.any(k_param[:10] < 0) \
-            or np.any(k_param[10:] > 1.5) or np.any(k_param[10:] < -1.5):
+            or np.any(np.abs(k_param[10:]) > 3):
         rews = [-1000]
     else:
-        for i in range(1):
+        for i in range(10):
             s0 = env.reset()
             env.goal = rch_goal
 
@@ -233,8 +233,8 @@ def eval_rch_model_scaled(parameters):
             rews.append(rew)
 
     # r = np.mean(rews)
-    log.info(
-        f"Parameter eval in model achieved r {np.round(np.mean(rews), 3)}, var {np.round(np.std(rews), 3)}")
+    # log.info(
+    #     f"Parameter eval in model achieved r {np.round(np.mean(rews), 3)}, var {np.round(np.std(rews), 3)}")
     # return -np.mean(rews)
     return -np.mean(rews)
 
@@ -426,9 +426,9 @@ def mbrl(cfg):
     global env
     env_model = cfg.env.name
     label = cfg.env.label
+    np.random.seed(cfg.random_seed)
     env = gym.make(env_model)
     env.seed(cfg.random_seed)
-    np.random.seed(cfg.random_seed)
     torch.manual_seed(cfg.random_seed)
 
     if cfg.plot:
@@ -440,7 +440,8 @@ def mbrl(cfg):
             ind = 15
         else:
             label = 'reacher'
-            lims = [-2, -0.5]
+            lims = [-2, -0.25]
+            ind = 25
 
         for d in dirs:
             files = glob.glob(hydra.utils.get_original_cwd() + cfg.dir1 + '/' + d + '/**.dat')
@@ -451,10 +452,10 @@ def mbrl(cfg):
                 #     # switch to cost
                 #     # rew_trial = -np.log(rew_trial)
                 #     rew_trial *= 200 #-np.log(rew_trial)
-                if label == 'cartpole':
-                    # rew_trial = rew_trial.tolist()
-                    print(rew_trial[0])
-                    print([r for r in rew_trial])
+                # if label == 'cartpole':
+                rew_trial = rew_trial.tolist()
+                    # print(rew_trial[0])
+                    # print([r for r in rew_trial])
                 if type(rew_trial) == list:
                     for t in rew_trial:
                         r1_sub.append(t)
@@ -482,7 +483,8 @@ def mbrl(cfg):
         plotly.io.orca.config.executable = '/home/hiro/miniconda3/envs/ml_clean/lib/orca_app/orca'
         import plotly.io as pio
         pio.orca.config.use_xvfb = True
-
+        print(r1)
+        print(r2)
         from plot import plot_rewards_over_trials
         # if label == 'cartpole':
         plot_rewards_over_trials([np.stack(r1)[:, :ind].tolist(), np.stack(r2)[:, :ind].tolist()], "name", save=True,
@@ -501,9 +503,9 @@ def mbrl(cfg):
     # quit()
     # trajectories = torch.load(hydra.utils.get_original_cwd() + '/trajectories/' + label + '/raw' + cfg.data_dir)
 
-    # f = hydra.utils.get_original_cwd() + '/models/' + label + '/'
-    # model_one = torch.load(f + cfg.step_model + '.dat')
-    # model_traj = torch.load(f + cfg.traj_model + '.dat')
+    f = hydra.utils.get_original_cwd() + '/models/' + label + '/'
+    model_one = torch.load(f + cfg.step_model + '.dat')
+    model_traj = torch.load(f + cfg.traj_model + '.dat')
 
     # get rewards, control policy, etc for each type, and control parameters
     # data_train = trajectories[0]  # [::10] #+trajectories[1]
@@ -524,7 +526,10 @@ def mbrl(cfg):
         met = ReacherMetric(name="Reward")
         # env = gym.make("Reacher3d-v2")
         global rch_goal
+        env.reset()
         rch_goal = env.goal
+        # rch_goal = np.random.uniform(low=-.5, high=.5, size=3)
+        # env.goal = rch_goal
         log.info(f"Reacher env optimizing to goal {rch_goal}")
 
     # TODO three scenairos
@@ -597,7 +602,7 @@ def mbrl(cfg):
             from reacher_pd import create_dataset_traj
             eval_fn_cma = eval_rch_model_scaled
             n_opt = 15
-            sig0 = .5
+            sig0 = .35
 
             def scale(x):
                 x = np.multiply([3, 3, 3, 3, 3, .66, .66, .66, .66, .66, 1, 1, 1, 1, 1], x)
@@ -912,14 +917,15 @@ def mbrl(cfg):
                     return x
 
             from dynamics_model import DynamicsModel
-            dataset = create_dataset_traj(exp_data, control_params=cfg.model.training.control_params,
-                                          train_target=cfg.model.training.train_target,
-                                          threshold=cfg.model.training.filter_rate,
-                                          t_range=cfg.model.training.t_range)
-            # global traj_model
-
-            traj_model = DynamicsModel(cfg)
-            train_logs, test_logs = traj_model.train(dataset, cfg)
+            # dataset = create_dataset_traj(exp_data, control_params=cfg.model.training.control_params,
+            #                               train_target=cfg.model.training.train_target,
+            #                               threshold=cfg.model.training.filter_rate,
+            #                               t_range=cfg.model.training.t_range)
+            # # global traj_model
+            #
+            # traj_model = DynamicsModel(cfg)
+            # train_logs, test_logs = traj_model.train(dataset, cfg)
+            traj_model = model_traj
 
             es = cma.CMAEvolutionStrategy(n_opt * [0], sig0, {'verbose': 0, 'maxiter': 10})
             es.optimize(eval_fn_cma)

@@ -8,7 +8,7 @@ env:
 
 data_dir: l1000_t100_n100.dat #l1000_t250_n100.dat # l500_t50_v5.dat #
 num_trials: 250
-trial_timesteps: 1000
+trial_timesteps: 500 #1000
 
 model:
   training:
@@ -90,26 +90,26 @@ problem:
       log_scale: false
     t1:
       type: range
-      bounds: [ -1.5,1.5 ] #[-5,0]
+      bounds: [-3,3] #[ -1.5,1.5 ] #[-5,0]
       value_type: float
       log_scale: false
     t2:
       type: range
-      bounds: [ -1.5,1.5 ] #[-5,0]
+      bounds: [-3,3] #[ -1.5,1.5 ] #[-5,0]
       value_type: float
       log_scale: false
     t3:
       type: range
-      bounds: [ -1.5,1.5 ] #[-5,0]
+      bounds: [-3,3] #[ -1.5,1.5 ] #[-5,0]
       value_type: float
       log_scale: false
     t4:
       type: range
-      bounds: [ -1.5,1.5 ] #[-5,0]
+      bounds: [-3,3] #[ -1.5,1.5 ] #[-5,0]
       value_type: float
       log_scale: false
     t5:
       type: range
-      bounds: [ -1.5,1.5 ] #[-5,0]
+      bounds: [-3,3] #[ -1.5,1.5 ] #[-5,0]
       value_type: float
       log_scale: false

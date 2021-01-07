@@ -5,10 +5,10 @@ defaults:
 exper_dir: false # set to a name to load models from within a subfolder in the models directory
 plot: false
 
-traj_model: t_opt
-step_model: d_opt
-#traj_model: t
-#step_model: d
+#traj_model: t_opt
+#step_model: d_opt
+traj_model: t
+step_model: d
 split: .8
 
 hydra:

@@ -3,10 +3,14 @@ defaults:
   - envs: cartpole
 
 video: false
-#dir1: /exp/Reacher3d-v2/2021.01.01/111834/envs=reacher,opt=bo
-#dir2: /exp/Reacher3d-v2/2021.01.01/113641/envs=reacher,opt=cma-itr
-dir1: /exp/Cartpole-v0/2021.01.02/05/1434/envs=cartpole,opt=bo
-dir2: /exp/Cartpole-v0/2021.01.01/13/0524/bo.cma=50,bo.optimized=49,envs=cartpole,opt=cma-itr
+dir1: /exp/Reacher3d-v2/2021.01.02/06/3803/bo.cma=25,bo.optimized=25,envs=reacher,opt=bo #/exp/Reacher3d-v2/2021.01.01/111834/envs=reacher,opt=bo
+dir2: /exp/Reacher3d-v2/2021.01.02/06/3806/bo.cma=25,bo.optimized=25,envs=reacher,opt=cma-itr #/exp/Reacher3d-v2/2021.01.01/113641/envs=reacher,opt=cma-itr
+#dir1: /exp/Cartpole-v0/2021.01.02/05/5655/envs=cartpole,opt=bo
+#dir2: /exp/Cartpole-v0/2021.01.01/13/0524/bo.cma=50,bo.optimized=49,envs=cartpole,opt=cma-itr
+step_model: d_opt
+traj_model: t_opt
+
+
 bo:
   random: 1
   optimized: 24
