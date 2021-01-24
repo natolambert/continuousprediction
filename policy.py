@@ -9,6 +9,9 @@ import copy
 from datetime import datetime
 # import R.log as rlog removed as it seems unused
 from timeit import default_timer as timer
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 class Policy(object):
@@ -261,3 +264,53 @@ class LQR(Policy):
         u = -np.matmul(self.K, x)
         return np.array(u).squeeze()
         # return self.controller.action(x, obs, time, noise)
+
+class Net(nn.Module):
+    def __init__(self, h_layers, h_width, n_in, n_out):
+        super(Net, self).__init__()
+        layers = []
+        layers.append(nn.Linear(n_in, h_width))
+        layers.append(nn.ReLU())
+        for d in range(h_layers):
+            layers.append(nn.Linear(h_width, h_width))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(h_width, n_out))
+        self.model = nn.Sequential(*layers)
+
+    def update_params(self, custom_weights):
+        for name, param in self.model.named_parameters():
+            param.data.copy_(custom_weights['model.' + name])
+
+    def forward(self, x):
+        return self.model(x)
+
+
+class NN(Policy):
+    def __init__(self, h_layers, h_width, n_in, n_out):
+        Policy.__init__(self, dX=n_in, dU=n_out)
+        self.h_layers = h_layers
+        self.h_width = h_width
+        self.n_in = n_in
+        self.n_out = n_out
+        self.model = Net(h_layers, h_width, n_in, n_out)
+
+    def update_params(self, custom_weights):
+        model_num = 0
+        list_index = self.n_in * self.h_width
+        custom_weight_torch = {}
+        custom_weight_torch['model.0.weight'] = torch.from_numpy(custom_weights[:list_index].reshape((self.h_width, self.n_in)))
+        custom_weight_torch['model.0.bias'] = torch.from_numpy(custom_weights[list_index:list_index+self.h_width])
+        list_index += self.h_width
+        for d in range(self.h_layers):
+            model_num += 2
+            custom_weight_torch['model.' + str(model_num) + '.weight'] = torch.from_numpy(custom_weights[list_index:list_index+(self.h_width*self.h_width)].reshape((self.h_width, self.h_width)))
+            list_index += (self.h_width*self.h_width)
+            custom_weight_torch['model.' + str(model_num) + '.bias'] = torch.from_numpy(custom_weights[list_index:list_index+self.h_width])
+            list_index += self.h_width
+        model_num +=2
+        custom_weight_torch['model.' + str(model_num) + '.weight'] = torch.from_numpy(custom_weights[list_index:list_index+(self.h_width)])
+        custom_weight_torch['model.' + str(model_num) + '.bias'] = torch.from_numpy(custom_weights[list_index+(self.h_width):])
+        self.model.update_params(custom_weight_torch)
+
+    def _action(self, x, obs, time, noise):
+        return (self.model.forward(torch.from_numpy(x).float())).detach().numpy()

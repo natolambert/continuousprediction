@@ -387,7 +387,7 @@ class DynamicsModel(object):
     an ensemble of 1 net.
     """
 
-    def __init__(self, cfg, env="Reacher"):
+    def __init__(self, cfg, env="Reacher", nn_policy_param_size=0):
         self.str = cfg.model.str
         self.ens = cfg.model.ensemble
         self.traj = cfg.model.traj
@@ -395,6 +395,10 @@ class DynamicsModel(object):
         self.delta = cfg.model.delta
         self.train_target = cfg.model.training.train_target
         self.control_params = cfg.model.training.control_params
+        if (nn_policy_param_size == 0):
+            self.param_size = cfg.env.param_size
+        else:
+            self.param_size = nn_policy_param_size
         if env == "Reacher":
             self.state_indices = cfg.model.training.state_indices
         elif env == "Lorenz" or env == "SS":
@@ -411,7 +415,7 @@ class DynamicsModel(object):
         if self.traj:
             self.n_in += 1
             if self.control_params:
-                self.n_in += cfg.env.param_size - cfg.env.target_size
+                self.n_in += self.param_size - cfg.env.target_size
             if self.train_target:
                 self.n_in += cfg.env.target_size
         else:
