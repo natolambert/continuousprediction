@@ -12,7 +12,7 @@ import hydra
 import logging
 import numpy as np
 from dotmap import DotMap
-import mujoco_py
+#import mujoco_py
 import gym
 from envs import *
 from policy import PID
@@ -130,7 +130,10 @@ def run_controller(env, horizon, policy):
     observation = env.reset()
     for i in range(horizon):
         # todo(action)
-        action, t = policy.act(np.arctan2(observation[j][5:10], observation[j][:5]))
+        if (len(observation) < 5):
+            action, t = policy.act(observation)
+        else:
+            action, t = policy.act(np.arctan2(observation[5:10], observation[:5]))
 
         next_obs, reward, done, info = env.step(action)
 
@@ -203,7 +206,7 @@ def collect_data_lqr(cfg, env):  # Creates horizon^2/2 points
         policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
         policy.K = np.multiply(policy.K, modifier)
         # print(type(env))
-        dotmap = run_controller(env, horizon=cfg.initial_num_trial_length, policy=policy, video=cfg.video)
+        dotmap = run_controller(env, horizon=cfg.initial_num_trial_length, policy=policy)
         while len(dotmap.states) < lim:
             env.seed(s)
             env.reset()
@@ -218,12 +221,9 @@ def collect_data_lqr(cfg, env):  # Creates horizon^2/2 points
                 modifier = .5 * np.random.random(4) + 1
             policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
             policy.K = np.multiply(policy.K, modifier)
-            dotmap = run_controller(env, horizon=cfg.initial_num_trial_length, policy=policy, video=cfg.video)
+            dotmap = run_controller(env, horizon=cfg.initial_num_trial_length, policy=policy)
             print(f"- Repeat simulation")
             s += 1
-            # if plot and len(dotmap.states)>0: plot_cp(dotmap.states, dotmap.actions)
-
-        if plot: plot_cp(dotmap.states, dotmap.actions, save=True)
 
         dotmap.K = np.array(policy.K).flatten()
         logs.append(dotmap)
@@ -483,19 +483,20 @@ def plan(cfg):
         log.info(f"Iteration {i}")
 
         if not cfg.load_model:
-            # shuffle dataset each iteration to avoid retraining on the same data points -> overfitting
-            shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
-            np.random.shuffle(shuffle_idxs)
-            # config for choosing number of points to train on
-            if (cfg.num_training_points == 0):
-                training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
-            else:
-                training_dataset = (
-                    dataset[0][shuffle_idxs[:cfg.num_training_points]],
-                    dataset[1][shuffle_idxs[:cfg.num_training_points]])
-            log.info(f"Training model P:{prob}, E:{ens}")
-            # train model
-            train_logs, test_logs = model.train(training_dataset, cfg)
+            if i == 0 or cfg.retrain_model:
+                # shuffle dataset each iteration to avoid retraining on the same data points -> overfitting
+                shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
+                np.random.shuffle(shuffle_idxs)
+                # config for choosing number of points to train on
+                if (cfg.num_training_points == 0):
+                    training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
+                else:
+                    training_dataset = (
+                        dataset[0][shuffle_idxs[:cfg.num_training_points]],
+                        dataset[1][shuffle_idxs[:cfg.num_training_points]])
+                log.info(f"Training model P:{prob}, E:{ens}")
+                # train model
+                train_logs, test_logs = model.train(training_dataset, cfg)
 
         # initial observation
         obs = env.reset()
@@ -531,7 +532,7 @@ def plan(cfg):
                     break
                 # If replanning each time step, using the trajectory model only makes sense without retraining (ie. multiple iterations)
                 # We only add state transition dynamics to the dataset for retraining
-                if not cfg.load_model:
+                if not cfg.load_model and cfg.retrain_model:
                     if (traj):
                         dat = [obs.squeeze(), 1]
                         if (env_label == "reacher"):
@@ -608,7 +609,7 @@ def plan(cfg):
                 logs.rewards = np.array(logs.rewards)
                 logs.states = np.array(logs.states)
 
-                if not cfg.load_model:
+                if not cfg.load_model and cfg.retrain_model:
                     if (traj):
                         data_in, data_out = create_dataset_traj(logs,
                                                                 threshold=0,

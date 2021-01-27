@@ -139,6 +139,8 @@ def cum_reward(policies, model, initial_obs, horizon):
     :param horizon: number of time steps to calculate for
     '''
     reward_sum = np.zeros(len(policies))
+    print(horizon)
+    print(len(policies))
     for i in range(horizon):
         big_dat = []
         for j in range(len(policies)):
@@ -155,11 +157,12 @@ def random_shooting_mpc_pool_helper(params):
     num_random_configs, model, obs, horizon, seed, num_params, lower_bound, higher_bound = params
     np.random.seed(seed)
     policies = []
+    print(num_random_configs)
     for i in range(num_random_configs):
         log.info(f"Random configuration {i}")
         policy = np.random.rand(num_params) * (higher_bound - lower_bound) + lower_bound
         policies.append(policy)
-        rewards = cum_reward(policies, model, obs, horizon)
+    rewards = cum_reward(policies, model, obs, horizon)
     return policies[np.argmax(rewards)], np.max(rewards)
 
 
@@ -230,19 +233,20 @@ def plan(cfg):
         log.info(f"Iteration {i}")
 
         if not cfg.load_model:
-            # shuffle dataset each iteration to avoid retraining on the same data points -> overfitting
-            shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
-            np.random.shuffle(shuffle_idxs)
-            # config for choosing number of points to train on
-            if (cfg.num_training_points == 0):
-                training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
-            else:
-                training_dataset = (
-                    dataset[0][shuffle_idxs[:cfg.num_training_points]],
-                    dataset[1][shuffle_idxs[:cfg.num_training_points]])
-            log.info(f"Training model P:{prob}, E:{ens}")
-            # train model
-            train_logs, test_logs = model.train(training_dataset, cfg)
+            if i==0 or cfg.retrain_model:
+                # shuffle dataset each iteration to avoid retraining on the same data points -> overfitting
+                shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
+                np.random.shuffle(shuffle_idxs)
+                # config for choosing number of points to train on
+                if (cfg.num_training_points == 0):
+                    training_dataset = (dataset[0][shuffle_idxs], dataset[1][shuffle_idxs])
+                else:
+                    training_dataset = (
+                        dataset[0][shuffle_idxs[:cfg.num_training_points]],
+                        dataset[1][shuffle_idxs[:cfg.num_training_points]])
+                log.info(f"Training model P:{prob}, E:{ens}")
+                # train model
+                train_logs, test_logs = model.train(training_dataset, cfg)
 
         # initial observation
         obs = env.reset()
@@ -287,7 +291,7 @@ def plan(cfg):
             logs.states = np.array(logs.states)
             print(logs)
 
-            if not cfg.load_model:
+            if not cfg.load_model and cfg.retrain_model:
                 data_in, data_out = create_dataset_traj([logs],
                                                         t_range=cfg.plan_trial_timesteps)
                 dataset = (np.append(dataset[0], data_in, axis=0), np.append(dataset[1], data_out, axis=0))
@@ -295,8 +299,9 @@ def plan(cfg):
                 break
 
 
-        log.info(f"Final cumulative rewards: {rews[i]}")
+        log.info(f"Final cumulative reward: {rews[i]}")
 
+    log.info(f"Final cumulative rewards: {rews}")
     log.info(f"Mean cumrew: {np.mean(rews)}")
     log.info(f"stddev cumrew: {np.std(rews)}")
 

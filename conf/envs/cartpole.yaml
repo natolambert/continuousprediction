@@ -13,7 +13,7 @@ data_mode: chaotic
 
 model:
   training:
-    t_range: 200
+    t_range: 250
     state_indices: [0,1,2,3]
   preprocess:
     state:

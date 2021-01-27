@@ -3,6 +3,7 @@ defaults:
   - envs: cartpole
 
 load_model: false
+retrain_model: false
 traj_model: t_opt2
 
 h_width: 5
@@ -16,11 +17,11 @@ num_training_points: 0
 n_iter: 1
 
 #initial number of trajectories to train on
-initial_num_trials: 5
+initial_num_trials: 100
 initial_num_trial_length: 250
 plan_trial_timesteps: 250
 #MPC samples
-num_random_configs: 10
+num_random_configs: 10000
 
 # number of MPC runs per iteration
 # runs MPC with horizon=plan_trial_timesteps/num_MPC_per_iter
