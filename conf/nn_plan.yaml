@@ -5,19 +5,20 @@ defaults:
 load_model: false
 retrain_model: false
 traj_model: t_opt2
+use_cmaes: true
 
 h_width: 5
-h_layers: 2
+h_layers: 1
 
 param_bounds: [-1, 1]
 
 #number of training points to randomly sample each retrain
 #set to 0 to train on all data_points
 num_training_points: 0
-n_iter: 1
+n_iter: 10
 
 #initial number of trajectories to train on
-initial_num_trials: 100
+initial_num_trials: 500
 initial_num_trial_length: 250
 plan_trial_timesteps: 250
 #MPC samples

@@ -315,9 +315,7 @@ class NN(Policy):
     def _action(self, x, obs, time, noise):
         action = (self.model.forward(torch.from_numpy(x).float())).detach().numpy()
         if (action[0] > 1):
-            print(action[0])
             return np.array([1])
         elif (action[0] < -1):
-            print(action[0])
             return np.array([-1])
         return action

@@ -17,6 +17,7 @@ from envs import *
 from policy import NN
 from dynamics_model import DynamicsModel
 import torch
+import cma
 
 log = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ def get_reward_cartpole(output_state):
     #             or theta > self.theta_threshold_radians)
     # return 1 if done else 0
     reward = output_state[0] ** 2 + output_state[2] ** 2
-    return -reward/200
+    return -reward/250
 
 def cum_reward(policies, model, initial_obs, horizon):
     '''
@@ -139,8 +140,6 @@ def cum_reward(policies, model, initial_obs, horizon):
     :param horizon: number of time steps to calculate for
     '''
     reward_sum = np.zeros(len(policies))
-    print(horizon)
-    print(len(policies))
     for i in range(horizon):
         big_dat = []
         for j in range(len(policies)):
@@ -157,9 +156,7 @@ def random_shooting_mpc_pool_helper(params):
     num_random_configs, model, obs, horizon, seed, num_params, lower_bound, higher_bound = params
     np.random.seed(seed)
     policies = []
-    print(num_random_configs)
     for i in range(num_random_configs):
-        log.info(f"Random configuration {i}")
         policy = np.random.rand(num_params) * (higher_bound - lower_bound) + lower_bound
         policies.append(policy)
     rewards = cum_reward(policies, model, obs, horizon)
@@ -187,6 +184,37 @@ def random_shooting_mpc(cfg, model, obs, horizon):
         function_inputs = [(num_random_configs // 10, model, obs, horizon, i, num_params, lower_bound, higher_bound) for i in range(10)]
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
     return max(out, key=lambda x: x[1])
+
+def cmaes_opt(cfg, model, obs, horizon):
+    n_in = cfg.env.state_size
+    n_out = cfg.env.action_size
+    h_width = cfg.h_width
+    h_layers = cfg.h_layers
+    lower_bound = cfg.param_bounds[0]
+    higher_bound = cfg.param_bounds[1]
+    num_params = n_in*h_width + 2*h_width + 1 + h_layers*(h_width*h_width + h_width)
+    def opt_func(policy_params):
+        reward_sum = 0
+        big_dat = []
+        for i in range(horizon):
+            dat = [obs, i+1]
+            dat.extend(policy_params)
+            big_dat.append(np.hstack(dat))
+        big_dat = np.vstack(big_dat)
+        output_states = model.predict(big_dat).numpy()
+        reward_sum += np.array([output_states[j][0] ** 2 + output_states[j][2] ** 2 for j in range(horizon)]).sum()
+        return reward_sum/horizon
+    opts = cma.CMAOptions()
+    opts.set('bounds', [[lower_bound]*num_params, [higher_bound]*num_params])
+    opts.set('tolfun', 1e-2)
+    #opts = {'bounds': [[lower_bound]*num_params, [higher_bound]*num_params], 'tolfun': 1e-7}
+    es = cma.CMAEvolutionStrategy(num_params*[0], 1, opts)
+    es.optimize(opt_func)
+    res = es.result.xbest
+    np.set_printoptions(threshold=np.inf)
+    print(res)
+    return res
+
 
 
 @hydra.main(config_path='conf/nn_plan.yaml')
@@ -253,7 +281,12 @@ def plan(cfg):
         horizon = int(cfg.plan_trial_timesteps / cfg.num_MPC_per_iter)
         for j in range(cfg.num_MPC_per_iter):
             # plan using MPC with random shooting optimizer
-            policy, policy_reward = random_shooting_mpc(cfg, model, obs, horizon)
+            if (cfg.use_cmaes):
+                policy = cmaes_opt(cfg, model, obs, horizon)
+            else:
+                policy, policy_reward = random_shooting_mpc(cfg, model, obs, horizon)
+            action, _ = nn_policy.act(obs)
+            print(action)
             nn_policy.update_params(policy)
             # collect data on trajectory
             logs = DotMap()
@@ -269,6 +302,7 @@ def plan(cfg):
                 # step in environment
                 action, _ = nn_policy.act(obs)
                 action = np.clip(action, -1, 1)
+                print(action)
 
                 next_obs, reward, done, info = env.step(action)
                 rews[i] += reward/cfg.plan_trial_timesteps
@@ -289,7 +323,6 @@ def plan(cfg):
             logs.actions = np.array(logs.actions)
             logs.rewards = np.array(logs.rewards)
             logs.states = np.array(logs.states)
-            print(logs)
 
             if not cfg.load_model and cfg.retrain_model:
                 data_in, data_out = create_dataset_traj([logs],

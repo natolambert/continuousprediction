@@ -559,7 +559,7 @@ def plan(cfg):
             for j in range(cfg.num_MPC_per_iter):
                 # plan using MPC with random shooting optimizer
                 policy, policy_reward = random_shooting_mpc(cfg, model, obs, horizon)
-
+                print(policy_reward)
                 # collect data on trajectory
                 logs = DotMap()
                 logs.states = []
@@ -578,6 +578,7 @@ def plan(cfg):
                         logs.K = policy.get_K()
 
                 for k in range(horizon):
+                    print(k)
                     # step in environment
                     if (cfg.action_plan):
                         action = policy[k]
