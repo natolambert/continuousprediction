@@ -112,7 +112,7 @@ def create_dataset_step(data, delta=True, t_range=0):
     return data_in, data_out
 
 
-def run_controller(env, horizon, policy):
+def run_controller(env, horizon, policy, random=False):
     """
     Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
 
@@ -130,12 +130,16 @@ def run_controller(env, horizon, policy):
     observation = env.reset()
     for i in range(horizon):
         # todo(action)
-        if (len(observation) < 5):
-            action, t = policy.act(observation)
+        if (random):
+            action = policy[i]
         else:
-            action, t = policy.act(np.arctan2(observation[5:10], observation[:5]))
+            if (len(observation) < 5):
+                action, t = policy.act(observation)
+            else:
+                action, t = policy.act(np.arctan2(observation[5:10], observation[:5]))
 
         next_obs, reward, done, info = env.step(action)
+        #env.render(mode="rgb_array")
 
         if done:
             return logs
@@ -149,6 +153,21 @@ def run_controller(env, horizon, policy):
     logs.actions = np.array(logs.actions)
     logs.rewards = np.array(logs.rewards)
     logs.states = np.array(logs.states)
+    return logs
+
+def collect_data_random(cfg, env):
+    logs = []
+    for i in range(cfg.initial_num_trials):
+        log.info('Trial %d' % i)
+        env.seed(i)
+        s0 = env.reset()
+
+        policy = np.random.uniform(-1, 1, cfg.initial_num_trial_length)
+
+        dotmap = run_controller(env, horizon=cfg.initial_num_trial_length, policy=policy, random=True)
+
+        logs.append(dotmap)
+
     return logs
 
 
@@ -268,17 +287,17 @@ def collect_data_reacher(cfg, env):
 
 
 def get_reward_cartpole(output_state):
-    # x_threshold = 9.6
-    # theta_threshold_radians = .418879  # 24 * 2 * math.pi / 360
-    # x = output_state[0]
-    # theta = output_state[2]
-    # done = bool(x < -self.x_threshold \
-    #             or x > self.x_threshold \
-    #             or theta < -self.theta_threshold_radians \
-    #             or theta > self.theta_threshold_radians)
-    # return 1 if done else 0
-    reward = output_state[0] ** 2 + output_state[2] ** 2
-    return -reward/200
+    x_threshold = 9.6
+    theta_threshold_radians = .418879  # 24 * 2 * math.pi / 360
+    x = output_state[0]
+    theta = output_state[2]
+    done = bool(x < -x_threshold \
+                or x > x_threshold \
+                or theta < -theta_threshold_radians \
+                or theta > theta_threshold_radians)
+    return 0 if done else 1
+    #reward = output_state[0] ** 2 + output_state[2] ** 2
+    return reward
 
 
 def get_reward(output_state, action):
@@ -397,10 +416,7 @@ def random_shooting_mpc_pool_helper(params):
                 K = np.random.uniform(LQR_optimal * 1.5, LQR_optimal * .5)
                 policy = LQR(np.zeros((4, 4)), np.zeros((4, 1)), np.zeros(4), 0, K=K)
             policies.append(policy)
-    if traj:
-        rewards = cum_reward(policies, model, obs, horizon, traj, action_plan, env_label)
-    else:
-        rewards = cum_reward_stacked(policies, model, obs, horizon, action_plan, env_label)
+    rewards = cum_reward(policies, model, obs, horizon, traj, action_plan, env_label)
     optimal_policy = policies[np.argmax(rewards)]
     if (action_plan or env_label == "cartpole"):
         return policies[np.argmax(rewards)], np.max(rewards)
@@ -461,7 +477,10 @@ def plan(cfg):
         if (env_label == "reacher"):
             exper_data = collect_data_reacher(cfg, env)
         elif (env_label == "cartpole"):
-            exper_data = collect_data_lqr(cfg, env)
+            if(cfg.random_training):
+                exper_data = collect_data_random(cfg, env)
+            else:
+                exper_data = collect_data_lqr(cfg, env)
 
         # Step 2: Learn dynamics model
         # probabilistic model, ensemble training booleans
@@ -508,7 +527,7 @@ def plan(cfg):
         # Code is split between replanning each time step vs. planning a set number of times per iteration
         # REPLAN ONCE EACH TIMESTEP
         if (cfg.num_MPC_per_iter == 0):
-            for j in range(cfg.trial_timesteps - 1):
+            for j in range(cfg.plan_trial_timesteps - 1):
                 if (j%50 == 0): log.info(f"Trial timestep: {j}")
                 # Plan using MPC with random shooting optimizer
 
@@ -527,7 +546,7 @@ def plan(cfg):
 
                 # step in environment
                 next_obs, reward, done, info = env.step(action)
-                rews[i] += reward/cfg.trial_timesteps
+                rews[i] += reward/cfg.plan_trial_timesteps
                 if done:
                     break
                 # If replanning each time step, using the trajectory model only makes sense without retraining (ie. multiple iterations)
@@ -555,11 +574,10 @@ def plan(cfg):
         # PLAN A SET NUMBER OF TIMES PER ITERATION
         else:
             # horizon is based on number of times to plan on each trajectory
-            horizon = int(cfg.trial_timesteps / cfg.num_MPC_per_iter)
+            horizon = int(cfg.plan_trial_timesteps / cfg.num_MPC_per_iter)
             for j in range(cfg.num_MPC_per_iter):
                 # plan using MPC with random shooting optimizer
                 policy, policy_reward = random_shooting_mpc(cfg, model, obs, horizon)
-                print(policy_reward)
                 # collect data on trajectory
                 logs = DotMap()
                 logs.states = []
@@ -578,10 +596,10 @@ def plan(cfg):
                         logs.K = policy.get_K()
 
                 for k in range(horizon):
-                    print(k)
                     # step in environment
                     if (cfg.action_plan):
                         action = policy[k]
+                        print(action)
                     else:
                         if (env_label == "reacher"):
                             action, _ = policy.act(np.arctan2(obs[5:10], obs[:5]))
@@ -590,7 +608,8 @@ def plan(cfg):
                         action = np.clip(action, -1, 1)
 
                     next_obs, reward, done, info = env.step(action)
-                    rews[i] += reward/cfg.trial_timesteps
+                    #env.render()
+                    rews[i] += reward
 
                     if done:
                         break

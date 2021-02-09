@@ -21,6 +21,8 @@ initial_num_trial_length: 250
 plan_trial_timesteps: 250
 #MPC samples
 num_random_configs: 1000
+#FOR CARTPOLE AND ONESTEP ONLY: train with LQR or random actions
+random_training: True
 
 # number of MPC runs per iteration
 # runs MPC with horizon=plan_trial_timesteps/num_MPC_per_iter

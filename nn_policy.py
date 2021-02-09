@@ -18,6 +18,8 @@ from policy import NN
 from dynamics_model import DynamicsModel
 import torch
 import cma
+import pickle
+import cv2
 
 log = logging.getLogger(__name__)
 
@@ -119,17 +121,17 @@ def collect_data(cfg, env):
     return logs
 
 def get_reward_cartpole(output_state):
-    # x_threshold = 9.6
-    # theta_threshold_radians = .418879  # 24 * 2 * math.pi / 360
-    # x = output_state[0]
-    # theta = output_state[2]
-    # done = bool(x < -self.x_threshold \
-    #             or x > self.x_threshold \
-    #             or theta < -self.theta_threshold_radians \
-    #             or theta > self.theta_threshold_radians)
-    # return 1 if done else 0
-    reward = output_state[0] ** 2 + output_state[2] ** 2
-    return -reward/250
+    x_threshold = 9.6
+    theta_threshold_radians = .418879  # 24 * 2 * math.pi / 360
+    x = output_state[0]
+    theta = output_state[2]
+    done = bool(x < -x_threshold \
+                or x > x_threshold \
+                or theta < -theta_threshold_radians \
+                or theta > theta_threshold_radians)
+    return 0 if done else 1
+    #reward = np.exp(output_state[0] ** 2 + output_state[2] ** 2)
+    return reward
 
 def cum_reward(policies, model, initial_obs, horizon):
     '''
@@ -185,7 +187,8 @@ def random_shooting_mpc(cfg, model, obs, horizon):
         out = p.map(random_shooting_mpc_pool_helper, function_inputs)
     return max(out, key=lambda x: x[1])
 
-def cmaes_opt(cfg, model, obs, horizon):
+def cmaes_opt(cfg, model, obs, horizon, no_est = False, nn_policy = None, env = None):
+    print("running cmaes")
     n_in = cfg.env.state_size
     n_out = cfg.env.action_size
     h_width = cfg.h_width
@@ -193,8 +196,25 @@ def cmaes_opt(cfg, model, obs, horizon):
     lower_bound = cfg.param_bounds[0]
     higher_bound = cfg.param_bounds[1]
     num_params = n_in*h_width + 2*h_width + 1 + h_layers*(h_width*h_width + h_width)
+    def opt_func_env(policy_params):
+        # version of the objective function w/out dynamics estimation
+        nn_policy.update_params(policy_params)
+        observation = env.reset(initial = obs)
+        reward_sum = 0
+        for i in range(horizon):
+            action, _ = nn_policy.act(observation)
+
+            next_obs, reward, done, info = env.step(action)
+            reward_sum -= reward
+
+            if done:
+                break
+            observation = next_obs
+        return reward_sum
+
     def opt_func(policy_params):
         reward_sum = 0
+        reward_array = np.zeros(horizon)
         big_dat = []
         for i in range(horizon):
             dat = [obs, i+1]
@@ -202,20 +222,44 @@ def cmaes_opt(cfg, model, obs, horizon):
             big_dat.append(np.hstack(dat))
         big_dat = np.vstack(big_dat)
         output_states = model.predict(big_dat).numpy()
-        reward_sum += np.array([output_states[j][0] ** 2 + output_states[j][2] ** 2 for j in range(horizon)]).sum()
-        return reward_sum/horizon
+        reward_array = np.array([get_reward_cartpole(output_states[j]) for j in range(horizon)])
+        return -1*reward_array.sum()
     opts = cma.CMAOptions()
-    opts.set('bounds', [[lower_bound]*num_params, [higher_bound]*num_params])
-    opts.set('tolfun', 1e-2)
+    opts.set('tolfun', 1)
     #opts = {'bounds': [[lower_bound]*num_params, [higher_bound]*num_params], 'tolfun': 1e-7}
     es = cma.CMAEvolutionStrategy(num_params*[0], 1, opts)
-    es.optimize(opt_func)
+    if (no_est):
+        es.optimize(opt_func_env)
+    else:
+        es.optimize(opt_func)
     res = es.result.xbest
-    np.set_printoptions(threshold=np.inf)
-    print(res)
     return res
 
-
+def save_vid_est(initial_obs, policy_params, iter, cfg, env, model):
+    '''
+    helper function for saving videos of estimated trajectories
+    :param initial_obs: initial observation
+    :param nn_policy: policy used for action
+    :param iter: current iteration for file name
+    :param cfg: config file
+    :param env: environment object
+    :param model: model used for dynamics estimation
+    '''
+    f = hydra.utils.get_original_cwd() + '/opt_traj/traj'
+    video_name = f + cfg.dir_traj_vid + '_iter' + str(iter) + '_' + cfg.dir_traj_est + '.mp4'
+    frame = cv2.cvtColor(env.render_est(initial_obs, mode="rgb_array"), cv2.COLOR_BGR2RGB)
+    height, width, layers = frame.shape
+    video = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (width, height))
+    big_dat = []
+    for i in range(cfg.plan_trial_timesteps):
+        dat = [initial_obs, i+1]
+        dat.extend(policy_params)
+        big_dat.append(np.hstack(dat))
+    big_dat = np.vstack(big_dat)
+    output_states = model.predict(big_dat).numpy()
+    for i in range(cfg.plan_trial_timesteps):
+        video.write(cv2.cvtColor(env.render_est(output_states[i], mode="rgb_array"), cv2.COLOR_BGR2RGB))
+    video.release()
 
 @hydra.main(config_path='conf/nn_plan.yaml')
 def plan(cfg):
@@ -241,7 +285,7 @@ def plan(cfg):
     if cfg.load_model:
         f = hydra.utils.get_original_cwd() + '/models/' + env_label + '/'
         model = torch.load(f + cfg.traj_model + '.dat')
-    else:
+    elif (not cfg.no_est):
         log.info("Collecting initial data")
         exper_data = collect_data(cfg, env)
 
@@ -253,6 +297,8 @@ def plan(cfg):
         model = DynamicsModel(cfg, nn_policy_param_size=num_params)
         dataset = create_dataset_traj(exper_data,
                                     t_range=cfg.initial_num_trial_length)
+    else:
+        model = 0
 
     # retrain for n_iter iterations
     rews = np.zeros(cfg.n_iter)
@@ -260,7 +306,7 @@ def plan(cfg):
     for i in range(cfg.n_iter):
         log.info(f"Iteration {i}")
 
-        if not cfg.load_model:
+        if not cfg.load_model and not cfg.no_est:
             if i==0 or cfg.retrain_model:
                 # shuffle dataset each iteration to avoid retraining on the same data points -> overfitting
                 shuffle_idxs = np.arange(0, dataset[0].shape[0], 1)
@@ -275,6 +321,9 @@ def plan(cfg):
                 log.info(f"Training model P:{prob}, E:{ens}")
                 # train model
                 train_logs, test_logs = model.train(training_dataset, cfg)
+                if cfg.save_model:
+                    f = hydra.utils.get_original_cwd() + '/models/' + env_label + '/'
+                    torch.save(model, f + cfg.traj_model + '.dat')
 
         # initial observation
         obs = env.reset()
@@ -282,12 +331,12 @@ def plan(cfg):
         for j in range(cfg.num_MPC_per_iter):
             # plan using MPC with random shooting optimizer
             if (cfg.use_cmaes):
-                policy = cmaes_opt(cfg, model, obs, horizon)
+                policy = cmaes_opt(cfg, model, obs, horizon, no_est = cfg.no_est, nn_policy = nn_policy, env = env)
             else:
                 policy, policy_reward = random_shooting_mpc(cfg, model, obs, horizon)
-            action, _ = nn_policy.act(obs)
-            print(action)
             nn_policy.update_params(policy)
+            if (cfg.save_video_est):
+                save_vid_est(obs, policy, i, cfg, env, model)
             # collect data on trajectory
             logs = DotMap()
             logs.states = []
@@ -296,16 +345,23 @@ def plan(cfg):
             logs.times = []
 
             logs.params = policy
-
+            obs = env.reset(initial = obs)
+            if(cfg.save_video):
+                f = hydra.utils.get_original_cwd() + '/opt_traj/traj'
+                video_name = f + cfg.dir_traj_vid + '_iter' + str(i) + '.mp4'
+                frame = cv2.cvtColor(env.render(mode="rgb_array"), cv2.COLOR_BGR2RGB)
+                height, width, layers = frame.shape
+                video = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (width, height))
             for k in range(horizon):
                 log.info(f"Time step: {k}")
                 # step in environment
                 action, _ = nn_policy.act(obs)
                 action = np.clip(action, -1, 1)
-                print(action)
 
                 next_obs, reward, done, info = env.step(action)
-                rews[i] += reward/cfg.plan_trial_timesteps
+                if (cfg.save_video):
+                    video.write(cv2.cvtColor(env.render(mode="rgb_array"), cv2.COLOR_BGR2RGB))
+                rews[i] += reward
 
                 if done:
                     break
@@ -319,7 +375,8 @@ def plan(cfg):
                 # don't collect last observation, does not make sense when creating dataset
                 if (j == cfg.num_MPC_per_iter - 1 and k == horizon - 1):
                     continue
-
+            if (cfg.save_video):
+                video.release()
             logs.actions = np.array(logs.actions)
             logs.rewards = np.array(logs.rewards)
             logs.states = np.array(logs.states)
