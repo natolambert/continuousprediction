@@ -2,7 +2,8 @@ defaults:
   - models: d
   - envs: cartpole
 
-load_model: false
+load_model: true
+save_model: false
 step_model: d_opt
 traj_model: t_opt2
 

@@ -75,7 +75,9 @@ def run_controller(env, horizon, policy):
 
         next_obs, reward, done, info = env.step(action)
 
-        if done:
+        done = get_reward_cartpole(next_obs)
+
+        if done == 0:
             logs.actions = np.array(logs.actions)
             logs.rewards = np.array(logs.rewards)
             logs.states = np.array(logs.states)
@@ -130,8 +132,6 @@ def get_reward_cartpole(output_state):
                 or theta < -theta_threshold_radians \
                 or theta > theta_threshold_radians)
     return 0 if done else 1
-    #reward = np.exp(output_state[0] ** 2 + output_state[2] ** 2)
-    return reward
 
 def cum_reward(policies, model, initial_obs, horizon):
     '''
@@ -235,7 +235,7 @@ def cmaes_opt(cfg, model, obs, horizon, no_est = False, nn_policy = None, env = 
     res = es.result.xbest
     return res
 
-def save_vid_est(initial_obs, policy_params, iter, cfg, env, model):
+def save_vid_est(initial_obs, policy_params, iter, cfg, env, model, video = None):
     '''
     helper function for saving videos of estimated trajectories
     :param initial_obs: initial observation
@@ -247,9 +247,13 @@ def save_vid_est(initial_obs, policy_params, iter, cfg, env, model):
     '''
     f = hydra.utils.get_original_cwd() + '/opt_traj/traj'
     video_name = f + cfg.dir_traj_vid + '_iter' + str(iter) + '_' + cfg.dir_traj_est + '.mp4'
+    file = f + cfg.dir_traj_state_action + '_iter' + str(iter) + '_' + cfg.dir_traj_est + '.dat'
+    states_actions_dict = {}
+    states = np.array([])
     frame = cv2.cvtColor(env.render_est(initial_obs, mode="rgb_array"), cv2.COLOR_BGR2RGB)
     height, width, layers = frame.shape
-    video = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (width, height))
+    if (video == None):
+        video = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (width, height))
     big_dat = []
     for i in range(cfg.plan_trial_timesteps):
         dat = [initial_obs, i+1]
@@ -257,9 +261,21 @@ def save_vid_est(initial_obs, policy_params, iter, cfg, env, model):
         big_dat.append(np.hstack(dat))
     big_dat = np.vstack(big_dat)
     output_states = model.predict(big_dat).numpy()
-    for i in range(cfg.plan_trial_timesteps):
-        video.write(cv2.cvtColor(env.render_est(output_states[i], mode="rgb_array"), cv2.COLOR_BGR2RGB))
-    video.release()
+
+    if (video == None):
+        video.write(cv2.cvtColor(env.render_est(initial_obs, mode="rgb_array"), cv2.COLOR_BGR2RGB))
+    np.append(states, initial_obs)
+    if (cfg.replan_per_timestep):
+        video.write(cv2.cvtColor(env.render_est(output_states[0], mode="rgb_array"), cv2.COLOR_BGR2RGB))
+    else:
+        for i in range(cfg.plan_trial_timesteps):
+            np.append(states, output_states[i])
+            video.write(cv2.cvtColor(env.render_est(output_states[i], mode="rgb_array"), cv2.COLOR_BGR2RGB))
+    #video.release()
+    #TODO: FIX THE STATES HERE LATER
+    states_actions_dict['states'] = states
+    pickle.dump(states_actions_dict, open(file, "wb"))
+    return video
 
 @hydra.main(config_path='conf/nn_plan.yaml')
 def plan(cfg):
@@ -327,8 +343,13 @@ def plan(cfg):
 
         # initial observation
         obs = env.reset()
-        horizon = int(cfg.plan_trial_timesteps / cfg.num_MPC_per_iter)
+        if (cfg.horizon == 0):
+            horizon = int(cfg.plan_trial_timesteps / cfg.num_MPC_per_iter)
+        else:
+            horizon = cfg.horizon
         for j in range(cfg.num_MPC_per_iter):
+            if (cfg.replan_per_timestep):
+                log.info(f"TIME STEP {j}")
             # plan using MPC with random shooting optimizer
             if (cfg.use_cmaes):
                 policy = cmaes_opt(cfg, model, obs, horizon, no_est = cfg.no_est, nn_policy = nn_policy, env = env)
@@ -336,7 +357,10 @@ def plan(cfg):
                 policy, policy_reward = random_shooting_mpc(cfg, model, obs, horizon)
             nn_policy.update_params(policy)
             if (cfg.save_video_est):
-                save_vid_est(obs, policy, i, cfg, env, model)
+                if (j == 0):
+                    video_est = save_vid_est(obs, policy, i, cfg, env, model)
+                else:
+                    video_est = save_vid_est(obs, policy, i, cfg, env, model, video = video_est)
             # collect data on trajectory
             logs = DotMap()
             logs.states = []
@@ -346,22 +370,31 @@ def plan(cfg):
 
             logs.params = policy
             obs = env.reset(initial = obs)
-            if(cfg.save_video):
+            if(cfg.save_video and j == 0):
                 f = hydra.utils.get_original_cwd() + '/opt_traj/traj'
+                file = f + cfg.dir_traj_state_action + '_iter' + str(iter) + '_' + cfg.dir_traj_est + '.dat'
+                states_actions_dict = {}
+                states = np.array([])
+                actions = np.array([])
                 video_name = f + cfg.dir_traj_vid + '_iter' + str(i) + '.mp4'
                 frame = cv2.cvtColor(env.render(mode="rgb_array"), cv2.COLOR_BGR2RGB)
                 height, width, layers = frame.shape
                 video = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (width, height))
+            if (j==0):
+                video.write(cv2.cvtColor(env.render(mode="rgb_array"), cv2.COLOR_BGR2RGB))
+            np.append(states, obs)
             for k in range(horizon):
-                log.info(f"Time step: {k}")
+                if (not cfg.replan_per_timestep):
+                    log.info(f"Time step: {k}")
                 # step in environment
                 action, _ = nn_policy.act(obs)
                 action = np.clip(action, -1, 1)
-
                 next_obs, reward, done, info = env.step(action)
                 if (cfg.save_video):
+                    np.append(states, next_obs)
+                    np.append(actions, action)
                     video.write(cv2.cvtColor(env.render(mode="rgb_array"), cv2.COLOR_BGR2RGB))
-                rews[i] += reward
+                rews[i] += get_reward_cartpole(next_obs)
 
                 if done:
                     break
@@ -372,11 +405,12 @@ def plan(cfg):
                 logs.states.append(obs.squeeze())
                 # set next observation
                 obs = next_obs
+                if (cfg.replan_per_timestep):
+                    break
                 # don't collect last observation, does not make sense when creating dataset
                 if (j == cfg.num_MPC_per_iter - 1 and k == horizon - 1):
                     continue
-            if (cfg.save_video):
-                video.release()
+
             logs.actions = np.array(logs.actions)
             logs.rewards = np.array(logs.rewards)
             logs.states = np.array(logs.states)
@@ -388,6 +422,12 @@ def plan(cfg):
             if done:
                 break
 
+        if (cfg.save_video):
+            video_est.release()
+            video.release()
+            states_actions_dict['states'] = states
+            states_actions_dict['actions'] = actions
+            pickle.dump(states_actions_dict, open(file, 'wb'))
 
         log.info(f"Final cumulative reward: {rews[i]}")
 

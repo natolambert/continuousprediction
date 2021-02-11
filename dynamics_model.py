@@ -325,6 +325,9 @@ class Net(nn.Module):
         if 0 < cfg.model.optimizer.max_size < len(dataset):
             import random
             if not self.is_lstm:
+                print("DATASET BIGGER THAN MAX SIZE")
+                print(len(dataset))
+                print(cfg.model.optimizer.max_size)
                 dataset = random.sample(dataset, cfg.model.optimizer.max_size)
             else:
                 # lstm must be batched by sequence length

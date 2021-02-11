@@ -516,6 +516,9 @@ def plan(cfg):
                 log.info(f"Training model P:{prob}, E:{ens}")
                 # train model
                 train_logs, test_logs = model.train(training_dataset, cfg)
+                if cfg.save_model:
+                    f = hydra.utils.get_original_cwd() + '/models/' + env_label + '/'
+                    torch.save(model, f + cfg.traj_model + '.dat' if traj else f+ cfg.step_model + '.dat')
 
         # initial observation
         obs = env.reset()
