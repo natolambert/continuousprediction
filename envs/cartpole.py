@@ -148,7 +148,7 @@ class CartPoleContEnv(gym.Env):
         #     reward = -10000
         # else:
         #reward = -(self.state[0] ** 2 + self.state[2] ** 2)
-        return np.array(self.state), reward, False, {}
+        return np.array(self.state), reward, done, {}
 
     def reset(self, initial = None):
         if np.all(initial == None):
@@ -199,9 +199,6 @@ class CartPoleContEnv(gym.Env):
             self.viewer.add_geom(self.track)
 
             self._pole_geom = pole
-
-        if self.state is None:
-            return None
 
         # Edit the pole polygon vertex
         pole = self._pole_geom

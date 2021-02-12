@@ -2,62 +2,58 @@ defaults:
   - models: t
   - envs: cartpole
 
-#EVALUATION PARAMS
-plot: false
+random_seed: 0
 
-load_model: false
-save_model: false
-retrain_model: false
-# TRAJ_MODELS
+# Save of all the runs (should move this to a README)
+# opt_run1: save 100 policies optimized with real dynamics for training
+# opt_run2: trained and saved model on opt_run1 policies
+# opt_run3: test run, can replace
+
+#DIRECTORY CONFIG
+run_name: opt_run2
+# TRAJ_MODELS (USE THE NEW WAY OF SAVING MODELS INSTEAD, BUT KEEP THESE)
 # t_opt2_no_hidden (trajectory model with no hidden layers in NN policy trained with states before done)
 # t_opt2 (trajectory model trained with all states)
 # t_opt2_done (trajecotry model trained with states before done)
-traj_model: t_opt2_replan
-use_cmaes: true
-# whether or not the dynamics model is used when optimizing cmaes
-no_est: false
+# one_step (one step model)
 
-save_video: true
-save_video_est: true
-dir_traj_est: est
-dir_traj_vid: t_opt_vid
-dir_traj_state_action: t_opt_dict
-dir_model_eval_vid: model_eval_vid
-dir_model_prediction: eval_model
+#EVALUATION CONFIG
+eval_dir: opt_run2
+#EVALUATION: DYNAMICS MODEL
+do_eval: false # whether or not to evaluate the model
+eval_trials: 1000 # number of trials to evaluate
+eval_trial_length: 250 # length of each trial
+plot_dynamics: true # whether or not to plot different evaluations
+plot_dir: ['one_step', 't_opt2_no_hidden', 'opt_run2'] # name of evals to plot
 
+#MODEL CONFIG
+train_model: false # do we need to train a new model
+load_model: true # do we load a previous model
+load_model_name: opt_run2
+save_model: false # if we train a new model, do we save it
+# if (train_model and load_model) == True, then we will load a model
+# have to either load or train a model
+
+#MODEL TRAINING CONFIG
+initial_num_trials: 100 # number of training trajectories
+initial_num_trial_length: 250 # length of training trajectories
+train_data: true # train with the specified runs
+train_data_dir: opt_run1 # training data directory
+
+
+#NN POLICY CONFIG
 h_width: 5
 h_layers: 0
-
 param_bounds: [-1, 1]
 
-#number of training points to randomly sample each retrain
-#set to 0 to train on all data_points
-num_training_points: 0
-n_iter: 10
+#OPTIMIZER + RUN CONFIG
+n_iter: 10 # number of times to optimize + run with the policy
+no_est: false # whether or not the dynamics model is used when optimizing cmaes
+plan_trial_timesteps: 250 # horizon of the optimization and the run
+save_policies: true # save the policy we get from optimization
+save_states: true # save the states we get from each run
+save_rews: true # save the cumulative rewards we get from each run
 
-#initial number of trajectories to train on
-initial_num_trials: 100
-initial_num_trial_length: 250
-plan_trial_timesteps: 200
-eval_trials: 1
-eval_trial_length: 250
-#MPC samples
-num_random_configs: 10000
-
-# number of MPC runs per iteration
-# runs MPC with horizon=plan_trial_timesteps/num_MPC_per_iter
-# if set to 0, will run MPC once every time step with horizon equal to value set below
-# normally set to 0 or 1
-num_MPC_per_iter: 200
-# set this if replanning every time step
-horizon: 100
-replan_per_timestep: true
-
-#only used for one-step
-#use PID parameters to plan rather than random actions
-action_plan: false
-
-random_seed: 0
 
 hydra:
   run:
@@ -71,3 +67,20 @@ hydra:
         kv_sep: '='
         item_sep: ','
         exclude_keys: [ 'random_seed' ]
+
+# TO BE DELETED SOON
+# estimation vs. actual dynamics
+dir_traj_est: est
+# video of trajectory
+dir_traj_vid: t_opt_vid
+# log of states and actions
+dir_traj_state_action: t_opt_dict
+# Evaluation logs
+dir_model_eval_vid: model_eval_vid
+dir_model_prediction: eval_model
+#MPC samples
+num_random_configs: 10000
+num_MPC_per_iter: 1
+# set this if replanning every time step
+horizon: 0
+replan_per_timestep: false
