@@ -7,7 +7,7 @@ model:
   gp: false
   lstm: false
   training:
-    hid_width: 250
+    hid_width: 64
     hid_depth: 2
     E: 1
     # Note: these do nothing for non trajectory based models

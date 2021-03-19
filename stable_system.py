@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 import numpy as np
 from dotmap import DotMap
 
-import mujoco_py
+# import mujoco_py
 import torch
 
 import gym
@@ -120,7 +120,17 @@ def collect_data_ss(cfg, plot=False):  # Creates horizon^2/2 points
 
     env_model = cfg.env.name
     env = gym.make(env_model)
-    env.setup(cfg)
+    pole = cfg.env.params.pole
+
+    def reset_env(pole, cfg):
+        # pole = cfg.env.params.A
+        print(f"Generating Matrix with poles {pole}")
+        rand_vals = np.random.uniform(-1, 1, size=(3,))
+        A = [[pole, rand_vals[0], rand_vals[1]], [0, pole, rand_vals[2]], [0, 0, pole]]
+        cfg.env.params.A = A
+        B = np.random.uniform(-1, 1, size=(3, 1)).tolist()
+        cfg.env.params.B = B
+        return cfg
 
     # if (cfg.video):
     # env = Monitor(env, hydra.utils.get_original_cwd() + '/trajectories/reacher/video',
@@ -133,6 +143,10 @@ def collect_data_ss(cfg, plot=False):  # Creates horizon^2/2 points
 
     s = np.random.randint(0, 100)
     for i in range(cfg.num_trials):
+        if pole is not None:
+            cfg = reset_env(pole, cfg)
+            env.setup(cfg)
+
         log.info('Trial %d' % i)
         if (cfg.PID_test):
             env.seed(0)
@@ -183,15 +197,15 @@ def contpred(cfg):
 
         log.info("Saving new default data")
         torch.save((exper_data, test_data),
-                   hydra.utils.get_original_cwd() + '/trajectories/ss/' + 'raw' + cfg.data_dir)
-        log.info(f"Saved trajectories to {'/trajectories/ss/' + 'raw' + cfg.data_dir}")
+                   hydra.utils.get_original_cwd() + '/trajectories/ss/' + str(cfg.env.params.pole) + cfg.data_dir)
+        log.info(f"Saved trajectories to {'/trajectories/ss/' + str(cfg.env.params.pole) + cfg.data_dir}")
     # Load data
     else:
         log.info(f"Loading default data")
         # raise ValueError("Current Saved data old format")
         # Todo re-save data
         (exper_data, test_data) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/ss/' + 'raw' + cfg.data_dir)
+            hydra.utils.get_original_cwd() + '/trajectories/ss/' + str(cfg.env.params.pole) + cfg.data_dir)
 
     if cfg.mode == 'train':
         it = range(cfg.copies) if cfg.copies else [0]
@@ -223,11 +237,11 @@ def contpred(cfg):
             model = DynamicsModel(cfg, env="SS")
             train_logs, test_logs = model.train(dataset, cfg)
 
-            setup_plotting({cfg.model.str: model})
-            plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
+            # setup_plotting({cfg.model.str: model})
+            # plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
 
             log.info("Saving new default models")
-            f = hydra.utils.get_original_cwd() + '/models/ss/'
+            f = hydra.utils.get_original_cwd() + '/models/ss/' +str(cfg.env.params.pole)
             if cfg.exper_dir:
                 f = f + cfg.exper_dir + '/'
                 if not os.path.exists(f):

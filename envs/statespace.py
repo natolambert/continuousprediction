@@ -34,8 +34,8 @@ class StateSpaceEnv(gym.Env):
         self.du = np.shape(b)[1]
         self.dy = np.shape(c)[0]
 
-        low_a = np.ones((self.du)) * 10
-        high_a = np.ones((self.du)) * 10
+        low_a = np.ones((self.du)) * 1
+        high_a = np.ones((self.du)) * 1
         self.action_space = self.action_space = spaces.Box(low=low_a,
                                                            high=high_a,
                                                            dtype=np.float32)
@@ -63,7 +63,9 @@ class StateSpaceEnv(gym.Env):
             raise ValueError("System not yet passed")
         # self.last_action = action
         last_state = self.state
-        self.state = np.matmul(self.sys.A, last_state) + np.matmul(self.sys.B, action).reshape(self.dx,1)
+        self.state = np.matmul(self.sys.A, last_state) + np.matmul(self.sys.B, action).reshape(self.dx, 1)
+        if self.cfg.params.noise:
+            self.state += self.np_random.uniform(low=-.01, high=.01, size=(self.dx, 1))
         obs = self.get_obs()
         reward = self.get_reward(self.state, action)
         done = False
@@ -74,6 +76,6 @@ class StateSpaceEnv(gym.Env):
         return -(np.mean(next_ob) ** 2 + np.mean(action) ** 2)
 
     def reset(self):
-        self.state = self.np_random.uniform(low=-1, high=1, size=(self.dx,1))
+        self.state = self.np_random.uniform(low=-1, high=1, size=(self.dx, 1))
         # return np.array(self.state
         return self.get_obs()

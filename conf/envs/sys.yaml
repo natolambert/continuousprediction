@@ -1,4 +1,3 @@
-
 env:
   name: statespace-v0
   label: ss
@@ -7,15 +6,17 @@ env:
   param_size: 0
   target_size: 0
   params:
+    pole: 0.5
     A: [[.5, 1, -2], [0, .75, 3], [0, 0, .85]]
     B: [[0], [0], [0]]
     C: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
     D: [[0],[0],[0]]
     dt: .001
     variance: .1
+    noise: true
 
 num_trials: 100
-trial_timesteps: 1000
+trial_timesteps: 100
 #data_dir: l100_t100_v0.dat # v4 is normal l200 l400_t1250_v1.dat #
 data_dir: l1000_t100_test.dat # v4 is normal l200 l400_t1250_v1.dat #
 

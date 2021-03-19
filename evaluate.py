@@ -284,7 +284,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
     variances = {key: np.stack(variances[key]).transpose([1, 0, 2]) for key in variances}
     predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
 
-    # MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
+    MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
 
     MSEscaled = {}
     for key in predictions:
@@ -310,6 +310,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         MSEscaled[key] = np.square(scaled_states - scaled_pred).mean(axis=2)[:, 1:]
         # print(key)
         # print(np.sum(np.sum(MSEscaled[key])))
+    # for state-space systems
+    MSEscaled = MSEs
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
     #     predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in predictions} # vectorized verion
@@ -470,7 +472,25 @@ def evaluate(cfg):
     graph_file = 'Plots'
     os.mkdir(graph_file)
 
-    if not name == 'lorenz':
+    if name == 'ss':
+        log.info(f"Loading default data")
+        (train_data, test_data) = torch.load(
+            hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + str(cfg.env.params.pole) + cfg.data_dir)
+
+        if cfg.plotting.train_set:
+            test_data = train_data
+
+        # Load models
+
+        model_types = cfg.plotting.models
+        models = {}
+        f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/'
+        for model_type in model_types:
+            model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
+            models[model_type] = torch.load(f + str(cfg.env.params.pole)+model_str + ".dat")
+
+
+    elif not name == 'lorenz':
         # Load test data
         log.info(f"Loading default data")
         (train_data, test_data) = torch.load(
@@ -549,7 +569,7 @@ def evaluate(cfg):
                 mse = {key: np.median(mse_all[key], axis=0) for key in mse_all}
             else:
                 mse = {key: MSEs[key][i].squeeze() for key in MSEs}
-            mse_sub = {key: [(x if x < 10 ** 5 else float("nan")) for x in mse[key]] for key in mse}
+            mse_sub = {key: [(x if x < 10 ** 8 else float("nan")) for x in mse[key]] for key in mse}
             if not cfg.plotting.copies:
                 pred = {key: predictions[key][i] for key in predictions}
                 var = {key: variances[key][i] for key in variances}
@@ -570,6 +590,8 @@ def evaluate(cfg):
 
                     gt = gt[:, [0, 1, 2, 3, 4, 5, 6, 7, 8]]
                     idx = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+                elif name == 'ss':
+                    idx = [0,1,2]
 
                 if cfg.plotting.states:
                     # if
@@ -597,7 +619,8 @@ def evaluate(cfg):
             y_min = .0001
 
         plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
-                     show=True, y_min=y_min, y_max=cfg.plotting.mse_y_max, legend=cfg.plotting.legend)
+                     show=True, y_min=y_min, legend=cfg.plotting.legend)
+                        # show = True, y_min = y_min, y_max = cfg.plotting.mse_y_max, legend = cfg.plotting.legend)
         # turn show off here
 
         mse_all = {key: [] for key in cfg.plotting.models}

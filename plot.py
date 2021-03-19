@@ -606,7 +606,10 @@ def add_marker(err_traces, color=[], symbol=None, skip=None):
     return err_traces
 
 
-def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_min=.05, y_max=1e4, legend=False):
+# def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_min=.05, y_max=1e4, legend=False):
+def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None, y_min=.01, y_max=1e7,
+                     legend=False):
+
     assert setup, "Must run setup_plotting before this function"
 
     arrays = []
@@ -637,7 +640,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     layout = dict(  # title=title if title else f"Average Error over Run",
         xaxis={'title': 'Prediction Step'},  # 2e-9, 5
-        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(5)]},
+        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(10)]},# 25]}, # np.log10(5)
         # [np.log10(y_min), np.log10(y_max)]},
         yaxis_type="log",
         xaxis_showgrid=False, yaxis_showgrid=False,
