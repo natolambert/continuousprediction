@@ -43,7 +43,7 @@ plotting:
 #  - lstm_d
 #  - rnn
   num_eval_train: 0
-  num_eval_test: 10
+  num_eval_test: 100
   train_set: false
   plot_states: false
   all: false

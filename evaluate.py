@@ -102,8 +102,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         target = target.reshape((len(test_data), -1))
 
         states = np.stack(states)
-
-    elif env == 'ss':
+    elif 'ss' in env:
         for traj in test_data:
             states.append(traj.states)
             actions.append(traj.actions)
@@ -472,7 +471,7 @@ def evaluate(cfg):
     graph_file = 'Plots'
     os.mkdir(graph_file)
 
-    if name == 'ss':
+    if name == 'ss' or name == 'ss2':
         log.info(f"Loading default data")
         (train_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + str(cfg.env.params.pole) + cfg.data_dir)
@@ -590,7 +589,7 @@ def evaluate(cfg):
 
                     gt = gt[:, [0, 1, 2, 3, 4, 5, 6, 7, 8]]
                     idx = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-                elif name == 'ss':
+                elif 'ss' in name:
                     idx = [0,1,2]
 
                 if cfg.plotting.states:
