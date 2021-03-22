@@ -62,9 +62,9 @@ class CartPoleContEnv(gym.Env):
     def __init__(self):
         self.gravity = 9.8
         self.masscart = 1.0
-        self.masspole = 0.1
+        self.masspole = 2*0.1
         self.total_mass = (self.masspole + self.masscart)
-        self.length = 0.5  # actually half the pole's length
+        self.length = 0.5*0.5  # actually half the pole's length
         self.polemass_length = (self.masspole * self.length)
         self.force_mag = 10.0
         self.tau = 0.02  # seconds between state updates

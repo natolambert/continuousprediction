@@ -14,7 +14,12 @@ register(
     # max_episode_steps=500,
     # reward_threshold=-200,
 )
-
+register(
+    id='Cartpole-mod-v0',
+    entry_point='envs.cartpole_mod:CartPoleContEnv',
+    # max_episode_steps=500,
+    # reward_threshold=-200,
+)
 
 register(
     id='Crazyflie-v0',

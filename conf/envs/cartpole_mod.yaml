@@ -1,6 +1,6 @@
 env:
-  name: Cartpole-v0
-  label: cartpole
+  name: Cartpole-mod-v0
+  label: cartpole-mod
   state_size: 4
   action_size: 1
   param_size: 4
@@ -10,7 +10,7 @@ data_dir: l100_t100_compound_fb.dat #l200_t100_chaotic.dat #l200_t100_v4.dat # v
 num_trials: 100
 trial_timesteps: 100
 data_mode: set
-K: [ -1.49977814,  -4.78848863, -37.30568393,  -7.96699431]
+K: [ -0.67341968,  -3.77266595, -29.3239967,   -4.10929736]
 ignore_done: true
 
 model:

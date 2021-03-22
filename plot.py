@@ -640,7 +640,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     layout = dict(  # title=title if title else f"Average Error over Run",
         xaxis={'title': 'Prediction Step'},  # 2e-9, 5
-        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), 45]},# 25]}, # np.log10(5)
+        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(5)]},# 25]}, #
         # [np.log10(y_min), np.log10(y_max)]},
         yaxis_type="log",
         xaxis_showgrid=False, yaxis_showgrid=False,

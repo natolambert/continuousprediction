@@ -72,7 +72,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         target = np.array(target)
         target = target.reshape((len(test_data), -1))
 
-    elif env == 'cartpole':
+    elif 'cartpole' in env:
         K = []
 
         # Compile the various trajectories into arrays
@@ -132,7 +132,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
             policies = [
                 PID(dX=5, dU=5, P=P_param[i, :], I=np.array([0, 0, 0, 0, 0]), D=D_param[i, :], target=target[i, :]) for
                 i in range(len(test_data))]
-        elif env == 'cartpole':
+        elif 'cartpole' in env:
 
             # These values are replaced an don't matter
             m_c = 1
@@ -200,13 +200,13 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                             dat.extend([P_param, D_param])
                         if model.train_target:
                             dat.append(target)
-                    elif env == 'cartpole':
+                    elif 'cartpole' in env:
                         dat.append(K_param)
                     prediction = np.array(model.predict(np.hstack(dat)).detach())
 
                 else:
                     if i == 1:
-                        if env == 'cartpole': A=1
+                        if 'cartpole' in env: A=1
                         actions_lstm = actions[:, i - 1, :].reshape(1, N, A)
                         states_lstm = currents[key].reshape(1, N, len(models[key].state_indices))
                     else:
@@ -244,7 +244,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                             dat.extend([P_param, D_param])
                         if model.train_target:
                             dat.append(target)
-                    elif env == 'cartpole':
+                    elif 'cartpole' in env:
                         dat.append(K_param)
                     prediction = np.array(model.predict(np.hstack(dat)).detach())
 
@@ -255,7 +255,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                         prediction = np.array(prediction.detach())
                     else:
                         if compute_action:
-                            if env == 'cartpole':
+                            if 'cartpole' in env:
                                 acts = np.stack(
                                     [[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
                             else:
@@ -580,7 +580,7 @@ def evaluate(cfg):
                 if name == 'reacher':
                     gt = gt[:, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]]
                     idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-                elif name == 'cartpole':
+                elif 'cartpole' in env:
                     gt = gt[:, [0, 1, 2, 3]]
                     idx = [0, 1, 2, 3]
                 elif name == 'crazyflie':
@@ -612,7 +612,7 @@ def evaluate(cfg):
 
         if name == 'reacher' or name == 'crazyflie':
             y_min = .05
-        elif name == 'cartpole':
+        elif 'cartpole' in name:
             y_min = .0002
         else:
             y_min = .0001

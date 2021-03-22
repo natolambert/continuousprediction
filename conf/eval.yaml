@@ -21,7 +21,7 @@ hydra:
 
 plotting:
   models:
-  - d
+  - d_fb
 #  - t
 #  - pe
 #  - de

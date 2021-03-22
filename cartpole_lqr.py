@@ -180,6 +180,13 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
             lim = cfg.trial_timesteps
         policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
         policy.K = np.multiply(policy.K, modifier)
+        if cfg.data_mode == 'rand':
+            from policy import randomPolicy
+            print("Running random policy")
+            policy = randomPolicy(dX=4, dU=1, variance=0.5)
+        elif cfg.data_mode == 'set':
+            policy.K = np.array(cfg.K)
+
         # print(type(env))
         dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
         while len(dotmap.states) < lim:
@@ -196,6 +203,12 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
                 modifier = .5 * np.random.random(4) + 1
             policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
             policy.K = np.multiply(policy.K, modifier)
+            if cfg.data_mode == 'rand':
+                from policy import randomPolicy
+                print("Running random policy")
+                policy = randomPolicy(dX=4, dU=1, variance=0.5)
+            elif cfg.data_mode == 'set':
+                policy.K = np.array(cfg.K)
             dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
             print(f"- Repeat simulation")
             s += 1
@@ -203,7 +216,8 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
 
         if plot: plot_cp(dotmap.states, dotmap.actions, save=True)
 
-        dotmap.K = np.array(policy.K).flatten()
+        if not cfg.data_mode == 'rand':
+            dotmap.K = np.array(policy.K).flatten()
         logs.append(dotmap)
         s += 1
 
@@ -241,15 +255,15 @@ def contpred(cfg):
 
         log.info("Saving new default data")
         torch.save((exper_data, test_data),
-                   hydra.utils.get_original_cwd() + '/trajectories/cartpole/' + 'raw' + cfg.data_dir)
-        log.info(f"Saved trajectories to {'/trajectories/cartpole/' + 'raw' + cfg.data_dir}")
+                   hydra.utils.get_original_cwd() + '/trajectories/' +cfg.env.label + '/raw' + cfg.data_dir)
+        log.info(f"Saved trajectories to {'/trajectories/' +cfg.env.label + '/raw' + cfg.data_dir}")
     # Load data
     else:
         log.info(f"Loading default data")
         # raise ValueError("Current Saved data old format")
         # Todo re-save data
         (exper_data, test_data) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/cartpole/' + 'raw' + cfg.data_dir)
+            hydra.utils.get_original_cwd() + '/trajectories/'+cfg.env.label + '/raw' + cfg.data_dir)
 
     if train:
         it = range(cfg.copies) if cfg.copies else [0]
@@ -282,11 +296,11 @@ def contpred(cfg):
             model = DynamicsModel(cfg)
             train_logs, test_logs = model.train(dataset, cfg)
 
-            setup_plotting({cfg.model.str: model})
-            plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
+            # setup_plotting({cfg.model.str: model})
+            # plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
 
             log.info("Saving new default models")
-            f = hydra.utils.get_original_cwd() + '/models/cartpole/'
+            f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/'
             if cfg.exper_dir:
                 f = f + cfg.exper_dir + '/'
                 if not os.path.exists(f):
