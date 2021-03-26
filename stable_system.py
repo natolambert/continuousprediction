@@ -198,14 +198,14 @@ def contpred(cfg):
         log.info("Saving new default data")
         torch.save((exper_data, test_data),
                    hydra.utils.get_original_cwd() + '/trajectories/ss/' + str(cfg.env.params.pole) + cfg.data_dir)
-        log.info(f"Saved trajectories to {'/trajectories/ss/' + str(cfg.env.params.pole) + cfg.data_dir}")
+        log.info(f"Saved trajectories to {'/trajectories/' +str(cfg.env.label)+'/' + str(cfg.env.params.pole) + cfg.data_dir}")
     # Load data
     else:
         log.info(f"Loading default data")
         # raise ValueError("Current Saved data old format")
         # Todo re-save data
         (exper_data, test_data) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/ss/' + str(cfg.env.params.pole) + cfg.data_dir)
+            hydra.utils.get_original_cwd() + '/trajectories/' +str(cfg.env.label)+'/' + str(cfg.env.params.pole) + cfg.data_dir)
 
     if cfg.mode == 'train':
         it = range(cfg.copies) if cfg.copies else [0]
@@ -241,7 +241,7 @@ def contpred(cfg):
             # plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
 
             log.info("Saving new default models")
-            f = hydra.utils.get_original_cwd() + '/models/ss/' +str(cfg.env.params.pole)
+            f = hydra.utils.get_original_cwd() + '/models/' +str(cfg.env.label)+'/' +str(cfg.env.params.pole)
             if cfg.exper_dir:
                 f = f + cfg.exper_dir + '/'
                 if not os.path.exists(f):

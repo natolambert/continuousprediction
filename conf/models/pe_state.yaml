@@ -1,0 +1,44 @@
+model:
+  str: pe_state
+  prob: true
+  ensemble: true
+  traj: false
+  delta: false
+  gp: false
+  lstm: false
+  training:
+    hid_width: 250
+    hid_depth: 2
+    E: 5
+    # Note: these do nothing for non trajectory based models
+    train_target: true
+    control_params: true
+    filter_rate: 0.0
+    num_traj: 50
+    state_indices_lorenz: [0,1,2]
+  optimizer:
+    epochs: 25
+    batch: 64
+    name: Adam
+    split: .8
+    lr: .000025
+    regularization: 0.001
+    max_size: 0
+#  preprocess:
+#    state:
+#      class: sklearn.preprocessing.StandardScaler
+#      #Choose between standard scaler and min max scaler
+#      #class: sklearn.preprocessing.MinMaxScaler
+#        #params:
+#          #feature_range: [-1.,1.]
+#    action:
+#      class: sklearn.preprocessing.StandardScaler
+#    output:
+#      class: sklearn.preprocessing.StandardScaler
+  plotting:
+    label: PE True State
+    color: '#ff0000'
+    color_plotly: rgb(200,0,0)
+    marker: s
+    marker_plotly: cross-open-dot
+

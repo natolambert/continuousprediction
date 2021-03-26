@@ -6,11 +6,12 @@ env:
   param_size: 4
   target_size: 0
 
-data_dir: l100_t100_compound_fb.dat #l200_t100_chaotic.dat #l200_t100_v4.dat # v4 is normal l200 l400_t1250_v1.dat #
+data_dir: l100_t100_compound.dat #_fb.dat #l200_t100_chaotic.dat #l200_t100_v4.dat # v4 is normal l200 l400_t1250_v1.dat #
 num_trials: 100
 trial_timesteps: 100
 data_mode: set
-K: [ -0.67341968,  -3.77266595, -29.3239967,   -4.10929736]
+K: [ -0.25321909,  -5.78332867, -33.74340615,  -2.88800148]
+#K: [ -0.67341968,  -3.77266595, -29.3239967,   -4.10929736]
 ignore_done: true
 
 model:

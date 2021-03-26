@@ -4,6 +4,7 @@ model:
   ensemble: false
   traj: false
   delta: false
+  gp: false
   lstm: false
   training:
     hid_width: 250
@@ -16,23 +17,13 @@ model:
 #    state_indices: [0,1,2,3,4,5,6,7,8,9,13,14,15,16,17]
     state_indices_lorenz: [0,1,2]
   optimizer:
-    epochs: 40
-    batch: 32
+    epochs: 20
+    batch: 32 #32
     name: Adam
     split: .8
-    lr: .00002
+    lr: .0001
+    regularization: 0 #0.003
     max_size: 0
-  preprocess:
-    state:
-      class: sklearn.preprocessing.StandardScaler
-      #Choose between standard scaler and min max scaler
-      #class: sklearn.preprocessing.MinMaxScaler
-        #params:
-          #feature_range: [-1.,1.]"""
-    action:
-      class: sklearn.preprocessing.StandardScaler
-    output:
-      class: sklearn.preprocessing.StandardScaler
   plotting:
     label: One Step Deterministic State Based
     color: '#8d67a6'

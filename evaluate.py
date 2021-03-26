@@ -471,7 +471,7 @@ def evaluate(cfg):
     graph_file = 'Plots'
     os.mkdir(graph_file)
 
-    if name == 'ss' or name == 'ss2':
+    if 'ss' in name:
         log.info(f"Loading default data")
         (train_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + str(cfg.env.params.pole) + cfg.data_dir)
@@ -617,7 +617,7 @@ def evaluate(cfg):
         else:
             y_min = .0001
 
-        plot_mse_err(mse_evald, save_loc=("%s/Err Bar MSE of Predictions" % graph_file),
+        plot_mse_err(mse_evald, save_loc=(os.getcwd()+"/mse_pred.pdf"),
                      show=True, y_min=y_min, legend=cfg.plotting.legend)
                         # show = True, y_min = y_min, y_max = cfg.plotting.mse_y_max, legend = cfg.plotting.legend)
         # turn show off here
