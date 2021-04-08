@@ -1,6 +1,6 @@
 defaults:
   - models: t
-  - envs: sys
+  - envs: sys2
 
 mode: collect # train or collect
 exper_dir: false # set to a name to save models within a subfolder in the models directory

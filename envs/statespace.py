@@ -27,11 +27,13 @@ class StateSpaceEnv(gym.Env):
 
         a = np.mat(self.cfg.params.A)
         b = np.mat(self.cfg.params.B)
-        c = np.mat(self.cfg.params.C)
-        d = np.mat(self.cfg.params.D)
+        c = np.mat(np.random.uniform(-1, 1, size=(cfg.env.state_size, cfg.env.state_size)))
+        # c = np.mat(self.cfg.params.C)
+        # d = np.mat(self.cfg.params.D)
+        d = np.zeros((cfg.env.state_size, cfg.env.action_size))
 
-        self.dx = np.shape(a)[1]
-        self.du = np.shape(b)[1]
+        self.dx = cfg.env.state_size #np.shape(a)[1]
+        self.du = cfg.env.action_size #np.shape(b)[1]
         self.dy = np.shape(c)[0]
 
         low_a = np.ones((self.du)) * 1

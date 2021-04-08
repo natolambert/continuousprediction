@@ -21,7 +21,10 @@ hydra:
 
 plotting:
   models:
-  - d_state #pe_state #d #_state #_fb
+#  - d_state
+  - d
+#  - pe_state
+#  - pe #pe_state #d #_state #_fb
 #  - pe
 #  - t
 #  - pe
@@ -50,7 +53,7 @@ plotting:
   all: false
   compute_action: false
   legend: false
-  t_range: 100
+  t_range: 500
 #  mse_y_max: 2 #5
   copies: 0
   states: true

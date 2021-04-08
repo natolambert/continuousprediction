@@ -25,8 +25,6 @@ data_dir: l1000_t100_test.dat # v4 is normal l200 l400_t1250_v1.dat #
 model:
   training:
     t_range: 100
-    state_indices: [0,1,2]
-    state_indices_lorenz: [0,1,2]
   preprocess:
     state:
       class: sklearn.preprocessing.MinMaxScaler

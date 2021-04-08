@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 from policy import PID
 from plot import plot_cf, plot_loss, setup_plotting
 from dynamics_model import DynamicsModel
-from reacher_pd import run_controller, create_dataset_step, create_dataset_traj
+from reacher_pd import create_dataset_step, create_dataset_traj #run_controller,
 
 
 class PidPolicy:
@@ -348,8 +348,8 @@ def contpred(cfg):
             model = DynamicsModel(cfg)
             train_logs, test_logs = model.train(dataset, cfg)
 
-            setup_plotting({cfg.model.str: model})
-            plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
+            # setup_plotting({cfg.model.str: model})
+            # plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
 
             log.info("Saving new default models")
             f = hydra.utils.get_original_cwd() + '/models/crazyflie/'

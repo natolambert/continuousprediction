@@ -392,8 +392,10 @@ class DynamicsModel(object):
         self.control_params = cfg.model.training.control_params
         if env == "Reacher":
             self.state_indices = cfg.model.training.state_indices
-        elif env == "Lorenz" or env == "SS":
+        elif env == "Lorenz" :
             self.state_indices = cfg.model.training.state_indices_lorenz
+        else:
+            self.state_indices = np.arange(cfg.env.state_size)
         self.cfg = cfg
 
         # Setup for data structure

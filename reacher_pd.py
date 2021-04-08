@@ -147,7 +147,7 @@ def create_dataset_step(data, delta=True, t_range=0, is_lstm = False, lstm_batch
     return data_in, data_out
 
 
-def run_controller(env, horizon, policy, video=False):
+def run_controller(env, horizon, policy, video=False, seed=None):
     """
     Runs a Reacher3d gym environment for horizon timesteps, making actions according to policy
 
@@ -156,9 +156,19 @@ def run_controller(env, horizon, policy, video=False):
     :param policy: A policy object (see other python file)
     """
 
-    # WHat is going on here?
+    # weird filtering for other env usage... ugh
     def obs2q(obs):
         if len(obs) < 5:
+            return obs
+        elif len(obs) == 9:
+            return obs
+        elif len(obs) == 27:
+            return obs
+        elif len(obs) == 81:
+            return obs
+        elif len(obs) == 243:
+            return obs
+        elif len(obs) == 162:
             return obs
         else:
             return obs[0:5]
@@ -358,8 +368,8 @@ def contpred(cfg):
             model = DynamicsModel(cfg)
             train_logs, test_logs = model.train(dataset, cfg)
 
-            setup_plotting({cfg.model.str: model})
-            plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
+            # setup_plotting({cfg.model.str: model})
+            # plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=False)
 
             log.info("Saving new default models")
             f = hydra.utils.get_original_cwd() + '/models/reacher/'

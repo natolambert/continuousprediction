@@ -292,6 +292,9 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
             # ind_dict[key] = [0,1,3,4,5]
             ind_dict[key] = [0, 1, 3, 4]
             pred_key = [0, 1, 3, 4]
+            ind_dict[key] = [0, 1,2, 3, 4,5,6,7,8]
+            pred_key = [0, 1,2, 3, 4,5,6,7,8]
+
         elif env == 'reacher':
             ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]
             pred_key = np.arange(np.shape(predictions[key][0])[1])
@@ -310,7 +313,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         # print(key)
         # print(np.sum(np.sum(MSEscaled[key])))
     # for state-space systems
-    MSEscaled = MSEs
+    if 'ss' in env:
+        MSEscaled = MSEs
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
     #     predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in predictions} # vectorized verion
@@ -475,7 +479,8 @@ def evaluate(cfg):
         log.info(f"Loading default data")
         (train_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + str(cfg.env.params.pole) + cfg.data_dir)
-
+        print(len(train_data))
+        print(len(test_data))
         if cfg.plotting.train_set:
             test_data = train_data
 
@@ -580,7 +585,7 @@ def evaluate(cfg):
                 if name == 'reacher':
                     gt = gt[:, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]]
                     idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-                elif 'cartpole' in env:
+                elif 'cartpole' in name:
                     gt = gt[:, [0, 1, 2, 3]]
                     idx = [0, 1, 2, 3]
                 elif name == 'crazyflie':
@@ -590,7 +595,10 @@ def evaluate(cfg):
                     gt = gt[:, [0, 1, 2, 3, 4, 5, 6, 7, 8]]
                     idx = [0, 1, 2, 3, 4, 5, 6, 7, 8]
                 elif 'ss' in name:
-                    idx = [0,1,2]
+                    if '9dim' in name:
+                        idx = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+                    else:
+                        idx = [0,1,2]
 
                 if cfg.plotting.states:
                     # if

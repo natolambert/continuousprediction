@@ -1,7 +1,7 @@
 env:
   name: Crazyflie-v0
   label: crazyflie
-  state_size: 3 # 9, 4, 6, 2 for sim
+  state_size: 9 # 9, 4, 6, 2 for sim
   action_size: 4 # 3, 4, 0, 0 for hw
   param_size: 0 #include target
   target_size: 0
@@ -29,7 +29,7 @@ pid:
 model:
   training:
     t_range: 500 # Change below for HW
-    state_indices: [0,1,2] #[0,1,2,3,4,5,6,7,8] # ,9,10,11 [0,1,2] #
+    state_indices: [0,1,2,3,4,5,6,7,8] # [0,1,2] # ,9,10,11 [0,1,2] #
     state_indices_lorenz: [0,1,2] #[3,4,5] # ,9,10,11
   preprocess:
     state:
