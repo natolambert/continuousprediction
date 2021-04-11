@@ -62,12 +62,12 @@ class CartPoleContEnv(gym.Env):
     def __init__(self):
         self.gravity = 9.8
         self.masscart = 1.0
-        self.masspole = 2*0.1
+        self.masspole = 0.5
         self.total_mass = (self.masspole + self.masscart)
-        self.length = 0.5*0.5  # actually half the pole's length
+        self.length = 0.25  # actually half the pole's length
         self.polemass_length = (self.masspole * self.length)
         self.force_mag = 10.0
-        self.tau = 0.02  # seconds between state updates
+        self.tau = 0.1  # seconds between state updates
         self.kinematics_integrator = 'euler'
 
         # Angle at which to fail the episode
@@ -85,7 +85,7 @@ class CartPoleContEnv(gym.Env):
 
         # self.action_space = spaces.Discrete(2)
         self.action_space = spaces.Box(
-            low=np.array([-1.0]), high=np.array([1.0]))
+            low=np.array([-3.0]), high=np.array([3.0]))
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
 
         self.seed()
@@ -148,8 +148,8 @@ class CartPoleContEnv(gym.Env):
 
     def reset(self):
         self.state = self.np_random.uniform(low=-0.05, high=0.05, size=(4,))
-        self.state[0]=self.state[0]*20
-        self.state[2]=self.state[2]*20
+        self.state[0]=self.state[0] #*20
+        self.state[2]=self.state[2] #*20
         self.steps_beyond_done = None
         return self.state
 

@@ -41,7 +41,7 @@ class StateSpaceEnv(gym.Env):
         self.action_space = self.action_space = spaces.Box(low=low_a,
                                                            high=high_a,
                                                            dtype=np.float32)
-
+        self.noise_variance = cfg.env.params.variance
         low_obs = -np.ones((self.dx)) * np.inf
         high_obs = np.ones((self.dx)) * np.inf
         self.observation_space = spaces.Box(low_obs, high_obs, dtype=np.float32)
@@ -67,7 +67,7 @@ class StateSpaceEnv(gym.Env):
         last_state = self.state
         self.state = np.matmul(self.sys.A, last_state) + 0*np.matmul(self.sys.B, action).reshape(self.dx, 1)
         if self.cfg.params.noise:
-            self.state += self.np_random.uniform(low=-.01, high=.01, size=(self.dx, 1))
+            self.state += self.np_random.uniform(low=-self.noise_variance, high=self.noise_variance, size=(self.dx, 1))
         obs = self.get_obs()
         reward = self.get_reward(self.state, action)
         done = False

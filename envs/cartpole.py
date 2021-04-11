@@ -67,7 +67,7 @@ class CartPoleContEnv(gym.Env):
         self.length = 0.5  # actually half the pole's length
         self.polemass_length = (self.masspole * self.length)
         self.force_mag = 10.0
-        self.tau = 0.02  # seconds between state updates
+        self.tau = 0.2  # seconds between state updates
         self.kinematics_integrator = 'euler'
 
         # Angle at which to fail the episode
@@ -124,6 +124,8 @@ class CartPoleContEnv(gym.Env):
             theta_dot = theta_dot + self.tau * thetaacc
             theta = theta + self.tau * theta_dot
         self.state = (x, x_dot[0], theta, theta_dot[0])
+        self.state = np.array(state)
+        self.state += self.np_random.uniform(low=-.1, high=.1, size=(4, ))
         done = x < -self.x_threshold \
                or x > self.x_threshold \
                or theta < -self.theta_threshold_radians \
@@ -144,12 +146,12 @@ class CartPoleContEnv(gym.Env):
             reward = 0.0
 
         # return np.array(self.state), reward, done, {}
-        return np.array(self.state), reward, False, {}
+        return self.state, reward, False, {}
 
     def reset(self):
         self.state = self.np_random.uniform(low=-0.05, high=0.05, size=(4,))
-        self.state[0]=self.state[0]*20
-        self.state[2]=self.state[2]*20
+        self.state[0]=self.state[0] #*20
+        self.state[2]=self.state[2] #*20
         self.steps_beyond_done = None
         return self.state
 

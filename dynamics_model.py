@@ -107,6 +107,8 @@ class Net(nn.Module):
         self.hidden_w = cfg.model.training.hid_width
         self.cfg = cfg
         self.trained = False
+        self.no_scale = cfg.model.training.no_scale
+
         if cfg.model.lstm is not None:
             if cfg.model.lstm:
                 self.is_lstm = True
@@ -119,7 +121,7 @@ class Net(nn.Module):
         elif env == "Lorenz":
             self.state_indices = cfg.model.training.state_indices_lorenz
         else:
-            self.state_indices = np.arange(n_in)
+            self.state_indices = np.arange(cfg.env.state_size)
 
         # create object nicely
         if cfg.model.lstm is not None:  # self.is_lstm:
@@ -183,6 +185,10 @@ class Net(nn.Module):
         return x
 
     def testPreprocess(self, input, cfg):
+        if self.no_scale:
+            States = input[:, :len(self.state_indices)]
+            Actions = input[:, len(self.state_indices):]
+            return np.hstack((States, Actions))
         if (cfg.model.traj):
             inputStates = input[:, :len(self.state_indices)]
             inputIndex = input[:, len(self.state_indices)]
@@ -211,10 +217,11 @@ class Net(nn.Module):
                 return normInput
 
     def testPostprocess(self, output):
+        if self.no_scale:
+            return output.detach().numpy()
         return torch.from_numpy(self.outputScaler.inverse_transform(output.detach().numpy()))
 
     def preprocess(self, dataset, cfg):
-
         # Select scaling, minmax vs standard (fits to a gaussian with unit variance and 0 mean)
         # TODO: Selection should be in config
         # StandardScaler, MinMaxScaler
@@ -222,6 +229,12 @@ class Net(nn.Module):
         # 26 -> one-step, 37 -> trajectory
         input = dataset[0]
         output = dataset[1]
+        if self.no_scale:
+            inputStates = input[:, :len(self.state_indices)]
+            inputActions = input[:, len(self.state_indices):]
+            normInput = np.hstack((inputStates, inputActions))
+            return list(zip(normInput, output))
+
         if cfg.model.traj:
             # no control params (state + time index)
             if np.shape(dataset[0])[1] == len(self.state_indices) + 1:
@@ -392,7 +405,7 @@ class DynamicsModel(object):
         self.control_params = cfg.model.training.control_params
         if env == "Reacher":
             self.state_indices = cfg.model.training.state_indices
-        elif env == "Lorenz" :
+        elif env == "Lorenz":
             self.state_indices = cfg.model.training.state_indices_lorenz
         else:
             self.state_indices = np.arange(cfg.env.state_size)
@@ -426,8 +439,10 @@ class DynamicsModel(object):
                 self.nets = [GP(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
             else:
                 self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn) for i in range(self.E)]
-        elif env == "Lorenz" or env == "SS":
+        elif env == "Lorenz":
             self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="Lorenz") for i in range(self.E)]
+        elif "SS" in env:
+            self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="ss") for i in range(self.E)]
 
     def predict_lstm(self, x, num_traj=1):
         # LSTM takes in a variable length object and predicts the next in the future.

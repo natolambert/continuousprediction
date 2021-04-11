@@ -54,11 +54,12 @@ def collect_data(cfg):
 
 @hydra.main(config_path='conf/lorenz.yaml')
 def lorenz(cfg):
-    from plot import plot_lorenz, plot_mse, plot_mse_err, plot_states, setup_plotting, plot_loss
     from dynamics_model import DynamicsModel
 
     mode = cfg.mode
     name = cfg.env.label
+    if cfg.plot:
+        from plot import plot_lorenz, plot_mse, plot_mse_err, plot_states, setup_plotting, plot_loss
 
     if mode == 'collect':
         train_data = collect_data(cfg)
@@ -78,6 +79,8 @@ def lorenz(cfg):
         log.info(f"Loading default data")
         (train_data, test_data) = torch.load(
             hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'raw' + cfg.data_dir)
+
+
 
     # Analysis
     if mode == 'train':
@@ -103,8 +106,8 @@ def lorenz(cfg):
         log.info("Saving new default models")
         torch.save(model,
                    hydra.utils.get_original_cwd() + '/models/lorenz/' + cfg.model.str + '.dat')
-        setup_plotting({cfg.model.str: model})
-        plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=True)
+        if cfg.plot:
+            plot_loss(train_logs, test_logs, cfg, save_loc=cfg.env.name + '-' + cfg.model.str, show=True)
 
         # log.info(f"Loading default data")
         # (train_data, test_data) = torch.load(
@@ -146,15 +149,15 @@ def lorenz(cfg):
 
         from plot import plot_mse_err, plot_lorenz
 
-        plot_lorenz(test_data, cfg, predictions=predictions)
+        # plot_lorenz(test_data, cfg, predictions=predictions)
         mse_evald = []
         for i, id in list(enumerate(idx)):
             mse = {key: MSEs[key][i].squeeze() for key in MSEs}
             mse_sub = {key: [(x if x < 10 ** 5 else float("nan")) for x in mse[key]] for key in mse}
             mse_evald.append(mse)
 
-        plot_mse_err(mse_evald, log_scale=True, title="Average MSE", save_loc=graph_file + '/mse.pdf', show=True,
-                     legend=True)
+        plot_mse_err(mse_evald, log_scale=True, title="Average MSE", save_loc=graph_file + 'mse.pdf', show=True,
+                     legend=False)
 
 
 if __name__ == '__main__':

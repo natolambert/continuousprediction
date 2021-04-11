@@ -6,13 +6,14 @@ env:
   param_size: 3
   target_size: 1
 
-num_trials: 25
-trial_timesteps: 500
+num_trials: 100
+trial_timesteps: 250
 data_dir: l500_n25_v1.dat
 
 model:
   training:
     t_range: 1000
+    no_scale: false
     state_indices_lorenz: [0,1,2]
     state_indices: [0,1,2]
   preprocess:

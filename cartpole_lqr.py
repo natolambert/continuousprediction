@@ -251,7 +251,8 @@ def contpred(cfg):
         log.info(f"Collecting new trials")
 
         exper_data = collect_data_lqr(cfg, plot=cfg.plot)
-        test_data = collect_data_lqr(cfg, plot=cfg.plot)
+        test_data = exper_data[int(len(exper_data) / 2):]
+        exper_data = exper_data[:int(len(exper_data) / 2)]
 
         log.info("Saving new default data")
         torch.save((exper_data, test_data),

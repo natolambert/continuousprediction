@@ -161,7 +161,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
     initials = np.array(initials)
     N, T, D = states.shape
-    A = actions.shape[-1]
+    if type(actions) is not list: A = actions.shape[-1]
     if len(np.shape(actions)) == 2:
         actions = np.expand_dims(actions, axis=2)
     # Iterate through each type of model for evaluation
@@ -268,10 +268,13 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
                 # get variances if applicable
                 if model.prob:
-                    if traj:
-                        f = np.hstack(dat)
+                    if env == 'lorenz':
+                        f = currents[key]
                     else:
-                        f = np.hstack((currents[key], acts))
+                        if traj:
+                            f = np.hstack(dat)
+                        else:
+                            f = np.hstack((currents[key], acts))
                     var = forward_var(model, f).detach().numpy()
                 else:
                     var = np.zeros(np.shape(initials[:, indices]))
@@ -523,8 +526,8 @@ def evaluate(cfg):
     else:
         # # Load test data
         # Below was copied from lorenz... strange
-        # log.info(f"Loading default data")
-        # (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/'+ cfg.env.label + '/' + 'raw' + cfg.data_dir_lorenz)
+        log.info(f"Loading default data")
+        (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/'+ cfg.env.label + '/' + 'raw' + cfg.data_dir)
 
         # Load models
         log.info("Loading models")
@@ -550,6 +553,9 @@ def evaluate(cfg):
 
         # Select a random subset of training data
         # idx = np.random.randint(0, len(data), num)
+        if len(data) < num:
+            print("reducing samples to number of points")
+            num=len(data)
         idx = np.random.choice(np.arange(len(data)), size=num, replace=False)
         dat = [data[i] for i in idx]
 

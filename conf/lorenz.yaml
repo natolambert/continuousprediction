@@ -3,7 +3,7 @@ defaults:
   - envs: lorenz
 
 mode: train # train or collect
-plot: true
+plot: false
 
 lorenz:
   sigma: 10
@@ -14,13 +14,17 @@ lorenz:
     v0: 1
     w0: 1.05
   tmax: 10
-  n: 1000
+  n: 200
 
 plotting:
   models:
+    - d
+#    - d_state
+#    - pe
+#    - pe_state
 #  - d
-  - p
-  - tp
+#  - p
+#  - tp
 #  - tp
 #  - p
 #  - tp

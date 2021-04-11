@@ -6,11 +6,11 @@ env:
   param_size: 4
   target_size: 0
 
-data_dir: l100_t100_compound.dat #_fb.dat #l200_t100_chaotic.dat #l200_t100_v4.dat # v4 is normal l200 l400_t1250_v1.dat #
-num_trials: 100
-trial_timesteps: 100
+data_dir: compound_50.dat #_fb.dat #l200_t100_chaotic.dat #l200_t100_v4.dat # v4 is normal l200 l400_t1250_v1.dat #
+num_trials: 200
+trial_timesteps: 50
 data_mode: set
-K: [ -0.25321909,  -5.78332867, -33.74340615,  -2.88800148]
+K: [ -0.17154875, -34.51376529, -98.55609899,  -7.6457172 ]
 #K: [ -0.67341968,  -3.77266595, -29.3239967,   -4.10929736]
 ignore_done: true
 
@@ -18,6 +18,7 @@ model:
   training:
     t_range: 200
     state_indices: [0,1,2,3]
+    no_scale: false
   preprocess:
     state:
       class: sklearn.preprocessing.StandardScaler

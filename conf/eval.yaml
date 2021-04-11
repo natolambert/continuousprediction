@@ -21,10 +21,10 @@ hydra:
 
 plotting:
   models:
-#  - d_state
+  - d_state #  - d_fb
   - d
-#  - pe_state
-#  - pe #pe_state #d #_state #_fb
+  - pe_state
+  - pe #pe_state #d #_state #_fb
 #  - pe
 #  - t
 #  - pe

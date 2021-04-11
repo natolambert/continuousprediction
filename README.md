@@ -1,30 +1,43 @@
 # continuousprediction
-**Learning Accurate Long-term Dynamicsfor Model-based Reinforcement Learning**
+This repository was create for the paper: **Learning Accurate Long-term Dynamicsfor Model-based Reinforcement Learning** ([Arxiv](https://arxiv.org/abs/2012.09156), [page](https://www.natolambert.com/papers/2020-long-term-dynamics))
 
-## Abstract
+## Goal of the repository
 
 Accurately predicting the dynamics of robotic systems is crucial to make use of model-based control. A common way to estimate dynamics is by modeling the one-step ahead prediction and then use it to recursively propagate the predicted state distribution over long horizons. Unfortunately, this approach is known to compound even small prediction errors, making long-term predictions inaccurate. In this paper we propose a new parametrizaion to supervised learning on state-action data to stably predict at longer horizons -- that we call a trajectory-based model. This trajectory-based model takes an initial state, a time index, and control parameters as inputs and predicts a state at that time.
 Our results in simulated and experimental robotic tasks show accurate long term predictions, improved sample efficiency, and ability to predict task reward.
 
-# Running the Code:
+## Understanding compounding error
 
+There are many datasets and pre-trained models in this repository. Here is how to navigate them.
+
+The `cfg/envs/yaml` has a property `env.label` that directs how the data is saved. This enables some environments to have example trajectoreis with different properties. 
+This is primarily the case for the Crazyflie and Reacher data. 
+We have run more experiments on the simpler environments to illustrate fundamental tradeoffs.
+
+Environment configurations that are more varied:
+* state-space system gym environment parametrizations (the parent config `stable_sys.yaml` points to defaults in the `envs/` subdir):
+    * `sys.yaml`: standard state-space configuration with upper triangular dynamics of dimension 3, action of dim 1, noise from uniform distribution of [-0.01,0.01].
+    * `sys2.yaml`: state dimension increased to 9.
+    * `sys3.yaml`: 27 dimensional state.
+    * `sys4.yaml`: 81 dimensional state.
+    * `sys5.yaml`: 243 dimensional state.
+    * `sysn2.yaml`: original system, 10x noise.
+    * `sysn3.yaml`: original system, 100x noise.
+* variations on cartpole for studying unstable poles: not 100% created by configuration, some are still done by hand
+    * a second configuration, `cartpole_mod.yaml` is provided for running a second set of dynamics.
+    * _Note_: In this case, the separate environment is managed with an additional gym registration. 
+      Open a PR if you will integrate this programatic generation into the cfg.
+* we have also implemented `lorenz.py`, the famous [chaotic system](https://en.wikipedia.org/wiki/Lorenz_system) to show the divergence of another no noise, 3 dimensions nonlinear system.
+Because there are no actions, all of the training and evaluation is handled in that specific file. 
+  Instead of using `evaluate.py`, use `lorenz.py` with `mode=plot plot=true'
+---
+# Running the main repo code
+For the original paper, visit the master branch.
 
 To run the code use the following steps:
 
 1. Create a conda environment from the provided yml file and activate it
 2. Installing mujoco will fail. See the repo for instructions: https://github.com/openai/mujoco-py
-<!-- 2. Navigate into the `reacher3d` folder and run the command ```pip install -e .```
-1. Create an environment from the provided yml file
-2. Find the folder for that with `echo $CONDA_PREFIX` on Mac or `echo %CONDA_PREFIX%` on Windows
-3. Navigate to `envs/continuouspred/lib/python3.6/site-packages/gym/envs`
-4. In the file `__init__.py`, add ```register(
-    id='Reacher3d-v1',
-    entry_point='gym.envs.mujoco:Reacher3dEnv',
-    max_episode_steps=500,
-    reward_threshold=-200,
-)``` preferably around line 214, in the MuJoCo section
-5. From the `reacher3d` folder in the repo, copy the `reacher3d.py` file into `mujoco` and copy `reacher3d.xml` into `mujoco/assets`
-6. There will be another `__init__.py` file in the `mujoco` folder. Copy the line `from gym.envs.mujoco.reacher3d import Reacher3dEnv` into the bottom of that one -->
 
 ## Using this for your robot:
 
@@ -74,9 +87,3 @@ Test: `python3 efficiency.py mode=plot plotting.num_traj=[3,5,7,9] plotting.t_ra
 ### Predicting reward, section 5.5
 
 This example uses the file `reward_rank.py`. To run this, run `python reward_rank.py envs=cartpole`. It is currently not supported for any other environments.
-
-## Extra files currently not in use:
-
-When examining the code, one will see a few extra files that represent potential future avenues for research. Some of these files are:
-- `lorenz.py`: This was an attempt to model the long term behavior of the lorenz system. Results were mixed on this very challenging application.
-- `stable_system.py`: This was used to evaluate how far into the future a trajectory-based model could predict a state-space system, but it was omitted from the paper.
