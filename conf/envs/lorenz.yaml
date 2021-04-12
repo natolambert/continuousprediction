@@ -6,9 +6,9 @@ env:
   param_size: 3
   target_size: 1
 
-num_trials: 100
+num_trials: 10
 trial_timesteps: 250
-data_dir: l500_n25_v1.dat
+data_dir: plotting.dat
 
 model:
   training:

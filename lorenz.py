@@ -55,7 +55,7 @@ def collect_data(cfg):
 @hydra.main(config_path='conf/lorenz.yaml')
 def lorenz(cfg):
     from dynamics_model import DynamicsModel
-
+    print(cfg.pretty())
     mode = cfg.mode
     name = cfg.env.label
     if cfg.plot:

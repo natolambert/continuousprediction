@@ -13,7 +13,7 @@ lorenz:
     u0: 0
     v0: 1
     w0: 1.05
-  tmax: 10
+  tmax: 5
   n: 200
 
 plotting:

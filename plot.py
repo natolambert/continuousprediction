@@ -720,13 +720,13 @@ def plot_lorenz(data, cfg, predictions=None):
             x=x, y=y, z=z,
             # color=(1, c[i], 0),
             marker=dict(
-                size=2,
+                size=4,
                 color=np.arange(len(x)),
                 colorscale='Viridis',
             ),
             line=dict(
                 color='black',
-                width=4
+                width=0
             ),
         ))
 
@@ -785,21 +785,21 @@ def plot_lorenz(data, cfg, predictions=None):
             # zaxis=dict(nticks=4, range=[-100, 100], ),
             xaxis=dict(nticks=5, range=[-40, 40],
                        backgroundcolor="rgba(0,0,0,0)",
-                       gridcolor="rgb(128, 128, 128)",
+                       gridcolor="rgb(255, 255, 255)",
                        showbackground=True,
-                       zerolinecolor="rgb(0, 0, 0)",
+                       zerolinecolor="rgb(255, 255, 255)",
                        ),
             yaxis=dict(nticks=5, range=[-60, 60],
                        backgroundcolor="rgba(0,0,0,0)",
-                       gridcolor="rgb(128, 128, 128)",
+                       gridcolor="rgb(255, 255, 255)",
                        showbackground=True,
-                       zerolinecolor="rgb(0, 0, 0)",
+                       zerolinecolor="rgb(255, 255, 255)",
                        ),
             zaxis=dict(nticks=5, range=[-40, 75],
                        backgroundcolor="rgba(0,0,0,0)",
-                       gridcolor="rgb(128, 128, 128)",
+                       gridcolor="rgb(255, 255, 255)",
                        showbackground=True,
-                       zerolinecolor="rgb(0, 0, 0)",
+                       zerolinecolor="rgb(255, 255, 255)",
                        ),
             aspectratio=dict(x=1.2, y=1.2, z=0.7),
             aspectmode='manual'
