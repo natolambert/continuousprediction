@@ -107,6 +107,7 @@ def create_dataset_step(data, delta=True, t_range=0):
     data_in = np.array(data_in)
     data_out = np.array(data_out)
 
+    # print(np.std(np.linalg.norm(data_out,axis=1)))
     return data_in, data_out
 
 
@@ -124,17 +125,23 @@ def collect_data_ss(cfg, plot=False, test=False):  # Creates horizon^2/2 points
 
     def reset_env(pole, cfg):
         # pole = cfg.env.params.A
-        print(f"Generating Matrix with poles {pole}")
+        # print(f"Generating Matrix with poles {pole}")
         # numpy.triu
         # numpy.fill_diagonal
         num_states = cfg.env.state_size
         # rand_vals = np.random.uniform(-1, 1, size=(3,))
-        rand_mat = np.random.uniform(-1,1, size=(num_states, num_states))/(num_states/3)
+        if cfg.env.params.norm_mat:
+            rand_mat = np.random.uniform(-1,1, size=(num_states, num_states))/(num_states/3)
+        else:
+            rand_mat = np.random.uniform(-1, 1, size=(num_states, num_states))
         A = np.triu(rand_mat,0)
         np.fill_diagonal(A, float(pole))
         # A = [[pole, rand_vals[0], rand_vals[1]], [0, pole, rand_vals[2]], [0, 0, pole]]
         cfg.env.params.A = A.tolist()
-        B = np.random.uniform(-1, 1, size=(num_states, 1)).tolist()
+        if cfg.env.params.zero_action:
+            B = np.zeros((num_states,1)).tolist()
+        else:
+            B = np.random.uniform(-1, 1, size=(num_states, 1)).tolist()
         cfg.env.params.B = B
         return cfg
 
@@ -153,7 +160,7 @@ def collect_data_ss(cfg, plot=False, test=False):  # Creates horizon^2/2 points
             cfg = reset_env(pole, cfg)
             env.setup(cfg)
 
-        log.info('Trial %d' % i)
+        # log.info('Trial %d' % i)
         if test:
             env.seed(s+i+100)
         else:
@@ -162,7 +169,7 @@ def collect_data_ss(cfg, plot=False, test=False):  # Creates horizon^2/2 points
 
         n_dof = env.dx
 
-        policy = randomPolicy(dX=env.dx, dU=env.du, variance=cfg.env.params.variance)
+        policy = randomPolicy(dX=env.dx, dU=env.du, variance=cfg.env.params.action_range)
         dotmap = run_controller(env, horizon=cfg.trial_timesteps, policy=policy, video=cfg.video)
         if plot: plot_ss(dotmap.states, dotmap.actions, save=True)
 
@@ -206,6 +213,8 @@ def contpred(cfg):
         torch.save((exper_data, test_data),
                    hydra.utils.get_original_cwd() + '/trajectories/'+str(cfg.env.label)+'/' + str(cfg.env.params.pole) + cfg.data_dir)
         log.info(f"Saved trajectories to {'/trajectories/' +str(cfg.env.label)+'/' + str(cfg.env.params.pole) + cfg.data_dir}")
+        # dataset = create_dataset_step(exper_data, delta=True)
+
     # Load data
     else:
         log.info(f"Loading default data")

@@ -16,7 +16,9 @@ We have run more experiments on the simpler environments to illustrate fundament
 
 Environment configurations that are more varied:
 * state-space system gym environment parametrizations (the parent config `stable_sys.yaml` points to defaults in the `envs/` subdir):
-    * `sys.yaml`: standard state-space configuration with upper triangular dynamics of dimension 3, action of dim 1, noise from uniform distribution of [-0.01,0.01].
+    * `sys.yaml`: standard state-space configuration with upper triangular dynamics of dimension 3, action of dim 1, noise from uniform distribution of [-0.01,0.01]. There are many sub-dirs of data for this class.
+        * `ss_za` sets the actions to have no influence on the system by making the B matrix 0.
+        * `ss_32h` is the default environment with a less robust model (fewer parameters).  
     * `sys2.yaml`: state dimension increased to 9.
     * `sys3.yaml`: 27 dimensional state.
     * `sys4.yaml`: 81 dimensional state.

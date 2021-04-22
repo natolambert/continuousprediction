@@ -640,8 +640,11 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
 
     layout = dict(  # title=title if title else f"Average Error over Run",
         xaxis={'title': 'Prediction Step'},  # 2e-9, 5
-        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(10)]},# 25]}, #
+        yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(10)]},# 25]}, # DEFAULT
+        # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(2e-6), np.log10(100)]},# 25]}, # NOISE TEST
+        # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(100e-9), np.log10(100)]},# 25]}, #
         # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(.01), np.log10(10000)]},# 25]}, #
+        # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(.005), np.log10(2000000)]},# 25]}, # DIVERGING TEST
         # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(0.1), np.log10(10000000000000)]},# 25]}, #
         # [np.log10(y_min), np.log10(y_max)]},
         yaxis_type="log",

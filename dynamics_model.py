@@ -470,7 +470,10 @@ class DynamicsModel(object):
             x = torch.from_numpy(np.float64(x))
         prediction = torch.zeros((x.shape[0], len(self.state_indices)))
         for n in self.nets:
-            scaledInput = n.testPreprocess(x, self.cfg)
+            if self.no_scale:
+                scaledInput = x
+            else:
+                scaledInput = n.testPreprocess(x, self.cfg)
             if self.prob:
                 prediction += n.testPostprocess(n.forward(scaledInput)[:, :len(self.state_indices)]) / len(self.nets)
                 # prediction += n.forward(scaledInput)[:, :len(self.state_indices)] / len(self.nets)

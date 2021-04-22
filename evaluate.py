@@ -126,12 +126,21 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
         elif env == 'crazyflie':
             from crazyflie_pd import PidPolicy
-            parameters = [[P[0], 0, D[0]],
-                          [P[1], 0, D[1]]]
-            policy = PidPolicy(parameters, cfg.pid)
-            policies = [
-                PID(dX=5, dU=5, P=P_param[i, :], I=np.array([0, 0, 0, 0, 0]), D=D_param[i, :], target=target[i, :]) for
-                i in range(len(test_data))]
+            from omegaconf import OmegaConf
+            cfg = OmegaConf.load(hydra.utils.get_original_cwd()+'/conf/envs/crazyflie.yaml')
+
+            policies = []
+            for p,d in zip(P,D):
+                parameters = [[p[0], 0, d[0]],
+                              [p[1], 0, d[1]]]
+                policy = PidPolicy(parameters, cfg.pid)
+                policies.append(policy)
+            # parameters = [[P[0], 0, D[0]],
+            #               [P[1], 0, D[1]]]
+            # policy = PidPolicy(parameters, cfg.pid)
+            # policies = [
+            #     PID(dX=5, dU=5, P=P_param[i, :], I=np.array([0, 0, 0, 0, 0]), D=D_param[i, :], target=target[i, :]) for
+            #     i in range(len(test_data))]
         elif 'cartpole' in env:
 
             # These values are replaced an don't matter
@@ -157,7 +166,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                 4) + 1  # np.random.random(4)*1.5 # makes LQR values from 0% to 200% of true value
             policies = [LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0]) for i in range(len(test_data))]
             for p, K in zip(policies, K_param):
-                p.K = K
+                p.K = np.array(K) #.reshape(4)
 
     initials = np.array(initials)
     N, T, D = states.shape
@@ -258,6 +267,9 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                             if 'cartpole' in env:
                                 acts = np.stack(
                                     [[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
+                            elif 'crazyflie' in env:
+                                acts = np.stack(
+                                    [p.get_action(currents[key][i, :]) for i, p in enumerate(policies)])
                             else:
                                 acts = np.stack(
                                     [[p.act(obs2q(currents[key][i, :]))[0]][0] for i, p in enumerate(policies)])
@@ -316,8 +328,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         # print(key)
         # print(np.sum(np.sum(MSEscaled[key])))
     # for state-space systems
-    if 'ss' in env:
-        MSEscaled = MSEs
+    # if 'ss' in env:
+    MSEscaled = MSEs
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
     #     predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in predictions} # vectorized verion
@@ -495,6 +507,11 @@ def evaluate(cfg):
         for model_type in model_types:
             model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
             models[model_type] = torch.load(f + str(cfg.env.params.pole)+model_str + ".dat")
+            print(hasattr(models[model_type],'no_scale'))
+            if not hasattr(models[model_type],'no_scale'):
+                models[model_type].no_scale = False
+                for n in models[model_type].nets:
+                    n.no_scale=False
 
 
     elif not name == 'lorenz':
@@ -522,6 +539,9 @@ def evaluate(cfg):
         for model_type in model_types:
             model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
             models[model_type] = torch.load(f + model_str + ".dat")
+            if not hasattr(models[model_type],'no_scale'):
+                for n in models[model_type].nets:
+                    n.no_scale=False
 
     else:
         # # Load test data

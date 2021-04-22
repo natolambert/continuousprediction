@@ -14,7 +14,6 @@ from sklearn.utils import shuffle
 from timeit import default_timer as timer
 import matplotlib.pyplot as plt
 
-import mujoco_py
 import torch
 # from torch.autograd import Variable
 # import torch.nn as nn
@@ -32,7 +31,7 @@ log = logging.getLogger(__name__)
 from policy import PID
 from plot import plot_cf, plot_loss, setup_plotting
 from dynamics_model import DynamicsModel
-from reacher_pd import create_dataset_step, create_dataset_traj #run_controller,
+# from reacher_pd import create_dataset_step, create_dataset_traj #run_controller,
 
 
 class PidPolicy:

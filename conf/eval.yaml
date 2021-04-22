@@ -11,7 +11,7 @@ hydra:
     dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweep:
     dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
-    subdir: ${hydra.job.num}
+    subdir: ${hydra.job.override_dirname} #${hydra.job.num}
   job:
     config:
       override_dirname:
@@ -21,10 +21,11 @@ hydra:
 
 plotting:
   models:
-  - d_state #  - d_fb
-  - d
-  - pe_state
-  - pe #pe_state #d #_state #_fb
+   - d_noscale
+#  - d #d_state #  - d_fb
+#  - d_state
+#  - pe_state
+#  - pe #pe_state #d #_state #_fb
 #  - pe
 #  - t
 #  - pe

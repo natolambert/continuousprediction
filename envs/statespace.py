@@ -65,7 +65,7 @@ class StateSpaceEnv(gym.Env):
             raise ValueError("System not yet passed")
         # self.last_action = action
         last_state = self.state
-        self.state = np.matmul(self.sys.A, last_state) + 0*np.matmul(self.sys.B, action).reshape(self.dx, 1)
+        self.state = np.matmul(self.sys.A, last_state) + np.matmul(self.sys.B, action).reshape(self.dx, 1)
         if self.cfg.params.noise:
             self.state += self.np_random.uniform(low=-self.noise_variance, high=self.noise_variance, size=(self.dx, 1))
         obs = self.get_obs()

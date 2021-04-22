@@ -1,5 +1,5 @@
 model:
-  str: d_extra
+  str: d_noscale
   prob: false
   ensemble: false
   traj: false
@@ -7,7 +7,7 @@ model:
   gp: false
   lstm: false
   training:
-    hid_width: 32
+    hid_width: 256
     hid_depth: 2
     E: 1
     # Note: these do nothing for non trajectory based models

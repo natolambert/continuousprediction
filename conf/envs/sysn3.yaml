@@ -13,7 +13,11 @@ env:
     D: [[0],[0],[0]]
     dt: .001
     variance: 1
+    action_range: .1
     noise: true
+    norm_mat: true
+    zero_action: false
+
 
 num_trials: 200
 trial_timesteps: 100
@@ -26,6 +30,7 @@ model:
   training:
     t_range: 100
     state_indices_lorenz: [ 0,1,2 ]
+    no_scale: false
   preprocess:
     state:
       class: sklearn.preprocessing.MinMaxScaler

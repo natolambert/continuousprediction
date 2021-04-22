@@ -1,6 +1,6 @@
 env:
   name: statespace-v0
-  label: ss_raw
+  label: ss
   state_size: 3
   action_size: 1
   param_size: 0
@@ -13,12 +13,15 @@ env:
     D: [[0],[0],[0]]
     dt: .001
     variance: .01
+    action_range: .1
     noise: true
+    norm_mat: true
+    zero_action: false
 
 num_trials: 200
 trial_timesteps: 100
 #data_dir: l100_t100_v0.dat # v4 is normal l200 l400_t1250_v1.dat #
-data_dir: l1000_t100_test.dat # v4 is normal l200 l400_t1250_v1.dat #
+data_dir: l1000_t100_test.dat # l1000_t100_test.dat # v4 is normal l200 l400_t1250_v1.dat #
 
 
 
