@@ -34,7 +34,8 @@ def collect_data(cfg):
     t = np.linspace(0, tmax, n)
 
     data_Seq = []
-    new_init = np.random.uniform(low=[5, 5, 5], high=[10, 10, 10], size=(num_traj, 3))
+    # new_init = np.random.uniform(low=[5, 5, 5], high=[10, 10, 10], size=(num_traj, 3))
+    new_init = np.random.uniform(low=[-10, -10, -10], high=[10, 10, 10], size=(num_traj, 3))
 
     for row in new_init:
         u, v, w = row  # row[0], row[1], row[2]
@@ -84,7 +85,7 @@ def lorenz(cfg):
 
     # Analysis
     if mode == 'train':
-        from reacher_pd import create_dataset_step, create_dataset_traj
+        from mbrl_resources import create_dataset_step, create_dataset_traj
 
         prob = cfg.model.prob
         traj = cfg.model.traj
@@ -94,10 +95,8 @@ def lorenz(cfg):
         log.info(f"Training model P:{prob}, T:{traj}, E:{ens}")
 
         if traj:
+            raise NotImplementedError
             dataset = torch.load(hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'temp_traj.dat')
-            # dataset = create_dataset_traj(train_data, control_params=cfg.model.training.control_params,
-            #                               train_target=cfg.model.training.train_target)
-            # torch.save(dataset, hydra.utils.get_original_cwd() + '/trajectories/lorenz/' + 'temp_traj.dat')
         else:
             dataset = create_dataset_step(train_data, delta=delta)
 
@@ -119,8 +118,8 @@ def lorenz(cfg):
         # TODO add plotting code for predictions
         # Load test data
         log.info(f"Loading default data")
-        (test_data, _) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + 'raw' + cfg.data_dir)
+        # (test_data, _) = torch.load(
+        #     hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + 'raw' + cfg.data_dir)
 
         # Load models
         log.info("Loading models")
@@ -145,7 +144,8 @@ def lorenz(cfg):
             # entry.rewards = entry.rewards[0:cfg.plotting.t_range]
             # entry.actions = entry.actions[0:cfg.plotting.t_range]
 
-        MSEs, predictions = test_models(dat, models, env=name)
+        MSEs, predictions = test_models(test_data, models, env=name)
+        # MSEs, predictions = test_models(dat, models, env=name)
 
         from plot import plot_mse_err, plot_lorenz
 

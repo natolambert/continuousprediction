@@ -5,6 +5,7 @@ env:
   action_size: 5
   param_size: 15
   target_size: 5
+  normsincos: true
 
 data_dir: l1000_t100_n100.dat #l1000_t250_n100.dat # l500_t50_v5.dat #
 num_trials: 250

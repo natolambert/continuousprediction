@@ -1,0 +1,34 @@
+model:
+  str: lin
+  prob: false
+  ensemble: false
+  traj: false
+  delta: false
+  gp: false
+  lstm: false
+  linear: true
+  zero: false
+  training:
+    hid_width: 256
+    hid_depth: 2
+    E: 1
+    no_scale: false
+    # Note: these do nothing for non trajectory based models
+    train_target: true
+    control_params: true
+    filter_rate: 0.0
+    num_traj: 50
+  optimizer:
+    epochs: 20 #25
+    batch: 32
+    name: Adam
+    split: .8
+    lr: .0003 #.0001
+    regularization: 0 #0.003
+    max_size: 0
+  plotting:
+    label: Linear Model
+    color: '#ff7518'
+    color_plotly: rgb(255, 117, 24)
+    marker: ","
+    marker_plotly: hash-dot

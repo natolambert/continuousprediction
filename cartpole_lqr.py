@@ -178,7 +178,7 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
         else:
             modifier = .5 * np.random.random(4) + 1
             lim = cfg.trial_timesteps
-        policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
+        policy = LQR(A, B.transpose(), Q, R, actionBounds=[-3.0, 3.0])
         policy.K = np.multiply(policy.K, modifier)
         if cfg.data_mode == 'rand':
             from policy import randomPolicy
@@ -201,7 +201,7 @@ def collect_data_lqr(cfg, plot=False):  # Creates horizon^2/2 points
                 env.x_threshold = 2 * env.x_threshold
             else:
                 modifier = .5 * np.random.random(4) + 1
-            policy = LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0])
+            policy = LQR(A, B.transpose(), Q, R, actionBounds=[-3.0, 3.0])
             policy.K = np.multiply(policy.K, modifier)
             if cfg.data_mode == 'rand':
                 from policy import randomPolicy

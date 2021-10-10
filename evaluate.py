@@ -30,7 +30,8 @@ def forward_var(model, x):
     return torch.exp(variance)
 
 
-def test_models(test_data, models, verbose=False, env=None, compute_action=False, ret_var=False, t_range=np.inf):
+def test_models(test_data, models, verbose=False, env=None, compute_action=False, ret_var=False, not_compound=False,
+                t_range=np.inf):
     """
     Tests each of the models in the dictionary "models" on each of the trajectories in test_data.
     Note: this function uses Numpy arrays to handle multiple tests at once efficiently
@@ -127,10 +128,10 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         elif env == 'crazyflie':
             from crazyflie_pd import PidPolicy
             from omegaconf import OmegaConf
-            cfg = OmegaConf.load(hydra.utils.get_original_cwd()+'/conf/envs/crazyflie.yaml')
+            cfg = OmegaConf.load(hydra.utils.get_original_cwd() + '/conf/envs/crazyflie.yaml')
 
             policies = []
-            for p,d in zip(P,D):
+            for p, d in zip(P, D):
                 parameters = [[p[0], 0, d[0]],
                               [p[1], 0, d[1]]]
                 policy = PidPolicy(parameters, cfg.pid)
@@ -166,7 +167,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                 4) + 1  # np.random.random(4)*1.5 # makes LQR values from 0% to 200% of true value
             policies = [LQR(A, B.transpose(), Q, R, actionBounds=[-1.0, 1.0]) for i in range(len(test_data))]
             for p, K in zip(policies, K_param):
-                p.K = np.array(K) #.reshape(4)
+                p.K = np.array(K)  # .reshape(4)
 
     initials = np.array(initials)
     N, T, D = states.shape
@@ -174,6 +175,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
     if len(np.shape(actions)) == 2:
         actions = np.expand_dims(actions, axis=2)
     # Iterate through each type of model for evaluation
+    # state is first index of prediction, later take error of 1:
     predictions = {key: [states[:, 0, models[key].state_indices]] for key in models}
     currents = {key: states[:, 0, models[key].state_indices] for key in models}
 
@@ -185,8 +187,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         model = models[key]
         indices = model.state_indices
         traj = model.traj
-        lstm = "lstm" in key or "rnn" in key #model.cfg.model.lstm
-
+        lstm = "lstm" in key or "rnn" in key  # model.cfg.model.lstm
+        linear = model.linear
         ind_dict[key] = indices
 
         # # temp for plotting one-step
@@ -215,7 +217,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
 
                 else:
                     if i == 1:
-                        if 'cartpole' in env: A=1
+                        if 'cartpole' in env: A = 1
                         actions_lstm = actions[:, i - 1, :].reshape(1, N, A)
                         states_lstm = currents[key].reshape(1, N, len(models[key].state_indices))
                     else:
@@ -223,7 +225,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                         states_lstm = np.concatenate((states_lstm, prediction), axis=0)
                         if True:
                             train_len = model.cfg.model.optimizer.batch
-                            if np.shape(actions_lstm)[0]>train_len:
+                            if np.shape(actions_lstm)[0] > train_len:
                                 actions_lstm = actions_lstm[-train_len:]
                                 states_lstm = states_lstm[-train_len:]
                     # input of shape (seq_len, batch, input_size)
@@ -235,7 +237,7 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                     else:
                         prediction = model.predict_lstm(np.concatenate((states_lstm, actions_lstm), axis=2), num_traj=N)
                         prediction = np.array(prediction.detach())[-1, :, :].reshape(1, N,
-                                                                                      len(models[key].state_indices))
+                                                                                     len(models[key].state_indices))
 
                 # included for not erroring (hacky, not used)
                 var = np.zeros(np.shape(initials[:, indices]))
@@ -244,8 +246,39 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                 # Note - no probablistic LSTM models for now
                 predictions[key].append(prediction[0])
                 currents[key] = prediction.squeeze()
-            else:
 
+            elif linear:
+                if compute_action:
+                    if 'cartpole' in env:
+                        acts = np.stack(
+                            [[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
+                    elif 'crazyflie' in env:
+                        acts = np.stack(
+                            [p.get_action(currents[key][i, :]) for i, p in enumerate(policies)])
+                    else:
+                        acts = np.stack(
+                            [[p.act(obs2q(currents[key][i, :]))[0]][0] for i, p in enumerate(policies)])
+                else:
+                    acts = actions[:, i - 1, :]
+
+                prediction = model.predict_linear(np.hstack((currents[key], acts)))
+                # included for not erroring (hacky, not used)
+                var = np.zeros(np.shape(initials[:, indices]))
+                variances[key].append(var)
+
+                # Note - no probablistic LSTM models for now
+                # predictions[key].append(np.expand_dims(predic tion, axis=-1))
+                # FOR CARTPOLe
+                if "cartpole" in env:
+                    def weird_hack(num):
+                        return np.asscalar(np.array(num))
+
+                    prediction = np.stack([np.array([weird_hack(p[0]), weird_hack(p[1]), weird_hack(p[2]), weird_hack(p[3])]) for p in prediction])
+                predictions[key].append(0*prediction.squeeze())
+                currents[key] = prediction.squeeze()
+
+            elif not_compound:
+                # Predictions with step models looking at error through trajectories on real states.
                 if traj:
                     dat = [initials[:, indices], i * np.ones((N, 1))]
                     if env == 'reacher' or env == 'lorenz' or env == 'crazyflie':
@@ -292,11 +325,66 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
                     var = np.zeros(np.shape(initials[:, indices]))
 
                 predictions[key].append(prediction)
+                # print(np.shape(prediction.squeeze()))
+                # print(np.shape(states[:,i,indices]))
+                currents[key] = states[:,i,indices] #
+                variances[key].append(var)
+
+            else:
+
+                if traj:
+                    dat = [initials[:, indices], i * np.ones((N, 1))]
+                    if env == 'reacher' or env == 'lorenz' or env == 'crazyflie':
+                        if model.control_params:
+                            dat.extend([P_param, D_param])
+                        if model.train_target:
+                            dat.append(target)
+                    elif 'cartpole' in env:
+                        dat.append(K_param)
+                    prediction = np.array(model.predict(np.hstack(dat)).detach())
+
+
+                else:
+                    if env == 'lorenz':
+                        prediction = model.predict(np.array(currents[key]))
+                        prediction = np.array(prediction.detach())
+                    else:
+                        if compute_action:
+                            if 'cartpole' in env:
+                                acts = np.stack(
+                                    [[p.act(obs2q(currents[key][i, :]))[0]] for i, p in enumerate(policies)])
+                            elif 'crazyflie' in env:
+                                acts = np.stack(
+                                    [p.get_action(currents[key][i, :]) for i, p in enumerate(policies)])
+                            else:
+                                acts = np.stack(
+                                    [[p.act(obs2q(currents[key][i, :]))[0]][0] for i, p in enumerate(policies)])
+                        else:
+                            acts = actions[:, i - 1, :]
+                        prediction = model.predict(np.hstack((currents[key], acts)))
+                        prediction = np.array(prediction.detach())
+
+                # get variances if applicable
+                if model.prob:
+                    if env == 'lorenz':
+                        f = currents[key]
+                    else:
+                        if traj:
+                            f = np.hstack(dat)
+                        else:
+                            f = np.hstack((currents[key], acts))
+                    var = forward_var(model, f).detach().numpy()
+                else:
+                    var = np.zeros(np.shape(initials[:, indices]))
+                predictions[key].append(prediction)
                 currents[key] = prediction.squeeze()
                 variances[key].append(var)
 
     variances = {key: np.stack(variances[key]).transpose([1, 0, 2]) for key in variances}
-    predictions = {key: np.array(predictions[key]).transpose([1, 0, 2]) for key in predictions}
+    if linear:
+        predictions = {key: np.stack(predictions[key]).transpose([1, 0, 2]) for key in predictions}
+    else:
+        predictions = {key: np.array(predictions[key]).transpose([1, 0,2]) for key in predictions}
 
     MSEs = {key: np.square(states[:, :, ind_dict[key]] - predictions[key]).mean(axis=2)[:, 1:] for key in predictions}
 
@@ -307,15 +395,16 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
             # ind_dict[key] = [0,1,3,4,5]
             ind_dict[key] = [0, 1, 3, 4]
             pred_key = [0, 1, 3, 4]
-            ind_dict[key] = [0, 1,2, 3, 4,5,6,7,8]
-            pred_key = [0, 1,2, 3, 4,5,6,7,8]
+            ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+            pred_key = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
         elif env == 'reacher':
             ind_dict[key] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]
             pred_key = np.arange(np.shape(predictions[key][0])[1])
         else:
-            ind_dict[key] = np.arange(D) #np.shape(prediction)[1])
-            pred_key = np.arange(D) #np.shape(predictions[key][0])[1])  # changed from np.arange(np.shape(prediction)[1])
+            ind_dict[key] = np.arange(D)  # np.shape(prediction)[1])
+            pred_key = np.arange(
+                D)  # np.shape(predictions[key][0])[1])  # changed from np.arange(np.shape(prediction)[1])
         if t_range < np.shape(states)[1]:
             l = t_range
         else:
@@ -328,8 +417,8 @@ def test_models(test_data, models, verbose=False, env=None, compute_action=False
         # print(key)
         # print(np.sum(np.sum(MSEscaled[key])))
     # for state-space systems
-    # if 'ss' in env:
-    MSEscaled = MSEs
+    if 'ss' in env:
+        MSEscaled = MSEs
     # MSEs = {key: np.array(MSEs[key]).transpose() for key in MSEs}
     # if N > 1:
     #     predictions = {key: np.array(predictions[key]).transpose([1,0,2]) for key in predictions} # vectorized verion
@@ -493,7 +582,8 @@ def evaluate(cfg):
     if 'ss' in name:
         log.info(f"Loading default data")
         (train_data, test_data) = torch.load(
-            hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + str(cfg.env.params.pole) + cfg.data_dir)
+            hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + str(
+                cfg.env.params.pole) + cfg.data_dir)
         print(len(train_data))
         print(len(test_data))
         if cfg.plotting.train_set:
@@ -506,12 +596,12 @@ def evaluate(cfg):
         f = hydra.utils.get_original_cwd() + '/models/' + cfg.env.label + '/'
         for model_type in model_types:
             model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
-            models[model_type] = torch.load(f + str(cfg.env.params.pole)+model_str + ".dat")
-            print(hasattr(models[model_type],'no_scale'))
-            if not hasattr(models[model_type],'no_scale'):
+            models[model_type] = torch.load(f + str(cfg.env.params.pole) + model_str + ".dat")
+            print(hasattr(models[model_type], 'no_scale'))
+            if not hasattr(models[model_type], 'no_scale'):
                 models[model_type].no_scale = False
                 for n in models[model_type].nets:
-                    n.no_scale=False
+                    n.no_scale = False
 
 
     elif not name == 'lorenz':
@@ -539,15 +629,17 @@ def evaluate(cfg):
         for model_type in model_types:
             model_str = model_type if type(model_type) == str else ('%s_%d' % model_type)
             models[model_type] = torch.load(f + model_str + ".dat")
-            if not hasattr(models[model_type],'no_scale'):
+            if not hasattr(models[model_type], 'no_scale'):
+                models[model_type].no_scale = False
                 for n in models[model_type].nets:
-                    n.no_scale=False
+                    n.no_scale = False
 
     else:
         # # Load test data
         # Below was copied from lorenz... strange
         log.info(f"Loading default data")
-        (train_data, test_data) = torch.load(hydra.utils.get_original_cwd() + '/trajectories/'+ cfg.env.label + '/' + 'raw' + cfg.data_dir)
+        (train_data, test_data) = torch.load(
+            hydra.utils.get_original_cwd() + '/trajectories/' + cfg.env.label + '/' + 'raw' + cfg.data_dir)
 
         # Load models
         log.info("Loading models")
@@ -575,7 +667,7 @@ def evaluate(cfg):
         # idx = np.random.randint(0, len(data), num)
         if len(data) < num:
             print("reducing samples to number of points")
-            num=len(data)
+            num = len(data)
         idx = np.random.choice(np.arange(len(data)), size=num, replace=False)
         dat = [data[i] for i in idx]
 
@@ -611,6 +703,9 @@ def evaluate(cfg):
                 if name == 'reacher':
                     gt = gt[:, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17]]
                     idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+                    # FOR WITHOUT STATE SCALAR
+                    # gt = gt[:, [0, 1, 2, 3, 4, 8,9,10,11,12]]
+                    # idx = [0, 1, 2, 3, 4, 8,9,10,11,12]
                 elif 'cartpole' in name:
                     gt = gt[:, [0, 1, 2, 3]]
                     idx = [0, 1, 2, 3]
@@ -624,7 +719,7 @@ def evaluate(cfg):
                     if '9dim' in name:
                         idx = [0, 1, 2, 3, 4, 5, 6, 7, 8]
                     else:
-                        idx = [0,1,2]
+                        idx = [0, 1, 2]
 
                 if cfg.plotting.states:
                     # if
@@ -651,9 +746,9 @@ def evaluate(cfg):
         else:
             y_min = .0001
 
-        plot_mse_err(mse_evald, save_loc=(os.getcwd()+"/mse_pred.pdf"),
+        plot_mse_err(mse_evald, save_loc=(os.getcwd() + "/mse_pred.pdf"),
                      show=True, y_min=y_min, legend=cfg.plotting.legend)
-                        # show = True, y_min = y_min, y_max = cfg.plotting.mse_y_max, legend = cfg.plotting.legend)
+        # show = True, y_min = y_min, y_max = cfg.plotting.mse_y_max, legend = cfg.plotting.legend)
         # turn show off here
 
         mse_all = {key: [] for key in cfg.plotting.models}

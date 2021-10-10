@@ -56,6 +56,7 @@ class Reacher3dEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def _get_obs(self):
         theta = self.sim.data.qpos.flat[:5]
         return np.concatenate([
+            # theta,
             np.cos(theta),
             np.sin(theta),
             self.goal,

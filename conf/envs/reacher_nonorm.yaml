@@ -1,0 +1,35 @@
+env:
+  name: Reacher3d-v2
+  label: reacher_nonorm
+  state_size: 16
+  action_size: 5
+  param_size: 15
+  target_size: 5
+  normsincos: false
+
+data_dir: l500_t100_n100.dat #l1000_t250_n100.dat # l500_t50_v5.dat #
+num_trials: 200
+trial_timesteps: 500
+
+model:
+  training:
+    t_range: 500
+    no_scale: false
+    state_indices: [0,1,2,3,4,8,9,10,11,12]
+  preprocess:
+    state:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
+    action:
+      class: sklearn.preprocessing.StandardScaler
+    output:
+      class: sklearn.preprocessing.StandardScaler
+    index:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]
+    param:
+      class: sklearn.preprocessing.MinMaxScaler
+      params:
+        feature_range: [-1.,1.]

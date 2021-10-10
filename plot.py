@@ -582,7 +582,7 @@ def plot_loss(train_logs, test_logs, cfg, save_loc=None, show=False, title=None)
 
 
 def add_marker(err_traces, color=[], symbol=None, skip=None):
-    mark_every = 50
+    mark_every = 20
     size = 50
     l = len(err_traces[0]['x'])
     skip = np.random.randint(mark_every - 10) + 15
@@ -634,7 +634,7 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
                                               name=label_dict[k]+str(n))
         w_marker = []
         # for t in tr:
-        m = add_marker(tr, color=color_dict_plotly[k], symbol=marker_dict_plotly[k], skip=30)
+        m = add_marker(tr, color=color_dict_plotly[k], symbol=marker_dict_plotly[k], skip=5)
         # w_marker.append(m)
         [traces_plot.append(t) for t in m]
 
@@ -642,6 +642,8 @@ def plot_mse_err(mse_batch, save_loc=None, show=True, log_scale=True, title=None
         xaxis={'title': 'Prediction Step'},  # 2e-9, 5
         yaxis={'title': 'Mean Squared Error', 'range': [np.log10(20e-6), np.log10(10)]},# 25]}, # DEFAULT
         # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(2e-6), np.log10(100)]},# 25]}, # NOISE TEST
+        # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(0.01), np.log10(1000)]},# 25]}, # STATE-DIM
+        # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(10e-9), np.log10(0.1)]},# 25]}, # true-predict
         # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(100e-9), np.log10(100)]},# 25]}, #
         # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(.01), np.log10(10000)]},# 25]}, #
         # yaxis={'title': 'Mean Squared Error', 'range': [np.log10(.005), np.log10(2000000)]},# 25]}, # DIVERGING TEST
@@ -716,9 +718,9 @@ def plot_lorenz(data, cfg, predictions=None):
     import plotly.graph_objects as go
 
     fig = go.Figure()
-
+    l = 250 #100
     for dat in data:
-        x, y, z = dat.states[:, 0], dat.states[:, 1], dat.states[:, 2]
+        x, y, z = dat.states[:l, 0], dat.states[:l, 1], dat.states[:l, 2]
         fig.add_trace(go.Scatter3d(
             x=x, y=y, z=z,
             # color=(1, c[i], 0),
@@ -745,16 +747,18 @@ def plot_lorenz(data, cfg, predictions=None):
     if predictions is not None:
         for key, p in predictions.items():
             if len(np.shape(p)) == 3:
-                fig.add_trace(go.Scatter3d(x=p[0, :, 0], y=p[0, :, 1], z=p[0, :, 2],
+                id = 2
+                fig.add_trace(go.Scatter3d(x=p[id, :l, 0], y=p[id, :l, 1], z=p[id, :l, 2],
                                            name=label_dict[key], legendgroup=key,
                                            marker=dict(
-                                               size=1,
-                                               color=np.arange(len(x)),
-                                               colorscale=color_scales_dict[key],
+                                               size=2,
+                                               symbol="diamond",
+                                               color=np.arange(len(x)), #"rgba(200,20,20,.8)",  #,
+                                               colorscale="reds", #color_scales_dict[key],
                                            ),
                                            line=dict(
-                                               color=color_dict_plotly[key],
-                                               width=1
+                                               color="rgb(200,20,20)", #color_dict_plotly[key],
+                                               width=5
                                            ),
                                            ))
             else:
@@ -775,34 +779,35 @@ def plot_lorenz(data, cfg, predictions=None):
         width=1500,
         height=800,
         autosize=False,
-        showlegend=True if predictions is not None else False,
+        showlegend=True, # if predictions is not None else False,
         font=dict(
             family="Times New Roman, Times, serif",
             size=18,
             color="black"
         ),
         scene_camera=dict(eye=dict(x=1.5 * -.1, y=1.5 * 1.5, z=1.5 * .25)),
+        # scene_camera=dict(eye=dict(x=0, y=0, z=1)),
         scene=dict(
             # xaxis=dict(nticks=4, range=[-100, 100], ),
             # yaxis=dict(nticks=4, range=[-100, 100], ),
             # zaxis=dict(nticks=4, range=[-100, 100], ),
-            xaxis=dict(nticks=5, range=[-40, 40],
+            xaxis=dict(nticks=10, range=[-40, 40],
                        backgroundcolor="rgba(0,0,0,0)",
-                       gridcolor="rgb(255, 255, 255)",
+                       gridcolor="rgb(255, 255, 255)", #"black",
                        showbackground=True,
-                       zerolinecolor="rgb(255, 255, 255)",
+                       # zerolinecolor="rgb(255, 255, 255)",
                        ),
-            yaxis=dict(nticks=5, range=[-60, 60],
+            yaxis=dict(nticks=10, range=[-60, 60],
                        backgroundcolor="rgba(0,0,0,0)",
-                       gridcolor="rgb(255, 255, 255)",
+                       gridcolor= "rgb(255, 255, 255)", #"black",
                        showbackground=True,
-                       zerolinecolor="rgb(255, 255, 255)",
+                       # zerolinecolor="rgb(255, 255, 255)",
                        ),
-            zaxis=dict(nticks=5, range=[-40, 75],
+            zaxis=dict(nticks=10, range=[-40, 75],
                        backgroundcolor="rgba(0,0,0,0)",
-                       gridcolor="rgb(255, 255, 255)",
+                       gridcolor="rgb(255, 255, 255)", #"black", #
                        showbackground=True,
-                       zerolinecolor="rgb(255, 255, 255)",
+                       # zerolinecolor="rgb(255, 255, 255)",
                        ),
             aspectratio=dict(x=1.2, y=1.2, z=0.7),
             aspectmode='manual'

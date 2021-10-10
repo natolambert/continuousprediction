@@ -22,6 +22,113 @@ import multiprocessing as mp
 
 log = logging.getLogger(__name__)
 
+def create_dataset_traj(data, control_params=True, train_target=True, threshold=0.0, delta=False, t_range=0, is_lstm=False, lstm_batch=0):
+    """
+    Creates a dataset with entries for PID parameters and number of
+    timesteps in the future
+
+    Parameters:
+    -----------
+    data: An array of dotmaps where each dotmap has info about a trajectory
+    threshold: the probability of dropping a given data entry
+    """
+    data_in, data_out = [], []
+    for id, sequence in enumerate(data):
+        if id % 5 == 0: print(f"- processing seq {id}")
+        states = sequence.states
+        if t_range > 0:
+            states = states[:t_range]
+        if id > 99:
+            continue
+        P = sequence.P
+        D = sequence.D
+        target = sequence.target
+        n = states.shape[0]
+
+        if not is_lstm:
+            for i in range(n):  # From one state p
+                for j in range(i + 1, n):
+                    # This creates an entry for a given state concatenated
+                    # with a number t of time steps as well as the PID parameters
+
+                    # The randomely continuing is something I thought of to shrink
+                    # the datasets while still having a large variety
+
+                    if np.random.random() < threshold:
+                        continue
+                    dat = [states[i], j - i]
+                    if control_params:
+                        dat.extend([P, D])
+                    if train_target:
+                        dat.append(target)
+                    data_in.append(np.hstack(dat))
+                    # data_in.append(np.hstack((states[i], j-i, target)))
+                    if delta:
+                        data_out.append(states[j] - states[i])
+                    else:
+                        data_out.append(states[j])
+        else:
+            for i in range(n-lstm_batch):
+                if np.random.random() < threshold:
+                    continue
+                for j in range(i, i+lstm_batch):
+                    dat = [states[j], lstm_batch-j]
+                    if control_params:
+                        dat.extend([P, D])
+                    if train_target:
+                        dat.append(target)
+                    data_in.append(np.hstack(dat))
+                    # data_in.append(np.hstack((states[i], j-i, target)))
+                    if delta:
+                        data_out.append(states[i+lstm_batch] - states[j])
+                    else:
+                        data_out.append(states[i+lstm_batch])
+    data_in = np.array(data_in, dtype=np.float32)
+    data_out = np.array(data_out, dtype=np.float32)
+
+    return data_in, data_out
+
+
+def create_dataset_step(data, delta=True, t_range=0, is_lstm = False, lstm_batch = 0):
+    """
+    Creates a dataset for learning how one state progresses to the next
+
+    Parameters:
+    -----------
+    data: A 2d np array. Each row is a state
+    """
+    data_in = []
+    data_out = []
+    for sequence in data:
+        states = sequence.states
+        if t_range > 0:
+            states = states[:t_range]
+        for i in range(states.shape[0] - 1):
+            if 'actions' in sequence.keys():
+                actions = sequence.actions
+                if t_range:
+                    actions = actions[:t_range]
+                data_in.append(np.hstack((states[i], actions[i])))
+                if delta:
+                    data_out.append(states[i + 1] - states[i])
+                else:
+                    data_out.append(states[i + 1])
+            else:
+                data_in.append(np.array(states[i]))
+                if delta:
+                    data_out.append(states[i + 1] - states[i])
+                else:
+                    data_out.append(states[i + 1])
+        if is_lstm:
+            remainder = len(data_out)%lstm_batch
+            if remainder:
+                data_out = data_out[:len(data_out)-remainder]
+                data_in = data_in[:len(data_in)-remainder]
+    data_in = np.array(data_in, dtype=np.float32)
+    data_out = np.array(data_out, dtype=np.float32)
+
+    return data_in, data_out
+
 
 def obs2q(obs):
     if len(obs) < 5:

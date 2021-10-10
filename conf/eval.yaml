@@ -21,11 +21,15 @@ hydra:
 
 plotting:
   models:
-   - d_noscale
-#  - d #d_state #  - d_fb
-#  - d_state
-#  - pe_state
-#  - pe #pe_state #d #_state #_fb
+    - lin
+#    - d
+#    - d #2
+#    - d_state
+#    - pe
+#    - pe_state
+#   - d_state
+#   - pe_state
+#   - pe #pe_state #d #_state #_fb
 #  - pe
 #  - t
 #  - pe

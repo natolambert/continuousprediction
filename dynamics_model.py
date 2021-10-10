@@ -403,6 +403,10 @@ class DynamicsModel(object):
         self.delta = cfg.model.delta
         self.train_target = cfg.model.training.train_target
         self.control_params = cfg.model.training.control_params
+        self.no_scale = cfg.model.training.no_scale
+        self.linear = cfg.model.linear
+        self.pred_zero = cfg.model.zero
+
         if env == "Reacher":
             self.state_indices = cfg.model.training.state_indices
         elif env == "Lorenz":
@@ -443,6 +447,8 @@ class DynamicsModel(object):
             self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="Lorenz") for i in range(self.E)]
         elif "SS" in env:
             self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="ss") for i in range(self.E)]
+        else:
+            self.nets = [Net(self.n_in, self.n_out, cfg, self.loss_fn, env="misc") for i in range(self.E)]
 
     def predict_lstm(self, x, num_traj=1):
         # LSTM takes in a variable length object and predicts the next in the future.
@@ -459,6 +465,22 @@ class DynamicsModel(object):
             prediction += out / len(self.nets)
 
         return prediction[:, :, :]
+
+    def predict_linear(self, x):
+        # do least squared prediction
+        inputStates = x[:, :len(self.state_indices)]
+        normStates = self.stateScaler.transform(inputStates)
+        if self.cfg.env.action_size > 0:
+            inputActions = x[:, len(self.state_indices):]
+            normActions = self.actionScaler.transform(inputActions)
+            normInput = np.hstack((normStates, normActions))
+        else:
+            normInput = normStates
+        # state =  np.matmul(normInput, self.w)
+        state =  np.matmul(x, self.w)
+        return state
+        # return self.outputScaler.transform(state)
+
 
     def predict(self, x):
         """
@@ -501,6 +523,42 @@ class DynamicsModel(object):
                                   # dataset[0][:, (self.cfg.env.state_size - len(self.state_indices)):])),
                                   dataset[0][:, self.cfg.env.state_size:])),
                        dataset[1][:, self.state_indices])
+
+        if self.linear:
+            print(f"TRAINING LINEAR MODEL")
+            # Do Least Squares
+            input = np.stack(dataset[0]).astype(np.float32)
+            output = np.stack(dataset[1]).astype(np.float32)
+            # A = np.hstack((X, U))
+            # b = dX
+            self.stateScaler = hydra.utils.instantiate(cfg.model.preprocess.state)
+            self.actionScaler = hydra.utils.instantiate(cfg.model.preprocess.action)
+            self.outputScaler = hydra.utils.instantiate(cfg.model.preprocess.output)
+
+            inputStates = input[:, :len(self.state_indices)]
+            inputActions = input[:, len(self.state_indices):]
+
+            self.stateScaler.fit(inputStates)
+
+            self.outputScaler.fit(output)
+            normStates = self.stateScaler.transform(inputStates)
+            normOutput = self.outputScaler.transform(output)
+
+            if np.shape(inputActions)[1] > 0:
+                self.actionScaler.fit(inputActions)
+                normActions = self.actionScaler.transform(inputActions)
+                normInput = np.hstack((normStates, normActions))
+            else:
+                normInput = normStates
+
+            A = input #normInput
+            b = output # normOutput
+
+            # Generate the weights of the least squares problem
+            w, res, rank, s = np.linalg.lstsq(A, b, rcond=None)
+            self.w = w
+            res = np.mean((b - np.dot(A, w) ** 2))
+            return res, rank
 
         if self.ens:
             from sklearn.model_selection import KFold  # for dataset
