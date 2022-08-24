@@ -1,6 +1,11 @@
 # continuousprediction
 **Learning Accurate Long-term Dynamicsfor Model-based Reinforcement Learning**
 
+Note: I have added an example of how to run this in MBRL-Lib (which is more supported than this repo).
+
+Training [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/15lodC9KyzzQCv9hQY3wtAe-yYOdk9vZB?usp=sharing) 
+
+
 ## Abstract
 
 Accurately predicting the dynamics of robotic systems is crucial to make use of model-based control. A common way to estimate dynamics is by modeling the one-step ahead prediction and then use it to recursively propagate the predicted state distribution over long horizons. Unfortunately, this approach is known to compound even small prediction errors, making long-term predictions inaccurate. In this paper we propose a new parametrizaion to supervised learning on state-action data to stably predict at longer horizons -- that we call a trajectory-based model. This trajectory-based model takes an initial state, a time index, and control parameters as inputs and predicts a state at that time.
